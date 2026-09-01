@@ -22,6 +22,7 @@ export const Store = {
   // ---- Wishlist ----
   setWishlist(ids) { this._wishlist = new Set((ids || []).map(Number)); this.emit(); },
   isWished(id) { return this._wishlist.has(Number(id)); },
+  wishlistCount() { return this._wishlist.size; },
   async loadWishlist() {
     if (!this.isAuthed()) { this._wishlist = new Set(); this.emit(); return; }
     try {
@@ -85,9 +86,15 @@ export const Store = {
   saveGuest() { localStorage.setItem(GUEST_KEY, JSON.stringify(this._guest)); this.emit(); },
   addGuestItem(item) {
     const qty = item.quantity || 1;
-    const ex = this._guest.find((i) => i.productId === item.productId);
+    if (item.isCustom) {
+      this._guest.push({ productId: item.productId, name: item.name, price: item.price, mrp: item.mrp, slug: item.slug, image: item.image || null, module: item.module || 'shop', quantity: qty, variant: item.variant || null, customization: item.customization || null, isCustom: true });
+      this.saveGuest();
+      return;
+    }
+    const variantKey = item.variant ? JSON.stringify(item.variant) : null;
+    const ex = this._guest.find((i) => i.productId === item.productId && JSON.stringify(i.variant || null) === variantKey && !i.isCustom);
     if (ex) ex.quantity = Math.min(20, ex.quantity + qty);
-    else this._guest.push({ productId: item.productId, name: item.name, price: item.price, mrp: item.mrp, slug: item.slug, image: item.image || null, module: item.module || 'shop', quantity: qty });
+    else this._guest.push({ productId: item.productId, name: item.name, price: item.price, mrp: item.mrp, slug: item.slug, image: item.image || null, module: item.module || 'shop', quantity: qty, variant: item.variant || null, isCustom: false });
     this.saveGuest();
   },
   setGuestQty(productId, qty) {
@@ -106,7 +113,15 @@ export const Store = {
     if (!this._guest.length) return;
     const { api } = await import('./api.js');
     for (const it of this._guest) {
-      try { await api.post('/cart/items?module=' + (it.module || 'shop'), { productId: it.productId, quantity: it.quantity }); } catch { /* ignore */ }
+      try {
+        if (it.isCustom && it.customization) {
+          await api.post('/cart/custom', { productId: it.productId, color: it.variant?.color || 'white', size: it.variant?.size || 'M', fit: it.variant?.fit || 'regular', designData: it.customization, quantity: it.quantity });
+        } else if (it.variant) {
+          await api.post('/cart/items?module=' + (it.module || 'shop'), { productId: it.productId, quantity: it.quantity, variant: it.variant });
+        } else {
+          await api.post('/cart/items?module=' + (it.module || 'shop'), { productId: it.productId, quantity: it.quantity });
+        }
+      } catch { /* ignore */ }
     }
     this.clearGuest();
     try { this.setCart(await api.get('/cart/summary')); } catch { /* ignore */ }

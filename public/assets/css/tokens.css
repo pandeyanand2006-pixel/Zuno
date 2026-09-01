@@ -1,47 +1,49 @@
 :root {
-  /* Brand palette — Zuno */
-  --zuno-primary: #4F46E5;
-  --zuno-primary-600: #4338CA;
-  --zuno-primary-700: #3730A3;
-  --zuno-primary-50: #EEF2FF;
-  --zuno-primary-100: #E0E7FF;
-  --zuno-accent: #FF7A45;
-  --zuno-accent-50: #FFF1EA;
+  /* ZUNO — Premium Clothing Brand Palette */
+  --zuno-primary: #0a0a0a;
+  --zuno-primary-600: #1a1a1a;
+  --zuno-primary-700: #000000;
+  --zuno-primary-50: #f5f5f3;
+  --zuno-primary-100: #e8e6e1;
+  --zuno-accent: #0a0a0a;
+  --zuno-accent-50: #fafaf9;
   --zuno-success: #16A34A;
-  --zuno-success-50: #ECFDF3;
-  --zuno-danger: #DC2626;
-  --zuno-danger-50: #FEF2F2;
-  --zuno-warning: #D97706;
-  --zuno-warning-50: #FFFBEB;
+  --zuno-success-50: #f0fdf4;
+  --zuno-danger: #dc2626;
+  --zuno-danger-50: #fef2f2;
+  --zuno-warning: #d97706;
+  --zuno-warning-50: #fffbeb;
 
-  /* Neutral ink */
-  --ink-900: #0F172A;
-  --ink-800: #1E293B;
-  --ink-700: #334155;
-  --ink-600: #475569;
-  --ink-500: #64748B;
-  --ink-400: #94A3B8;
-  --ink-300: #CBD5E1;
-  --ink-200: #E2E8F0;
-  --ink-100: #F1F5F9;
-  --ink-50: #F8FAFC;
-  --surface: #FFFFFF;
-  --surface-2: #FFFFFF;
-  --bg: #F6F7FB;
-  --bg-soft: #EEF1F8;
+  /* Editorial neutrals */
+  --ink-900: #0a0a0a;
+  --ink-800: #1a1a1a;
+  --ink-700: #2a2a2a;
+  --ink-600: #525252;
+  --ink-500: #737373;
+  --ink-400: #a3a3a3;
+  --ink-300: #d4d4d4;
+  --ink-200: #e5e5e5;
+  --ink-100: #f5f5f5;
+  --ink-50: #fafafa;
+  --surface: #ffffff;
+  --surface-2: #fafaf9;
+  --bg: #fafaf9;
+  --bg-soft: #f5f5f4;
 
-  /* Typography */
-  --font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --fs-xs: 0.75rem;
-  --fs-sm: 0.875rem;
-  --fs-md: 1rem;
-  --fs-lg: 1.125rem;
+  /* Typography — editorial fashion */
+  --font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-display: "Playfair Display", Georgia, "Times New Roman", serif;
+  --fs-xs: 0.7rem;
+  --fs-sm: 0.8rem;
+  --fs-md: 0.9375rem;
+  --fs-lg: 1.0625rem;
   --fs-xl: 1.375rem;
-  --fs-2xl: 1.75rem;
-  --fs-3xl: 2.25rem;
-  --fs-4xl: 3rem;
+  --fs-2xl: 1.85rem;
+  --fs-3xl: 2.5rem;
+  --fs-4xl: 3.5rem;
+  --fs-hero: clamp(2.8rem, 8vw, 5.5rem);
 
-  /* Spacing scale (8px base) */
+  /* Spacing */
   --sp-1: 4px;
   --sp-2: 8px;
   --sp-3: 12px;
@@ -53,49 +55,48 @@
   --sp-9: 56px;
   --sp-10: 72px;
 
-  /* Radii */
-  --r-sm: 8px;
-  --r-md: 12px;
-  --r-lg: 16px;
-  --r-xl: 20px;
-  --r-2xl: 28px;
+  /* Radii — fashion is less rounded */
+  --r-sm: 2px;
+  --r-md: 4px;
+  --r-lg: 8px;
+  --r-xl: 12px;
+  --r-2xl: 16px;
   --r-full: 999px;
 
-  /* Shadows — subtle */
-  --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.06);
-  --shadow-sm: 0 2px 8px rgba(15, 23, 42, 0.06);
-  --shadow-md: 0 8px 24px rgba(15, 23, 42, 0.08);
-  --shadow-lg: 0 16px 40px rgba(15, 23, 42, 0.12);
+  /* Shadows — soft editorial */
+  --shadow-xs: 0 1px 2px rgba(10, 10, 10, 0.04);
+  --shadow-sm: 0 2px 12px rgba(10, 10, 10, 0.06);
+  --shadow-md: 0 8px 24px rgba(10, 10, 10, 0.08);
+  --shadow-lg: 0 16px 40px rgba(10, 10, 10, 0.12);
 
-  /* Layout */
-  --nav-h: 64px;
+  --nav-h: 72px;
   --bottom-nav-h: 64px;
-  --maxw: 1200px;
+  --maxw: 1320px;
   --maxw-narrow: 880px;
 
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
-  --dur: 180ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --dur: 200ms;
+  --dur-slow: 400ms;
 }
 
 [data-theme="dark"] {
-  --zuno-primary-50: #1E1B4B;
-  --zuno-primary-100: #312E81;
-  --surface: #0F1320;
-  --surface-2: #161B2B;
-  --bg: #0A0D16;
-  --bg-soft: #111622;
-  --ink-900: #F8FAFC;
-  --ink-800: #E2E8F0;
-  --ink-700: #CBD5E1;
-  --ink-600: #94A3B8;
-  --ink-500: #64748B;
-  --ink-400: #475569;
-  --ink-300: #334155;
-  --ink-200: #233044;
-  --ink-100: #1A2233;
-  --ink-50: #141A28;
-  --zuno-primary-50: #1b1840;
-  --shadow-sm: 0 2px 10px rgba(0, 0, 0, 0.4);
-  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.5);
-  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.6);
+  --surface: #0a0a0a;
+  --surface-2: #141414;
+  --bg: #0a0a0a;
+  --bg-soft: #1a1a1a;
+  --ink-900: #fafafa;
+  --ink-800: #e5e5e5;
+  --ink-700: #d4d4d4;
+  --ink-600: #a3a3a3;
+  --ink-500: #737373;
+  --ink-400: #525252;
+  --ink-300: #2a2a2a;
+  --ink-200: #1a1a1a;
+  --ink-100: #141414;
+  --ink-50: #0a0a0a;
+  --zuno-primary-50: #1a1a1a;
+  --shadow-sm: 0 2px 12px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.5);
 }

@@ -1,7 +1,7 @@
 {
   "name": "zuno",
   "version": "1.0.0",
-  "description": "Zuno — One app for everyday life. An original Indian super app (commerce, grocery, food, services, payments).",
+  "description": "Zuno — Modern Everyday Clothing. A premium clothing brand with T-shirts, shirts and a live Custom Studio to create your own tee.",
   "type": "module",
   "main": "server/index.js",
   "scripts": {

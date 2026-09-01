@@ -327,6 +327,38 @@ export function initializeSchema() {
     );
     CREATE INDEX IF NOT EXISTS idx_bookings_user ON bookings(user_id);
 
+    CREATE TABLE IF NOT EXISTS product_variants (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      product_id INTEGER NOT NULL,
+      sku TEXT UNIQUE,
+      color TEXT NOT NULL,
+      size TEXT NOT NULL,
+      stock INTEGER NOT NULL DEFAULT 0,
+      price INTEGER,
+      images TEXT,
+      FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_variants_product ON product_variants(product_id);
+    CREATE INDEX IF NOT EXISTS idx_variants_sku ON product_variants(sku);
+
+    CREATE TABLE IF NOT EXISTS custom_designs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      product_id INTEGER,
+      color TEXT NOT NULL DEFAULT 'white',
+      size TEXT NOT NULL DEFAULT 'M',
+      fit TEXT NOT NULL DEFAULT 'regular',
+      design_data TEXT NOT NULL,
+      preview_image TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (product_id) REFERENCES products(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_designs_user ON custom_designs(user_id);
+    CREATE INDEX IF NOT EXISTS idx_designs_product ON custom_designs(product_id);
+
     CREATE TABLE IF NOT EXISTS audit_logs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER,
@@ -360,6 +392,22 @@ export function initializeSchema() {
   addColumn('service_providers', 'owner_user_id', 'INTEGER');
   addColumn('orders', 'restaurant_id', 'INTEGER');
   addColumn('sellers', 'owner_user_id', 'INTEGER');
+  // Clothing-specific columns
+  addColumn('products', 'colors', 'TEXT');
+  addColumn('products', 'sizes', 'TEXT');
+  addColumn('products', 'fit', 'TEXT');
+  addColumn('products', 'fabric', 'TEXT');
+  addColumn('products', 'collection', 'TEXT');
+  addColumn('products', 'customizable', 'INTEGER NOT NULL DEFAULT 0');
+  addColumn('products', 'featured', 'INTEGER NOT NULL DEFAULT 0');
+  addColumn('products', 'new_arrival', 'INTEGER NOT NULL DEFAULT 0');
+  addColumn('products', 'care_instructions', 'TEXT');
+  addColumn('cart_items', 'customization_data', 'TEXT');
+  addColumn('cart_items', 'variant_data', 'TEXT');
+  addColumn('cart_items', 'custom_price', 'INTEGER');
+  addColumn('order_items', 'customization_data', 'TEXT');
+  addColumn('order_items', 'variant_data', 'TEXT');
+  addColumn('order_items', 'custom_price', 'INTEGER');
 }
 
 export default db;

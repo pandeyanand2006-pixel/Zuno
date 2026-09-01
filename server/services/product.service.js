@@ -1,6 +1,7 @@
 import { db } from '../config/db.js';
 
 function serializeProduct(p) {
+  const variants = p.id ? (() => { try { return db.prepare('SELECT id, sku, color, size, stock, price FROM product_variants WHERE product_id = ?').all(p.id); } catch { return []; } })() : [];
   return {
     id: p.id,
     name: p.name,
@@ -19,15 +20,38 @@ function serializeProduct(p) {
     brandId: p.brand_id,
     sellerId: p.seller_id,
     active: !!p.active,
+    colors: p.colors ? JSON.parse(p.colors) : [],
+    sizes: p.sizes ? JSON.parse(p.sizes) : [],
+    fit: p.fit || null,
+    fabric: p.fabric || null,
+    collection: p.collection || null,
+    customizable: !!p.customizable,
+    featured: !!p.featured,
+    newArrival: !!p.new_arrival,
+    careInstructions: p.care_instructions || null,
+    variants,
   };
 }
 
 export const productService = {
-  list({ module = 'shop', category, search, page = 1, limit = 24, sort = 'popular', minPrice, maxPrice, brand }) {
+  list({ module = 'shop', category, search, page = 1, limit = 24, sort = 'popular', minPrice, maxPrice, brand, color, size, fit, collection, featured, newArrival }) {
     const clauses = ['p.active = 1', 'p.module = ?'];
     const params = [module];
-    if (category) { clauses.push('p.category_id = ?'); params.push(Number(category)); }
+    if (category) {
+      let catId = Number(category);
+      if (!catId) {
+        const row = db.prepare('SELECT id FROM categories WHERE slug = ?').get(String(category).toLowerCase());
+        if (row) catId = row.id;
+      }
+      if (catId) { clauses.push('p.category_id = ?'); params.push(catId); }
+    }
     if (brand) { clauses.push('p.brand_id = ?'); params.push(Number(brand)); }
+    if (color) { clauses.push('p.colors LIKE ?'); params.push(`%"${color}"%`); }
+    if (size) { clauses.push('p.sizes LIKE ?'); params.push(`%"${size}"%`); }
+    if (fit) { clauses.push('p.fit = ?'); params.push(fit); }
+    if (collection) { clauses.push('p.collection = ?'); params.push(collection); }
+    if (featured) clauses.push('p.featured = 1');
+    if (newArrival) clauses.push('p.new_arrival = 1');
     if (search) { clauses.push('(p.name LIKE ? OR p.description LIKE ?)'); params.push(`%${search}%`, `%${search}%`); }
     if (minPrice) { clauses.push('p.price >= ?'); params.push(Number(minPrice)); }
     if (maxPrice) { clauses.push('p.price <= ?'); params.push(Number(maxPrice)); }

@@ -1,82 +1,117 @@
-import { h, money, skeletonGrid, emptyState, errorState, toast } from '../ui.js';
+import { h, money, skeletonGrid, emptyState, errorState } from '../ui.js';
 import { api } from '../api.js';
-import { ProductCard, refreshCart } from '../components.js';
-
-const QUICK = [
-  { key: 'shop', label: 'Shop', em: '🛒', href: '#/shop', cls: 'shop' },
-  { key: 'grocery', label: 'Grocery', em: '🥦', href: '#/grocery', cls: 'grocery' },
-  { key: 'food', label: 'Food', em: '🍔', href: '#/food', cls: 'food' },
-  { key: 'services', label: 'Services', em: '🔧', href: '#/services', cls: 'services' },
-  { key: 'payments', label: 'Payments', em: '💳', href: '#/profile', cls: 'payments' },
-  { key: 'experiences', label: 'Experiences', em: '🎟️', href: '#/', cls: 'experiences' },
-];
+import { ProductCard } from '../components.js';
 
 export async function Home() {
-  const main = h('div', { class: 'container' });
+  const main = h('div', {});
 
-  // Hero
-  const heroSearch = h('input', { class: '', type: 'search', placeholder: 'Search “iPhone”, “milk”, “AC repair”…', 'aria-label': 'Universal search', style: { width: '100%', border: '1px solid var(--ink-200)', background: 'var(--surface)', borderRadius: 'var(--r-full)', padding: '14px 18px', fontSize: 'var(--fs-md)' } });
-  heroSearch.addEventListener('keydown', (e) => { if (e.key === 'Enter' && heroSearch.value.trim()) location.hash = '#/search?q=' + encodeURIComponent(heroSearch.value.trim()); });
-  const hero = h('section', { class: 'hero' },
-    h('div', { class: 'hero-glow' }),
-    h('span', { class: 'badge badge-info' }, 'Super app · India'),
-    h('h1', {}, 'Everything you need, in one place.'),
-    h('p', {}, 'Shop millions of products, get groceries in minutes, order food you love, book trusted home services and pay securely — all inside Zuno.'),
-    h('div', { class: 'hero-search' }, heroSearch),
-    h('div', { class: 'hero-cta' },
-      h('a', { class: 'btn btn-primary btn-lg', href: '#/shop' }, 'Start shopping'),
-      h('a', { class: 'btn btn-outline btn-lg', href: '#/services' }, 'Book a service')));
+  // ── HERO ──────────────────────────────────────────────────────────
+  const hero = h('section', { class: 'hero-fashion' },
+    h('div', { class: 'hero-fashion-inner container' },
+      h('div', { class: 'hero-copy' },
+        h('p', { class: 'hero-eyebrow' }, 'ZUNO — Est. 2024 · Made in India'),
+        h('h1', { class: 'hero-title' }, 'WEAR', h('br'), 'YOUR', h('br'), h('span', { class: 'hero-accent' }, 'ATTITUDE.')),
+        h('p', { class: 'hero-sub' }, 'Everyday essentials designed for people who don\'t follow the ordinary. Premium T-shirts and shirts, cut for your everyday.'),
+        h('div', { class: 'hero-cta' },
+          h('a', { class: 'btn btn-primary btn-lg', href: '#/shop?category=t-shirts' }, 'SHOP T-SHIRTS'),
+          h('a', { class: 'btn btn-outline btn-lg', href: '#/shop?category=shirts' }, 'SHOP SHIRTS'),
+          h('a', { class: 'btn btn-ghost btn-lg', href: '#/customize', style: { border: '1px solid var(--ink-900)' } }, 'CREATE YOUR OWN →'))),
+      h('div', { class: 'hero-visual' },
+        h('div', { class: 'hero-card hero-card-1' },
+          h('div', { class: 'hero-card-label' }, 'Oversized Core Tee · Black'),
+          h('div', { class: 'hero-card-price' }, '₹1,499')),
+        h('div', { class: 'hero-card hero-card-2' },
+          h('div', { class: 'hero-card-label' }, 'Oxford Shirt · White'),
+          h('div', { class: 'hero-card-price' }, '₹2,499')))));
 
-  const quick = h('section', { class: 'section', style: { paddingTop: '8px' } },
-    h('div', { class: 'grid grid-quick' },
-      ...QUICK.map((q) => h('a', { class: 'quick ' + q.cls, href: q.href }, h('span', { class: 'ic' }, q.em), h('span', { class: 'fw-600', style: { color: 'var(--ink-800)' } }, q.label)))));
+  // ── NEW ARRIVALS ─────────────────────────────────────────────────
+  const newArrivals = h('section', { class: 'section container' },
+    h('div', { class: 'section-title fashion' },
+      h('h2', {}, 'New Arrivals'),
+      h('a', { href: '#/shop?sort=newest', class: 'link-arrow' }, 'View all →')));
+  const newGrid = h('div', { class: 'grid grid-products' });
+  newArrivals.append(skeletonGrid(8));
+  newArrivals.append(newGrid);
 
-  // Personalized / featured
-  const featuredWrap = h('section', { class: 'section' }, h('div', { class: 'section-title' }, h('h2', {}, 'Picked for you'), h('a', { href: '#/shop', class: 'text-sm fw-600' }, 'View all →')));
-  featuredWrap.append(skeletonGrid(8));
-  const groceryWrap = h('section', { class: 'section' }, h('div', { class: 'section-title' }, h('h2', {}, 'Grocery, delivered fast'), h('a', { href: '#/grocery', class: 'text-sm fw-600' }, 'Shop grocery →')));
-  groceryWrap.append(skeletonGrid(4));
-  const foodWrap = h('section', { class: 'section' }, h('div', { class: 'section-title' }, h('h2', {}, 'Restaurants near you'), h('a', { href: '#/food', class: 'text-sm fw-600' }, 'Explore food →')));
-  foodWrap.append(skeletonGrid(4));
+  // ── CATEGORIES ───────────────────────────────────────────────────
+  const categories = h('section', { class: 'section container' },
+    h('div', { class: 'section-title fashion' }, h('h2', {}, 'Shop by Category')),
+    h('div', { class: 'cat-grid' },
+      h('a', { class: 'cat-card cat-tshirts', href: '#/shop?category=t-shirts' },
+        h('div', { class: 'cat-card-inner' },
+          h('h3', {}, 'T-Shirts'),
+          h('p', {}, 'Oversized · Regular · Graphic · Plain · Polo'),
+          h('span', { class: 'cat-cta' }, 'Shop T-Shirts →'))),
+      h('a', { class: 'cat-card cat-shirts', href: '#/shop?category=shirts' },
+        h('div', { class: 'cat-card-inner' },
+          h('h3', {}, 'Shirts'),
+          h('p', {}, 'Casual · Printed · Overshirt · Solid'),
+          h('span', { class: 'cat-cta' }, 'Shop Shirts →')))));
 
-  main.append(hero, quick, featuredWrap, groceryWrap, foodWrap);
+  // ── COLLECTIONS ──────────────────────────────────────────────────
+  const collections = h('section', { class: 'section container' },
+    h('div', { class: 'section-title fashion' }, h('h2', {}, 'Collections')),
+    h('div', { class: 'collection-grid' },
+      h('a', { class: 'collection-card', href: '#/shop?collection=Essentials' },
+        h('div', { class: 'collection-card-bg', style: { background: '#f5f5f3' } }),
+        h('div', { class: 'collection-card-content' }, h('h3', {}, 'THE EVERYDAY COLLECTION'), h('p', {}, 'Minimal everyday T-shirts and shirts'), h('span', { class: 'link-arrow' }, 'Explore →'))),
+      h('a', { class: 'collection-card dark', href: '#/shop?collection=After%20Dark' },
+        h('div', { class: 'collection-card-bg', style: { background: '#0a0a0a' } }),
+        h('div', { class: 'collection-card-content' }, h('h3', {}, 'AFTER DARK'), h('p', {}, 'Dark-toned premium essentials'), h('span', { class: 'link-arrow' }, 'Explore →'))),
+      h('a', { class: 'collection-card', href: '#/shop?collection=Street%20Form' },
+        h('div', { class: 'collection-card-bg', style: { background: '#e8e6e1' } }),
+        h('div', { class: 'collection-card-content' }, h('h3', {}, 'STREET FORM'), h('p', {}, 'Oversized and graphic'), h('span', { class: 'link-arrow' }, 'Explore →'))),
+      h('a', { class: 'collection-card', href: '#/shop?collection=Essentials' },
+        h('div', { class: 'collection-card-bg', style: { background: '#fafaf9' } }),
+        h('div', { class: 'collection-card-content' }, h('h3', {}, 'ESSENTIALS'), h('p', {}, 'Plain T-shirts and shirts'), h('span', { class: 'link-arrow' }, 'Explore →')))));
 
-  // data loads
+  // ── CUSTOM STUDIO TEASER ─────────────────────────────────────────
+  const studio = h('section', { class: 'studio-teaser' },
+    h('div', { class: 'container' },
+      h('div', { class: 'studio-teaser-inner' },
+        h('div', {},
+          h('p', { class: 'hero-eyebrow', style: { color: '#fff', opacity: '0.7' } }, 'ZUNO CUSTOM STUDIO'),
+          h('h2', {}, 'MAKE IT', h('br'), 'YOURS.'),
+          h('p', { style: { color: 'rgba(255,255,255,0.7)', marginTop: '12px', maxWidth: '36ch' } }, 'Create a T-shirt that is completely yours. Add text, upload images, choose colors — and see it live.'),
+          h('a', { class: 'btn btn-primary btn-lg', href: '#/customize', style: { marginTop: '20px', background: '#fff', color: '#0a0a0a', borderColor: '#fff' } }, 'START DESIGNING →')),
+        h('div', { class: 'studio-preview' },
+          h('div', { class: 'studio-shirt' },
+            h('div', { class: 'studio-shirt-label' }, 'YOUR DESIGN HERE'),
+            h('div', { style: { fontSize: '48px', marginTop: '12px' } }, '✦'))))));
+
+  // ── TRUST ────────────────────────────────────────────────────────
+  const trust = h('section', { class: 'section container' },
+    h('div', { class: 'trust-grid' },
+      h('div', { class: 'trust-item' }, h('div', { class: 'trust-icon' }, '◧'), h('h4', {}, 'Free shipping'), h('p', { class: 'muted text-sm' }, 'On orders above ₹999')),
+      h('div', { class: 'trust-item' }, h('div', { class: 'trust-icon' }, '↺'), h('h4', {}, 'Easy returns'), h('p', { class: 'muted text-sm' }, '7-day hassle-free returns')),
+      h('div', { class: 'trust-item' }, h('div', { class: 'trust-icon' }, '✓'), h('h4', {}, 'Premium cotton'), h('p', { class: 'muted text-sm' }, '240 GSM heavyweight')),
+      h('div', { class: 'trust-item' }, h('div', { class: 'trust-icon' }, '♡'), h('h4', {}, 'Made in India'), h('p', { class: 'muted text-sm' }, 'Designed and made with care'))));
+
+  main.append(hero, newArrivals, categories, collections, studio, trust);
+
+  // ── DATA ─────────────────────────────────────────────────────────
   (async () => {
     try {
-      const [{ items }, { items: gItems }, { items: food }] = await Promise.all([
-        api.get('/products', { module: 'shop', limit: 12, sort: 'popular' }),
-        api.get('/products', { module: 'grocery', limit: 8, sort: 'popular' }),
-        api.get('/restaurants', { limit: 8 }),
-      ]);
-      const fg = featuredWrap.querySelector('.grid'); if (fg) fg.remove();
-      if (items.length) featuredWrap.append(h('div', { class: 'grid grid-products' }, ...items.map(ProductCard)));
-      else featuredWrap.append(emptyState({ title: 'Nothing yet', desc: 'Check back soon.' }));
-
-      const gg = groceryWrap.querySelector('.grid'); if (gg) gg.remove();
-      if (gItems.length) groceryWrap.append(h('div', { class: 'grid grid-products' }, ...gItems.map(ProductCard)));
-      else groceryWrap.append(emptyState({ title: 'Grocery coming soon' }));
-
-      const fgr = foodWrap.querySelector('.grid'); if (fgr) fgr.remove();
-      if (food.length) foodWrap.append(h('div', { class: 'grid grid-cards' }, ...food.map(RestaurantCard)));
-      else foodWrap.append(emptyState({ title: 'Restaurants coming soon' }));
+      const { items } = await api.get('/products', { module: 'shop', limit: 8, sort: 'newest' });
+      const sk = newArrivals.querySelector('.skeleton'); if (sk) sk.remove();
+      // Remove the extra skeleton grid, keep newGrid
+      const skeletons = newArrivals.querySelectorAll('.grid'); skeletons.forEach(g => { if (g !== newGrid) g.remove(); });
+      // Actually newGrid is empty, we appended skeletonGrid(8) directly. Clear it.
+      newArrivals.querySelectorAll('.skeleton').forEach(el => el.remove());
+      // Remove the skeletonGrid wrapper if present
+      const grids = newArrivals.querySelectorAll('.grid'); grids.forEach(g => { if (g.children.length === 0 || g.querySelector('.skeleton')) g.remove(); });
+      if (items.length) {
+        // Ensure newGrid is in DOM
+        if (!newArrivals.contains(newGrid)) newArrivals.append(newGrid);
+        newGrid.innerHTML = '';
+        newGrid.append(...items.map(ProductCard));
+      } else {
+        newArrivals.append(emptyState({ title: 'New arrivals coming soon', desc: 'We are cutting the next drop.' }));
+      }
     } catch (err) {
-      const msg = err.message;
-      [featuredWrap, groceryWrap, foodWrap].forEach((w) => {
-        const g = w.querySelector('.grid'); if (g) g.remove();
-        w.append(errorState(msg, () => location.reload()));
-      });
+      newArrivals.append(errorState(err.message, () => location.reload()));
     }
   })();
 
   return main;
-}
-
-export function RestaurantCard(r) {
-  return h('a', { class: 'card', href: '#/food/' + r.slug, style: { textDecoration: 'none', color: 'inherit', display: 'block' } },
-    h('div', { class: 'product-thumb', style: { aspectRatio: '16/9' } }, h('span', { style: { fontSize: '34px' } }, '🍴')),
-    h('div', { class: 'product-body' },
-      h('div', { class: 'product-name' }, r.name),
-      h('div', { class: 'product-meta' }, (r.cuisine || '') + ' · ★ ' + (r.rating || '—')),
-      h('div', { class: 'product-meta' }, money(r.delivery_fee) + ' delivery · ' + (r.eta_minutes || 30) + ' min')));
 }

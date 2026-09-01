@@ -18,6 +18,7 @@ import { ServiceProviders, Provider } from './pages/services.js';
 import { Search } from './pages/search.js';
 import { Admin } from './pages/admin.js';
 import { SellerDashboard, RestaurantDashboard, ProviderDashboard } from './pages/partner.js';
+import { Customize } from './pages/customize.js';
 
 // Register routes
 route('/', Home);
@@ -40,10 +41,15 @@ route('/food/checkout', FoodCheckout);
 route('/services', ServiceProviders);
 route('/services/:slug', Provider);
 route('/search', Search);
+route('/customize', Customize);
 route('/admin', Admin);
 route('/seller', SellerDashboard);
 route('/restaurant-admin', RestaurantDashboard);
 route('/provider-admin', ProviderDashboard);
+// Legacy super-app routes → redirect to shop
+route('/grocery', () => { location.hash = '#/shop'; return h('div', { class: 'container section' }, 'Redirecting to shop…'); });
+route('/food', () => { location.hash = '#/shop'; return h('div', { class: 'container section' }, 'Redirecting to shop…'); });
+route('/food/:slug', () => { location.hash = '#/shop'; return h('div', { class: 'container section' }, 'Redirecting…'); });
 
 // Shell
 const app = document.getElementById('app');

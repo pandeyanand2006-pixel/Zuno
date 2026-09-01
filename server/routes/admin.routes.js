@@ -23,28 +23,57 @@ router.post('/users/:id/activate', (req, res) => {
   return ok(res, null, 'Activated');
 });
 
-// Products (CRUD)
+// Products (Clothing CRUD)
 const productSchema = z.object({
   name: z.string().min(2), categoryId: z.number().int().positive(),
   price: z.number().int().positive(), mrp: z.number().int().positive(),
   stock: z.number().int().min(0), module: z.string().default('shop'),
   description: z.string().optional(), images: z.array(z.string()).optional(),
+  colors: z.array(z.string()).optional(), sizes: z.array(z.string()).optional(),
+  fit: z.string().optional(), fabric: z.string().optional(), collection: z.string().optional(),
+  customizable: z.boolean().optional(), featured: z.boolean().optional(), newArrival: z.boolean().optional(),
 });
 router.post('/products', validate(productSchema), (req, res) => {
   const slug = slugify(req.validated.name) + '-' + Math.random().toString(36).slice(2, 6);
-  const info = db.prepare('INSERT INTO products (seller_id, category_id, name, slug, description, price, mrp, stock, images, module) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-    .run(null, req.validated.categoryId, req.validated.name, slug, req.validated.description || '', req.validated.price, req.validated.mrp, req.validated.stock, JSON.stringify(req.validated.images || []), req.validated.module);
+  const v = req.validated;
+  const info = db.prepare('INSERT INTO products (seller_id, category_id, name, slug, description, price, mrp, stock, images, module, colors, sizes, fit, fabric, collection, customizable, featured, new_arrival, care_instructions) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+    .run(null, v.categoryId, v.name, slug, v.description || '', v.price, v.mrp, v.stock, JSON.stringify(v.images || []), v.module, JSON.stringify(v.colors || []), JSON.stringify(v.sizes || []), v.fit || null, v.fabric || null, v.collection || null, v.customizable ? 1 : 0, v.featured ? 1 : 0, v.newArrival ? 1 : 0, 'Machine wash cold');
+  // Create variants for each color/size
+  if (v.colors && v.sizes) {
+    const varIns = db.prepare('INSERT INTO product_variants (product_id, sku, color, size, stock, price) VALUES (?, ?, ?, ?, ?, ?)');
+    for (const color of v.colors) for (const size of v.sizes) {
+      const sku = `ZUNO-${info.lastInsertRowid}-${color.toUpperCase().replace(/[^A-Z0-9]/g, '')}-${size}`;
+      try { varIns.run(info.lastInsertRowid, sku, color, size, Math.floor(v.stock / (v.colors.length * v.sizes.length)) + 5, v.price); } catch {}
+    }
+  }
   return ok(res, { id: info.lastInsertRowid }, 'Product created', 201);
 });
 router.put('/products/:id', (req, res) => {
   const d = req.body;
-  db.prepare('UPDATE products SET name = COALESCE(?, name), price = COALESCE(?, price), mrp = COALESCE(?, mrp), stock = COALESCE(?, stock), active = COALESCE(?, active) WHERE id = ?')
-    .run(d.name || null, d.price || null, d.mrp || null, d.stock ?? null, d.active ?? null, req.params.id);
+  db.prepare('UPDATE products SET name = COALESCE(?, name), price = COALESCE(?, price), mrp = COALESCE(?, mrp), stock = COALESCE(?, stock), active = COALESCE(?, active), colors = COALESCE(?, colors), sizes = COALESCE(?, sizes), fit = COALESCE(?, fit), fabric = COALESCE(?, fabric), collection = COALESCE(?, collection) WHERE id = ?')
+    .run(d.name || null, d.price || null, d.mrp || null, d.stock ?? null, d.active ?? null, d.colors ? JSON.stringify(d.colors) : null, d.sizes ? JSON.stringify(d.sizes) : null, d.fit || null, d.fabric || null, d.collection || null, req.params.id);
   return ok(res, null, 'Product updated');
 });
 router.delete('/products/:id', (req, res) => {
   db.prepare('UPDATE products SET active = 0 WHERE id = ?').run(req.params.id);
   return ok(res, null, 'Product deactivated');
+});
+
+// Custom orders (orders containing custom designs)
+router.get('/custom-orders', (req, res) => {
+  const orders = db.prepare(`
+    SELECT DISTINCT o.* FROM orders o
+    JOIN order_items oi ON oi.order_id = o.id
+    WHERE oi.customization_data IS NOT NULL
+    ORDER BY o.created_at DESC LIMIT 100
+  `).all();
+  const enriched = orders.map((o) => {
+    const items = db.prepare('SELECT * FROM order_items WHERE order_id = ?').all(o.id).map((it) => ({
+      ...it, customization: it.customization_data ? JSON.parse(it.customization_data) : null, variant: it.variant_data ? JSON.parse(it.variant_data) : null
+    }));
+    return { ...o, items };
+  });
+  return ok(res, { orders: enriched });
 });
 
 // Orders

@@ -1,12 +1,19 @@
-# Zuno — One app for everyday life
+# ZUNO — Modern Everyday Clothing
 
-> An original, production-shaped **Indian super app**. Shop, groceries, food, home services and
-> secure payments, brought together in a single, trustworthy experience — built from scratch with a
-> clean modular architecture.
+> A premium, minimal clothing brand. T-shirts, shirts and a live **Custom Studio** to create your own tee — built as a production-shaped fashion e-commerce experience.
 
-Zuno is **not** a clone of any existing product. It has its own brand, design language, navigation and
-component system. The complexity (commerce, grocery, food, services, payments, orders, admin) lives
-inside the architecture; the user only ever sees **one app**.
+Zuno is a focused **clothing brand**, not a marketplace. Every page feels like Zuno — from the editorial homepage to the product detail, bag, checkout and the interactive Custom Studio.
+
+---
+
+## Brand
+
+**ZUNO** — Wear your attitude.
+
+- Modern, minimal, premium, youthful, confident
+- Black / White / Off-white / Charcoal / Soft gray — subtle, editorial, not loud
+- Large typography, whitespace, editorial layouts, smooth animations
+- Custom Studio is the hero feature: “Make it yours.”
 
 ---
 
@@ -15,154 +22,136 @@ inside the architecture; the user only ever sees **one app**.
 | Layer | Choice | Why |
 |------|--------|-----|
 | Backend | **Node.js + Express** (modular REST API) | Familiar, fast, production-ready |
-| Database | **SQLite via `node:sqlite`** (built-in, zero native build) | Real relational DB, no external server, runs anywhere |
-| Auth | **JWT** + **bcrypt** hashing, RBAC | Secure, stateless, role-aware |
-| Payments | **Razorpay** (SDK + signature verification) | India-first UPI/cards/net-banking |
-| Frontend | **Vanilla ES-module SPA** (no build step) | Runs anywhere, no toolchain, fully custom design system |
-| Validation | **Zod** on the server (never trust the client) | Single source of truth for rules |
+| Database | **SQLite via `node:sqlite`** | Real relational DB, no external server |
+| Auth | **JWT + bcrypt**, RBAC, OTP + Google | Secure, stateless |
+| Payments | **Razorpay** (HMAC verification) | India-first, server-verified |
+| Frontend | **Vanilla ES-module SPA** (no build) | Fully custom, fast, no toolchain |
+| Validation | **Zod** | Single source of truth |
 
 ---
 
 ## Architecture
 
 ```
-                 ZUNO (super app)
-        ┌────────────┬────────────┬────────────┐
-     COMMERCE     SERVICES      PAYMENTS     IDENTITY
-      Shop        Home/Salon     Razorpay      User account
-      Grocery      Repairs        Verify        Personalization
-      Food         Booking        Refunds       (AI-ready)
-        │            │              │
-        └────────────┴──────────────┘
-              Unified cart · Orders · Notifications · Admin
+              ZUNO — Clothing
+     ┌─────────────┬──────────────┬──────────────┐
+   CATALOGUE   CUSTOM STUDIO    COMMERCE     IDENTITY
+   T-Shirts    Text / Image     Bag          User
+   Shirts      Front / Back     Wishlist     Addresses
+   New Arrivals Color/Size/Fit  Checkout     Orders
+   Collections Print Area       Razorpay     My Designs
 ```
 
 ### Modules
-- **Shop** — products, categories, brands, search, cart, wishlist, coupons.
-- **Grocery** — reuses the same commerce engine with its own catalogue/UX.
-- **Food** — restaurants, menus, food cart, secure checkout.
-- **Services** — providers, bookings (date/time/address), payment.
-- **Payments** — unified Razorpay layer; server verifies every signature.
-- **Orders** — one order engine for all modules, with lifecycle + tracking.
-- **Admin** — users, products, orders, payments, analytics (RBAC-protected).
 
-### Database entities
-`users, roles, addresses, categories, brands, sellers, products, carts, cart_items,
-wishlists, orders, order_items, payments, refunds, coupons, reviews, notifications,
-restaurants, menu_items, service_providers, services, bookings, audit_logs` — all indexed.
+- **Shop** — T-shirts (Oversized, Regular, Graphic, Plain, Polo, Premium Cotton) and Shirts (Casual, Printed, Overshirt, Solid, Relaxed, Formal). Filters: category, size, color, fit, collection, price, sort.
+- **Custom Studio** (`#/customize`) — interactive 2D designer: color, size, fit, front/back, add text (font, size, color, bold/italic, rotate, scale, drag), upload image (PNG/JPG/WEBP, drag/resize/rotate/delete), print-area guide, preview, save design, add custom tee to bag.
+- **Bag / Wishlist** — variant-aware (color/size), custom design previews, edit design, move to bag.
+- **Product Detail** — gallery, brand Zuno, price/MRP/discount, color swatches, size selector, fit, size guide modal, fabric & care, quantity, Add to bag, Wishlist.
+- **Checkout** — address, order summary, delivery, Razorpay (server HMAC verification), confirmation.
+- **Orders** — statuses `PAYMENT_PENDING → PAID → CONFIRMED → PRINTING → PACKED → SHIPPED → DELIVERED`; custom orders show design preview.
+- **My Designs** (`#/profile/designs`) — saved custom tees: preview, edit, duplicate, add to bag, delete.
+- **Admin** (`#/admin`) — Overview, Products (clothing CRUD + variants), Orders, **Custom Orders** (design preview, status: PRINTING/PACKED…), Customers.
+
+### Database
+
+`users, roles, addresses, categories, brands, sellers, products, product_variants, custom_designs, carts, cart_items (variant_data, customization_data, custom_price), wishlists, orders, order_items (customization_data, variant_data), payments, coupons, reviews, notifications` — plus legacy `restaurants, menu_items, service_providers, services, bookings` retained for backward compat but hidden from the storefront.
 
 ### API
-Consistent envelope: `{ success, data, message }`.
-`/api/auth /users /products /categories /cart /wishlist /orders /payments /restaurants
-/services /coupons /notifications /admin` plus `/api/health` and `/api/webhooks/razorpay`.
 
----
+`{ success, data, message }` envelope.
 
-## Security
-
-- Passwords hashed with **bcrypt** (never stored in plain text).
-- **JWT** auth + role-based access control (`USER, ADMIN, SELLER, RESTAURANT, SERVICE_PROVIDER, DELIVERY_PARTNER`).
-- **Prices, discounts and item prices are resolved server-side** — the client can never set what it pays.
-- **Razorpay payments are verified by recomputing the HMAC signature** on the server. The frontend is
-  never trusted to declare a payment successful.
-- Rate limiting, secure headers (Helmet), centralized validation, audit logging.
-- `.env` is never committed (see `.env.example`).
-
-> In development without Razorpay keys, the app runs in **TEST MODE**: it still performs a real
-> HMAC signature round-trip (order_id | payment_id) — it just uses a dev secret instead of Razorpay's.
-> This is clearly flagged in logs and must not be used in production.
+```
+/api/auth /users /products /categories /cart /wishlist /orders /payments
+/api/custom-designs /api/custom-designs/:id/cart
+/api/cart/custom  (custom tee to bag)
+/api/admin/*  (clothing admin)
+/api/health /api/config
+```
 
 ---
 
 ## Getting started
 
 ```bash
-# 1. Install dependencies
 npm install
-
-# 2. Configure environment
 cp .env.example .env
-#   edit .env and set JWT_SECRET + (for real payments) RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET
-
-# 3. Seed demo data (categories, products, restaurants, services, coupons, admin user)
-npm run seed
-
-# 4. Start the server (serves API + the frontend at http://localhost:4000)
-npm start
+# edit .env: JWT_SECRET + (for real payments) RAZORPAY_KEY_ID/SECRET, GOOGLE_CLIENT_ID, SMTP_*
+npm run seed   # creates clothing catalogue (15 tees/shirts, 238 variants, 3 coupons)
+npm start      # serves API + frontend at http://localhost:4000
 ```
 
 Open **http://localhost:4000/**.
 
-### Demo accounts
-- Admin: `admin@zuno.app` / `Admin@1234`
-- Any user you register (Indian mobile + password, min 8 chars).
+### Demo accounts (seeded)
 
-### Run tests
+- Admin: `admin@zuno.app` / `Admin@1234` → `#/admin`
+- Customer: register any Indian mobile + password (8+ chars) or use OTP / Google
+- Seller (legacy, hidden): `seller@zuno.app` / `Seller@1234`
+
+### Test
+
 ```bash
 npm test
 ```
 
 ---
 
-## Razorpay setup (production)
-1. Create a Razorpay account and copy the **Key ID** and **Key Secret** into `.env`.
-2. In the Razorpay dashboard, add a webhook to `https://<your-domain>/api/webhooks/razorpay` with the
-   **Webhook Secret** set as `RAZORPAY_WEBHOOK_SECRET`.
-3. Restart. The app automatically switches out of TEST MODE and opens the real Razorpay Checkout.
+## Custom Studio pricing (server-verified)
+
+Base T-shirt price + front print ₹100 + back print ₹100 (if elements present). The frontend shows an estimate; the server recalculates on `POST /api/cart/custom` and on order creation. Never trust the client price.
+
+Image upload: PNG/JPG/WEBP, ≤5MB, validated MIME + size, transparent PNG supported, drag/resize/rotate/delete, front/back layers.
+
+---
+
+## Admin
+
+- **Products**: create T-shirts/shirts with colors, sizes, fit, fabric, collection, customizable, featured, stock (variants auto-created)
+- **Custom Orders**: view customer, product, variant, front/back design, uploaded image, preview, update status (PRINTING → PACKED → SHIPPED …)
+
+---
+
+## Security
+
+- bcrypt, JWT, RBAC, Helmet, rate limiting, Zod validation, audit logs
+- **Razorpay HMAC** recomputed server-side (`order_id|payment_id`)
+- Image MIME/size validation, no execution of uploads
+- Env vars never committed (`.env.example` provided)
+
+> **Test mode**: without Razorpay keys the app runs with a dev HMAC and a Razorpay-style demo sheet (no real charge). Set `RAZORPAY_KEY_ID/SECRET` in `.env` to enable the live checkout.
 
 ---
 
 ## Project structure
+
 ```
 server/
-  config/      env, db (schema)
-  middleware/  auth (JWT + RBAC), validate, error
+  config/      env, db (schema + clothing tables)
+  middleware/  auth, validate, error
   utils/       response, jwt, password, id, logger
-  validators/  zod request schemas
-  services/    auth, user, product, order, (pricing + coupons)
-  controllers/ auth, user, product, order, payment
-  routes/       REST routers per domain
-  integrations/razorpay/   SDK + signature verification + webhook
-  seed/        demo data
+  validators/  zod schemas (auth, custom)
+  services/    auth, user, product, cart, order, partner
+  controllers/ auth, user, product, order, payment, customDesign, cart
+  routes/       REST routers (custom-designs, cart custom)
+  integrations/razorpay/
+  seed/        clothing catalogue
   test/        integration tests
 public/
   index.html
-  assets/css/  tokens, base, components, layout (design system)
+  assets/css/  tokens (fashion palette), base, components, layout (editorial + custom studio)
   assets/js/   app, router, api, store, ui, components, pages/*
+    pages/     home (fashion), shop (clothing filters), product (variant PDP), cart (fashion bag), wishlist, customize (studio), profile (My Designs), orders, admin (clothing)
 ```
 
 ---
 
-## What works end-to-end today (verified)
-- Register / login / logout, JWT auth, role gating.
-- Browse shop & grocery, search, product detail, add to cart, wishlist.
-- **Checkout → Razorpay order → server-side signature verification → order `PAID`** (with idempotency).
-- Food: restaurant menus → food cart → custom secure order → paid.
-- Services: provider → booking → secure payment → booking `PAID`.
-- Orders history + detail + status timeline + cancel.
-- Admin dashboard: analytics, orders, products, users, payments.
-- Notifications, profile, addresses, theme toggle, responsive desktop/mobile UI.
+## What works end-to-end (verified)
 
-## Demo accounts (seeded)
-- Admin: `admin@zuno.app` / `Admin@1234`
-- Customer: register any mobile + password, or use OTP login.
-- Seller: `seller@zuno.app` / `Seller@1234` → Seller dashboard (`#/seller`)
-- Restaurant: `restaurant@zuno.app` / `Restro@1234` → Restaurant dashboard (`#/restaurant-admin`)
-- Service provider: `provider@zuno.app` / `Provider@1234` → Provider dashboard (`#/provider-admin`)
+- Browse, filter (category/size/color/fit/collection), search (clothing), PDP with variants, wishlist (heart on cards + PDP), bag (variant + custom), checkout → Razorpay → PAID, orders with custom preview, My Designs (save/edit/add to bag), Custom Studio (color/size/fit, text/image, drag/resize/rotate, front/back, save, add to bag), admin (products, custom orders).
 
-## Partner dashboards (built)
-Role-gated management UIs, each wired to RBAC-protected APIs:
-- **Seller**: manage shop/grocery products (create/edit/deactivate), view orders containing their SKUs, revenue + top-SKU analytics.
-- **Restaurant**: manage menu items, view food orders for their restaurant.
-- **Service provider**: manage services, view & update booking status.
-APIs: `/api/seller/*`, `/api/restaurant-admin/*`, `/api/provider-admin/*` (all require the matching role).
+---
 
-## Auth: OTP & Google (built)
-- **OTP login**: `POST /api/auth/otp/request` generates + stores a 10-min OTP; `POST /api/auth/otp/verify` issues a JWT. In dev the OTP is returned in the response (would be SMS-delivered in production).
-- **Google login**: `POST /api/auth/google` verifies the `id_token` server-side via Google's `tokeninfo` endpoint (checks `aud`/`iss`/`exp`). The login screen renders the real "Continue with Google" button when `GOOGLE_CLIENT_ID` is set in `.env`.
+## Roadmap
 
-## Payments
-Razorpay **TEST MODE** is used when `RAZORPAY_KEY_ID`/`RAZORPAY_KEY_SECRET` are blank (simulated payments with a genuine HMAC signature round-trip — never faked success). Set both keys in `.env` to automatically switch the checkout to the live Razorpay Checkout — no frontend change required.
-
-## Roadmap (designed-for, not yet built)
-AI discovery layer, real-time driver tracking, multi-language, email/SMS gateways (OTP currently dev-returned; wire `SMTP_*` to email real OTPs).
+AI discovery, real-time tracking, multi-language, email/SMS for OTP, 3D preview, variant image swaps.

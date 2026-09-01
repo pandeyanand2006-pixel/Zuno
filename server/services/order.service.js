@@ -60,8 +60,8 @@ export const orderService = {
 
         const orderId = info.lastInsertRowid;
         for (const it of items) {
-          db.prepare('INSERT INTO order_items (order_id, product_id, name, price, quantity) VALUES (?, ?, ?, ?, ?)')
-            .run(orderId, it.productId, it.name, it.price, it.quantity);
+          db.prepare('INSERT INTO order_items (order_id, product_id, name, price, quantity, customization_data, variant_data, custom_price) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+            .run(orderId, it.productId, it.name, it.price, it.quantity, it.customization ? JSON.stringify(it.customization) : null, it.variant ? JSON.stringify(it.variant) : null, it.isCustom ? it.price : null);
           db.prepare('UPDATE products SET stock = stock - ? WHERE id = ? AND stock >= ?').run(it.quantity, it.productId, it.quantity);
         }
         if (couponCode && totals.couponValid) {
@@ -112,7 +112,13 @@ export const orderService = {
   enrich(order, withItems = false) {
     const out = { ...order, totals: { subtotal: order.subtotal, discount: order.discount, deliveryFee: order.delivery_fee, serviceFee: order.service_fee, tax: order.tax, total: order.total } };
     if (withItems) {
-      out.items = db.prepare('SELECT * FROM order_items WHERE order_id = ?').all(order.id);
+      const rawItems = db.prepare('SELECT * FROM order_items WHERE order_id = ?').all(order.id);
+      out.items = rawItems.map((it) => ({
+        ...it,
+        customization: it.customization_data ? JSON.parse(it.customization_data) : null,
+        variant: it.variant_data ? JSON.parse(it.variant_data) : null,
+        isCustom: !!it.customization_data,
+      }));
       out.address = db.prepare('SELECT * FROM addresses WHERE id = ?').get(order.address_id);
       out.payment = db.prepare('SELECT * FROM payments WHERE order_id = ?').get(order.id);
     }

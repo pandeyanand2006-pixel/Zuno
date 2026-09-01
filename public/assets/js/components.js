@@ -3,42 +3,42 @@ import { Store } from './store.js';
 import { api } from './api.js';
 
 const NAV = [
-  { label: 'Home', href: '#/', key: 'home' },
-  { label: 'Shop', href: '#/shop', key: 'shop' },
-  { label: 'Grocery', href: '#/grocery', key: 'grocery' },
-  { label: 'Food', href: '#/food', key: 'food' },
-  { label: 'Services', href: '#/services', key: 'services' },
+  { label: 'T-Shirts', href: '#/shop?category=t-shirts', key: 'tshirts' },
+  { label: 'Shirts', href: '#/shop?category=shirts', key: 'shirts' },
+  { label: 'New Arrivals', href: '#/shop?sort=newest', key: 'new' },
+  { label: 'Custom Studio', href: '#/customize', key: 'custom', accent: true },
 ];
 
 const MOBILE_NAV = [
-  { label: 'Home', href: '#/', key: 'home', em: '🏠' },
-  { label: 'Explore', href: '#/shop', key: 'explore', em: '🧭' },
-  { label: 'Orders', href: '#/orders', key: 'orders', em: '📦' },
-  { label: 'Cart', href: '#/cart', key: 'cart', em: '🛒' },
-  { label: 'You', href: '#/profile', key: 'profile', em: '👤' },
+  { label: 'Home', href: '#/', key: 'home', em: '◐' },
+  { label: 'Shop', href: '#/shop', key: 'shop', em: '▭' },
+  { label: 'Custom', href: '#/customize', key: 'custom', em: '✦' },
+  { label: 'Wishlist', href: '#/wishlist', key: 'wishlist', em: '♡' },
+  { label: 'Bag', href: '#/cart', key: 'cart', em: '◧' },
 ];
 
 export function topBar(active) {
   const user = Store.getUser();
   const search = SearchBar();
   const cartCount = Store.cartCount();
+  const wishCount = Store.wishlistCount ? Store.wishlistCount() : (Store._wishlist ? Store._wishlist.size : 0);
 
   const nav = h('nav', { class: 'nav-links', 'aria-label': 'Primary' },
-    ...NAV.map((n) => h('a', { href: n.href, class: active === n.key ? 'active' : '' }, n.label)));
+    ...NAV.map((n) => h('a', { href: n.href, class: (active === n.key ? 'active' : '') + (n.accent ? ' accent-link' : '') }, n.label)));
 
   const actions = h('div', { class: 'nav-actions' },
-    h('button', { class: 'icon-btn', title: 'Toggle theme', onclick: () => Store.toggleTheme(), 'aria-label': 'Toggle theme' }, themeIcon()),
-    h('a', { class: 'icon-btn', href: '#/notifications', title: 'Notifications', 'aria-label': 'Notifications' }, '🔔'),
-    h('a', { class: 'icon-btn', href: '#/cart', title: 'Cart', 'aria-label': 'Cart' },
-      '🛒', cartCount ? h('span', { class: 'cart-count' }, String(cartCount)) : null),
+    h('a', { class: 'icon-btn', href: '#/wishlist', title: 'Wishlist', 'aria-label': 'Wishlist' }, '♡', wishCount ? h('span', { class: 'cart-count', style: { background: '#0a0a0a' } }, String(wishCount)) : null),
+    h('a', { class: 'icon-btn', href: '#/cart', title: 'Bag', 'aria-label': 'Bag' },
+      '◧', cartCount ? h('span', { class: 'cart-count' }, String(cartCount)) : null),
+    h('a', { class: 'icon-btn', href: '#/search', title: 'Search', 'aria-label': 'Search' }, '⌕'),
     user
-      ? h('a', { class: 'avatar', href: '#/profile', title: user.name, style: { textDecoration: 'none' } }, initials(user.name))
-      : h('a', { class: 'btn btn-primary btn-sm', href: '#/login' }, 'Sign in'));
+      ? h('a', { class: 'avatar', href: '#/profile', title: user.name, style: { textDecoration: 'none', background: '#0a0a0a', color: '#fff' } }, initials(user.name))
+      : h('a', { class: 'btn btn-primary btn-sm', href: '#/login', style: { background: '#0a0a0a', borderColor: '#0a0a0a', letterSpacing: '0.04em' } }, 'Sign in'));
 
   return h('header', { class: 'topbar' },
     h('div', { class: 'topbar-inner' },
-      h('a', { class: 'brand', href: '#/', 'aria-label': 'Zuno home' },
-        h('span', { class: 'logo' }, 'Z'), h('span', {}, 'Zuno')),
+      h('a', { class: 'brand', href: '#/', 'aria-label': 'Zuno home', style: { fontFamily: 'var(--font-display)', letterSpacing: '0.12em', fontWeight: '700' } },
+        'ZUNO'),
       nav,
       search,
       actions));
@@ -58,14 +58,20 @@ export function footer() {
     h('div', { class: 'container' },
       h('div', { class: 'footer-grid' },
         h('div', {},
-          h('div', { class: 'brand', style: { color: '#fff' } }, h('span', { class: 'logo' }, 'Z'), 'Zuno'),
-          h('p', { class: 'muted', style: { maxWidth: '32ch', marginTop: '12px' } }, 'One app for everyday life. Shop, groceries, food, services and payments — brought together in a single trusted experience.')),
-        footerCol('Company', [['About', '#/'], ['Careers', '#/'], ['Newsroom', '#/'], ['Policies', '#/']]),
-        footerCol('Modules', [['Shop', '#/shop'], ['Grocery', '#/grocery'], ['Food', '#/food'], ['Services', '#/services']]),
-        footerCol('Support', [['Help center', '#/'], ['Contact', '#/'], ['Safety', '#/'], ['Refunds', '#/']]),
-        footerCol('Legal', [['Terms', '#/'], ['Privacy', '#/'], ['Cookies', '#/'], ['GST', '#/']])),
-      h('div', { class: 'divider', style: { background: '#1e293b' } }),
-      h('p', { class: 'muted', style: { fontSize: 'var(--fs-xs)' } }, '© ' + new Date().getFullYear() + ' Zuno. A demonstration super-app. Not affiliated with any existing brand. Payments powered by Razorpay.')));
+          h('div', { class: 'brand', style: { color: '#fff', fontFamily: 'var(--font-display)', letterSpacing: '0.08em' } }, 'ZUNO'),
+          h('p', { class: 'muted', style: { maxWidth: '30ch', marginTop: '12px', lineHeight: '1.6' } }, 'Modern everyday clothing. Designed for people who don\'t follow the ordinary. Made in India, worn everywhere.'),
+          h('div', { class: 'row gap-3', style: { marginTop: '16px' } },
+            h('a', { href: 'https://instagram.com', target: '_blank', class: 'icon-btn', style: { color: '#fff', borderColor: 'rgba(255,255,255,0.2)' }, title: 'Instagram' }, '◯'),
+            h('a', { href: 'https://facebook.com', target: '_blank', class: 'icon-btn', style: { color: '#fff', borderColor: 'rgba(255,255,255,0.2)' }, title: 'Facebook' }, '⬡'),
+            h('a', { href: 'https://youtube.com', target: '_blank', class: 'icon-btn', style: { color: '#fff', borderColor: 'rgba(255,255,255,0.2)' }, title: 'YouTube' }, '▷'))),
+        footerCol('SHOP', [['T-Shirts', '#/shop?category=t-shirts'], ['Shirts', '#/shop?category=shirts'], ['New Arrivals', '#/shop?sort=newest'], ['Best Sellers', '#/shop?sort=popular'], ['Custom Studio', '#/customize']]),
+        footerCol('HELP', [['Contact Us', '#/'], ['Shipping', '#/'], ['Returns', '#/'], ['Size Guide', '#/'], ['FAQs', '#/']]),
+        footerCol('COMPANY', [['About Zuno', '#/'], ['Our Story', '#/'], ['Careers', '#/']]),
+        footerCol('LEGAL', [['Privacy', '#/'], ['Terms', '#/'], ['Refund Policy', '#/']])),
+      h('div', { class: 'divider', style: { background: '#262626', margin: '32px 0 20px' } }),
+      h('div', { class: 'row between', style: { flexWrap: 'wrap', gap: '12px' } },
+        h('p', { class: 'muted', style: { fontSize: 'var(--fs-xs)', letterSpacing: '0.04em' } }, '© ' + new Date().getFullYear() + ' ZUNO. All rights reserved.'),
+        h('p', { class: 'muted', style: { fontSize: 'var(--fs-xs)' } }, 'Payments secured by Razorpay • Made with care in India'))));
 }
 
 function footerCol(title, links) {
@@ -79,7 +85,7 @@ function themeIcon() {
 }
 
 function SearchBar() {
-  const input = h('input', { type: 'search', placeholder: 'Search for products, food, services…', 'aria-label': 'Search', autocomplete: 'off' });
+  const input = h('input', { type: 'search', placeholder: 'Search for T-shirts, shirts, oversized…', 'aria-label': 'Search', autocomplete: 'off' });
   const box = h('div', { class: 'search-suggest hide' });
   const wrap = h('div', { class: 'searchbar' },
     h('span', { class: 's-ic' }, '🔍'), input, box);

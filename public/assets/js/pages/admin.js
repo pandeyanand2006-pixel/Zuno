@@ -1,4 +1,4 @@
-import { h, money, toast, emptyState } from '../ui.js';
+import { h, money, toast, emptyState, modal } from '../ui.js';
 import { statusBadge } from './orders.js';
 import { api } from '../api.js';
 import { Store } from '../store.js';
@@ -6,16 +6,16 @@ import { Store } from '../store.js';
 export async function Admin() {
   const root = h('div', { class: 'container section' });
   const user = Store.getUser();
-  if (!user || user.role !== 'ADMIN') { root.append(emptyState({ icon: '🔒', title: 'Admin access only', desc: 'Sign in with an admin account to view the dashboard.', action: h('a', { class: 'btn btn-primary', href: '#/login' }, 'Sign in') })); return root; }
+  if (!user || user.role !== 'ADMIN') { root.append(emptyState({ icon: '◐', title: 'Admin access only', desc: 'Sign in with an admin account.', action: h('a', { class: 'btn btn-primary', href: '#/login' }, 'Sign in') })); return root; }
 
-  const tabs = h('div', { class: 'tabs', style: { marginBottom: '20px' } },
+  const tabs = h('div', { class: 'tabs', style: { marginBottom: '20px', overflowX: 'auto' } },
     h('button', { class: 'tab active', 'data-t': 'overview' }, 'Overview'),
-    h('button', { class: 'tab', 'data-t': 'orders' }, 'Orders'),
     h('button', { class: 'tab', 'data-t': 'products' }, 'Products'),
-    h('button', { class: 'tab', 'data-t': 'users' }, 'Users'),
-    h('button', { class: 'tab', 'data-t': 'payments' }, 'Payments'));
+    h('button', { class: 'tab', 'data-t': 'orders' }, 'Orders'),
+    h('button', { class: 'tab', 'data-t': 'custom' }, 'Custom Orders'),
+    h('button', { class: 'tab', 'data-t': 'users' }, 'Customers'));
   const panel = h('div', {}, skeletonPanel());
-  root.append(h('h1', {}, 'Admin dashboard'), tabs, panel);
+  root.append(h('h1', { style: { fontFamily: 'var(--font-display)', letterSpacing: '-0.02em' } }, 'ZUNO Admin'), tabs, panel);
 
   tabs.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => { tabs.querySelectorAll('.tab').forEach((x) => x.classList.remove('active')); t.classList.add('active'); load(t.dataset.t); }));
 
@@ -23,11 +23,11 @@ export async function Admin() {
     panel.innerHTML = ''; panel.append(skeletonPanel());
     try {
       if (t === 'overview') panel.append(await overview());
-      if (t === 'orders') panel.append(await orders());
       if (t === 'products') panel.append(await products());
+      if (t === 'orders') panel.append(await orders());
+      if (t === 'custom') panel.append(await customOrders());
       if (t === 'users') panel.append(await users());
-      if (t === 'payments') panel.append(await payments());
-    } catch (e) { panel.innerHTML = ''; panel.append(emptyState({ icon: '⚠️', title: 'Failed', desc: e.message })); }
+    } catch (e) { panel.innerHTML = ''; panel.append(emptyState({ icon: '◐', title: 'Failed', desc: e.message })); }
   }
   load('overview');
   return root;
@@ -37,9 +37,15 @@ function skeletonPanel() { return h('div', { class: 'row gap-4 wrap' }, ...Array
 
 async function overview() {
   const a = await api.get('/admin/analytics');
+  const customCount = await api.get('/admin/custom-orders').then(r => r.orders.length).catch(() => 0);
   const stats = h('div', { class: 'row gap-4 wrap' },
-    stat(a.revenue ? money(a.revenue) : '₹0', 'Revenue'), stat(String(a.totalOrders), 'Orders'), stat(String(a.users), 'Users'), stat(String(a.ordersToday), 'Orders today'), stat(money(a.averageOrderValue), 'Avg order'));
-  const byMod = h('div', { class: 'card card-pad', style: { marginTop: '16px' } }, h('h3', {}, 'Revenue by module'),
+    stat(a.revenue ? money(a.revenue) : '₹0', 'Revenue'),
+    stat(String(a.totalOrders), 'Orders'),
+    stat(String(customCount), 'Custom orders'),
+    stat(String(a.users), 'Customers'),
+    stat(String(a.ordersToday), 'Today'),
+    stat(money(a.averageOrderValue), 'AOV'));
+  const byMod = h('div', { class: 'card card-pad', style: { marginTop: '16px' } }, h('h3', {}, 'Revenue'),
     h('div', { class: 'table-wrap' }, h('table', { class: 'table' }, h('thead', {}, h('tr', {}, h('th', {}, 'Module'), h('th', {}, 'Orders'), h('th', {}, 'Revenue'))),
       ...a.byModule.map((m) => h('tr', {}, h('td', {}, m.module), h('td', {}, String(m.count)), h('td', {}, money(m.revenue)))))));
   return h('div', {}, stats, byMod);
@@ -47,30 +53,109 @@ async function overview() {
 
 async function orders() {
   const { orders } = await api.get('/admin/orders');
-  const rows = orders.map((o) => h('tr', {}, h('td', {}, o.order_number), h('td', {}, o.module), h('td', {}, money(o.total)), h('td', {}, statusBadge(o.status)),
-    h('td', {}, h('select', { class: 'select', style: { padding: '4px 8px' }, onchange: async (e) => { try { await api.post('/admin/orders/' + o.id + '/status', { status: e.target.value }); toast('Updated', 'success'); } catch (err) { toast(err.message, 'error'); } } },
-      ...['PAYMENT_PENDING', 'PAID', 'CONFIRMED', 'PROCESSING', 'OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED'].map((s) => h('option', { value: s, selected: s === o.status }, s))))));
-  return card('Orders', h('table', { class: 'table' }, h('thead', {}, h('tr', {}, h('th', {}, 'Order'), h('th', {}, 'Module'), h('th', {}, 'Total'), h('th', {}, 'Status'), h('th', {}, 'Update'))), ...rows));
+  if (!orders.length) return emptyState({ title: 'No orders yet' });
+  const rows = orders.slice(0, 100).map((o) => h('tr', {},
+    h('td', {}, h('span', { class: 'fw-600' }, o.order_number)),
+    h('td', {}, money(o.total)),
+    h('td', {}, statusBadge(o.status)),
+    h('td', {}, new Date(o.created_at).toLocaleDateString('en-IN')),
+    h('td', {}, h('select', { class: 'input', style: { padding: '6px 8px', fontSize: 'var(--fs-sm)' }, onchange: async (e) => { try { await api.post('/admin/orders/' + o.id + '/status', { status: e.target.value }); toast('Updated', 'success'); } catch (err) { toast(err.message, 'error'); } } },
+      ...['PAYMENT_PENDING', 'PAID', 'CONFIRMED', 'PROCESSING', 'PRINTING', 'PACKED', 'SHIPPED', 'OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED'].map((s) => h('option', { value: s, selected: s === o.status }, s))))));
+  return card('Orders', h('div', { style: { overflowX: 'auto' } }, h('table', { class: 'table' }, h('thead', {}, h('tr', {}, h('th', {}, 'Order'), h('th', {}, 'Total'), h('th', {}, 'Status'), h('th', {}, 'Date'), h('th', {}, 'Update'))), ...rows)));
+}
+
+async function customOrders() {
+  const { orders } = await api.get('/admin/custom-orders');
+  if (!orders.length) return emptyState({ icon: '✦', title: 'No custom orders', desc: 'Custom T-shirt orders will appear here.' });
+  const wrap = h('div', { class: 'col gap-4' });
+  orders.forEach((o) => {
+    const items = o.items || [];
+    wrap.append(h('div', { class: 'card card-pad' },
+      h('div', { class: 'row between', style: { marginBottom: '12px' } },
+        h('div', {}, h('div', { class: 'fw-600' }, o.order_number), h('div', { class: 'muted text-sm' }, new Date(o.created_at).toLocaleString('en-IN') + ' · ' + money(o.total))),
+        statusBadge(o.status)),
+      ...items.map((it) => {
+        const variant = it.variant ? `${it.variant.color || ''} · ${it.variant.size || ''} ${it.variant.fit || ''}` : '';
+        const cust = it.customization;
+        return h('div', { class: 'row gap-3', style: { padding: '12px 0', borderTop: '1px solid var(--ink-100)', alignItems: 'flex-start' } },
+          h('div', { style: { width: '80px', height: '80px', background: '#f5f5f3', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', flexShrink: '0' } }, '✦'),
+          h('div', { class: 'grow' },
+            h('div', { class: 'fw-600' }, it.name + (it.isCustom ? ' · Custom' : '')),
+            variant ? h('div', { class: 'muted text-sm' }, variant) : null,
+            cust ? h('div', { class: 'muted text-xs', style: { marginTop: '6px', background: 'var(--ink-50)', padding: '8px', borderRadius: '6px' } },
+              h('div', {}, `Front: ${cust.front?.elements?.length || 0} elements`),
+              h('div', {}, `Back: ${cust.back?.elements?.length || 0} elements`),
+              cust.front?.elements?.filter(e => e.type === 'text').map(e => h('div', { style: { fontStyle: e.italic ? 'italic' : 'normal', fontWeight: e.bold ? '700' : '400', color: e.color || '#0a0a0a' } }, `"${e.value}"`))
+            ) : null,
+            h('div', { class: 'muted text-sm', style: { marginTop: '4px' } }, `${it.quantity} × ${money(it.price)}`)));
+      }),
+      h('div', { style: { marginTop: '12px' } },
+        h('select', { class: 'input', style: { maxWidth: '200px' }, onchange: async (e) => { try { await api.post('/admin/orders/' + o.id + '/status', { status: e.target.value }); toast('Updated', 'success'); } catch (err) { toast(err.message, 'error'); } } },
+          ...['PAID', 'CONFIRMED', 'PRINTING', 'PACKED', 'SHIPPED', 'DELIVERED', 'CANCELLED'].map(s => h('option', { value: s, selected: s === o.status }, s))))));
+  });
+  return card('Custom Orders', wrap);
 }
 
 async function products() {
   const { items } = await api.get('/products', { limit: 100 });
-  const rows = items.map((p) => h('tr', {}, h('td', {}, p.name), h('td', {}, p.module), h('td', {}, money(p.price)), h('td', {}, p.stock),
-    h('td', {}, h('button', { class: 'btn btn-danger btn-sm', onclick: async () => { if (confirm('Deactivate ' + p.name + '?')) { try { await api.del('/admin/products/' + p.id); toast('Deactivated', 'success'); location.reload(); } catch (e) { toast(e.message, 'error'); } } } }, 'Deactivate'))));
-  return card('Products', h('table', { class: 'table' }, h('thead', {}, h('tr', {}, h('th', {}, 'Name'), h('th', {}, 'Module'), h('th', {}, 'Price'), h('th', {}, 'Stock'), h('th', {}, ''))), ...rows));
+  const head = h('div', { class: 'row between', style: { marginBottom: '16px', alignItems: 'center' } },
+    h('h3', { style: { margin: 0 } }, 'Products'),
+    h('button', { class: 'btn btn-primary btn-sm', onclick: () => showAddProduct() }, '+ Add product'));
+  const rows = items.map((p) => h('tr', {},
+    h('td', {}, h('div', { class: 'fw-600' }, p.name), h('div', { class: 'muted text-xs' }, (p.collection || '') + (p.customizable ? ' · Customizable' : ''))),
+    h('td', {}, (p.colors || []).join(', ') || '—'),
+    h('td', {}, (p.sizes || []).join(', ') || '—'),
+    h('td', {}, money(p.price)),
+    h('td', {}, String(p.stock)),
+    h('td', {}, h('button', { class: 'btn btn-ghost btn-sm', style: { color: 'var(--zuno-danger)' }, onclick: async () => { if (confirm('Deactivate ' + p.name + '?')) { await api.del('/admin/products/' + p.id); toast('Deactivated', 'success'); location.reload(); } } }, 'Deactivate'))));
+  const table = h('div', { style: { overflowX: 'auto' } }, h('table', { class: 'table' }, h('thead', {}, h('tr', {}, h('th', {}, 'Product'), h('th', {}, 'Colors'), h('th', {}, 'Sizes'), h('th', {}, 'Price'), h('th', {}, 'Stock'), h('th', {}, ''))), ...rows));
+  return card('', head, table);
+}
+
+function showAddProduct() {
+  const name = h('input', { class: 'input', placeholder: 'Product name — e.g. Zuno Essential Tee' });
+  const price = h('input', { class: 'input', type: 'number', placeholder: 'Price in paise — e.g. 129900 for ₹1299' });
+  const mrp = h('input', { class: 'input', type: 'number', placeholder: 'MRP in paise' });
+  const stock = h('input', { class: 'input', type: 'number', placeholder: 'Stock' });
+  const colors = h('input', { class: 'input', placeholder: 'Colors comma-separated — e.g. black,white,beige' });
+  const sizes = h('input', { class: 'input', placeholder: 'Sizes — e.g. S,M,L,XL' });
+  const catSel = h('select', { class: 'input' });
+  // Load categories
+  api.get('/categories', { module: 'shop' }).then(({ categories }) => {
+    categories.forEach(c => {
+      if (!c.parent_id) {
+        catSel.append(h('option', { value: c.id }, c.name));
+        (c.children || []).forEach(ch => catSel.append(h('option', { value: ch.id }, '— ' + ch.name)));
+      }
+    });
+  });
+  const content = h('div', {},
+    h('h3', {}, 'Add product'),
+    h('div', { class: 'col gap-3', style: { marginTop: '12px' } },
+      h('div', { class: 'field' }, h('label', {}, 'Name'), name),
+      h('div', { class: 'row gap-3' }, h('div', { class: 'field grow' }, h('label', {}, 'Price (paise)'), price), h('div', { class: 'field grow' }, h('label', {}, 'MRP'), mrp)),
+      h('div', { class: 'field' }, h('label', {}, 'Stock'), stock),
+      h('div', { class: 'field' }, h('label', {}, 'Category'), catSel),
+      h('div', { class: 'field' }, h('label', {}, 'Colors'), colors),
+      h('div', { class: 'field' }, h('label', {}, 'Sizes'), sizes),
+      h('button', { class: 'btn btn-primary btn-block', onclick: async () => {
+        try {
+          await api.post('/admin/products', {
+            name: name.value, categoryId: Number(catSel.value), price: Number(price.value), mrp: Number(mrp.value), stock: Number(stock.value),
+            colors: colors.value.split(',').map(s => s.trim()).filter(Boolean),
+            sizes: sizes.value.split(',').map(s => s.trim()).filter(Boolean),
+          });
+          toast('Product created', 'success'); location.reload();
+        } catch (e) { toast(e.message, 'error'); }
+      } }, 'Create product')));
+  modal(content);
 }
 
 async function users() {
   const { users } = await api.get('/admin/users');
   const rows = users.map((u) => h('tr', {}, h('td', {}, u.name), h('td', {}, u.email || u.mobile), h('td', {}, u.role_id === 2 ? 'ADMIN' : 'USER'), h('td', {}, statusBadge(u.status))));
-  return card('Users', h('table', { class: 'table' }, h('thead', {}, h('tr', {}, h('th', {}, 'Name'), h('th', {}, 'Contact'), h('th', {}, 'Role'), h('th', {}, 'Status'))), ...rows));
-}
-
-async function payments() {
-  const { payments } = await api.get('/admin/payments');
-  const rows = payments.map((p) => h('tr', {}, h('td', {}, p.razorpay_order_id || '—'), h('td', {}, money(p.amount)), h('td', {}, p.status), h('td', {}, p.verified ? '✓' : '—')));
-  return card('Payments', h('table', { class: 'table' }, h('thead', {}, h('tr', {}, h('th', {}, 'Razorpay order'), h('th', {}, 'Amount'), h('th', {}, 'Status'), h('th', {}, 'Verified'))), ...rows));
+  return card('Customers', h('table', { class: 'table' }, h('thead', {}, h('tr', {}, h('th', {}, 'Name'), h('th', {}, 'Contact'), h('th', {}, 'Role'), h('th', {}, 'Status'))), ...rows));
 }
 
 function stat(v, l) { return h('div', { class: 'stat' }, h('div', { class: 'v' }, v), h('div', { class: 'l' }, l)); }
-function card(title, ...body) { return h('div', { class: 'card card-pad' }, h('h3', {}, title), ...body); }
+function card(title, ...body) { return h('div', { class: 'card card-pad' }, title ? h('h3', {}, title) : null, ...body); }

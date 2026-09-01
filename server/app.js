@@ -22,6 +22,7 @@ import adminRoutes from './routes/admin.routes.js';
 import sellerRoutes from './routes/seller.routes.js';
 import restaurantAdminRoutes from './routes/restaurant.admin.routes.js';
 import providerAdminRoutes from './routes/provider.admin.routes.js';
+import customDesignRoutes from './routes/customDesign.routes.js';
 import { webhook as razorpayWebhook } from './controllers/payment.controller.js';
 
 import { errorHandler, notFoundHandler } from './middleware/error.js';
@@ -67,6 +68,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/seller', sellerRoutes);
 app.use('/api/restaurant-admin', restaurantAdminRoutes);
 app.use('/api/provider-admin', providerAdminRoutes);
+app.use('/api/custom-designs', customDesignRoutes);
 
 // Public client config (used to render real Google sign-in when configured).
 app.get('/api/config', (_req, res) => {

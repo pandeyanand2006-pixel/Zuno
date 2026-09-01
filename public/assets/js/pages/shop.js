@@ -1,79 +1,151 @@
-import { h, money, skeletonGrid, emptyState, errorState, toast } from '../ui.js';
+import { h, money, skeletonGrid, emptyState, errorState } from '../ui.js';
 import { api } from '../api.js';
 import { ProductCard } from '../components.js';
 
 const SORTS = [
   { v: 'popular', l: 'Popular' },
+  { v: 'newest', l: 'Newest' },
   { v: 'price_low', l: 'Price: Low to High' },
   { v: 'price_high', l: 'Price: High to Low' },
   { v: 'rating', l: 'Top rated' },
-  { v: 'newest', l: 'Newest' },
 ];
+const SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'];
+const COLORS = [
+  { key: 'black', bg: '#0a0a0a' }, { key: 'white', bg: '#ffffff' }, { key: 'beige', bg: '#e8e6e1' },
+  { key: 'grey', bg: '#a3a3a3' }, { key: 'navy', bg: '#1e293b' }, { key: 'olive', bg: '#556b2f' },
+  { key: 'charcoal', bg: '#2a2a2a' }, { key: 'red', bg: '#dc2626' },
+];
+const FITS = ['regular', 'oversized', 'relaxed'];
+const COLLECTIONS = ['Essentials', 'After Dark', 'Street Form'];
 
-function Listing({ module, title, icon }) {
+function Shop() {
   const query = routerQuery();
-  let page = 1;
   const grid = h('div', { class: 'grid grid-products' });
+  const countEl = h('div', { class: 'muted text-sm' }, '');
+  const sortSel = h('select', { class: 'input', style: { maxWidth: '200px' }, onchange: () => applySort() },
+    ...SORTS.map(s => h('option', { value: s.v, selected: (query.sort || 'popular') === s.v }, s.l)));
+
+  const activeCategory = query.category || '';
+  const activeSize = query.size || '';
+  const activeColor = query.color || '';
+  const activeFit = query.fit || '';
+  const activeCollection = query.collection || '';
+
+  // Sidebar
   const sidebar = h('aside', { class: 'sidebar', style: { position: 'static' } });
-  const sortSel = h('select', { class: 'select', onchange: () => reload() }, ...SORTS.map((s) => h('option', { value: s.v }, s.l)));
-  sortSel.value = query.sort || 'popular';
-  const titleEl = h('h1', { style: { marginBottom: '4px' } }, (icon ? icon + ' ' : '') + title);
-  const countEl = h('div', { class: 'muted text-sm', style: { marginBottom: 'var(--sp-4)' } }, '');
 
-  const main = h('div', { class: 'container section' }, titleEl, countEl,
-    h('div', { class: 'split', style: { gridTemplateColumns: '240px 1fr' } }, sidebar, h('div', {}, h('div', { class: 'row between', style: { marginBottom: '16px' } }, h('div', { class: 'pill-row' }, sortSel), searchInline()), grid)));
-
-  loadCategories();
-  reload();
-
-  async function loadCategories() {
+  async function loadSidebar() {
+    sidebar.innerHTML = '';
+    sidebar.append(
+      h('div', { class: 'fw-600', style: { padding: '10px', fontSize: 'var(--fs-sm)', letterSpacing: '0.06em', textTransform: 'uppercase' } }, 'Filters'),
+      h('button', { class: 'btn btn-ghost btn-sm', style: { marginBottom: '12px' }, onclick: () => { location.hash = '#/shop'; } }, 'Clear all')
+    );
+    // Categories
     try {
-      const { categories } = await api.get('/categories', { module });
-      sidebar.innerHTML = '';
-      sidebar.append(h('div', { class: 'fw-600 text-sm', style: { padding: '8px 10px' } }, 'Categories'));
-      sidebar.append(catLink(null, 'All ' + title));
-      categories.forEach((c) => {
-        sidebar.append(catLink(c.id, c.icon ? c.icon + ' ' + c.name : c.name));
-        (c.children || []).forEach((ch) => sidebar.append(catLink(ch.id, '   ' + ch.name)));
+      const { categories } = await api.get('/categories', { module: 'shop' });
+      const topCats = categories.filter(c => !c.parent_id);
+      sidebar.append(h('div', { class: 'filter-group' }, h('div', { class: 'filter-title' }, 'Category')));
+      topCats.forEach(cat => {
+        const isActive = activeCategory === cat.slug || activeCategory === String(cat.id);
+        sidebar.append(h('a', { href: `#/shop?category=${cat.slug}`, class: 'filter-link' + (isActive ? ' active' : '') }, cat.name));
+        (cat.children || []).forEach(ch => {
+          const chActive = activeCategory === ch.slug || activeCategory === String(ch.id);
+          sidebar.append(h('a', { href: `#/shop?category=${ch.slug}`, class: 'filter-link sub' + (chActive ? ' active' : '') }, '— ' + ch.name));
+        });
       });
     } catch {}
+
+    // Size
+    sidebar.append(h('div', { class: 'filter-group', style: { marginTop: '16px' } }, h('div', { class: 'filter-title' }, 'Size')));
+    const sizeRow = h('div', { class: 'row gap-2 wrap' });
+    SIZES.forEach(s => {
+      sizeRow.append(h('a', { href: updateQuery({ size: s }), class: 'chip' + (activeSize === s ? ' active' : '') }, s));
+    });
+    sidebar.append(sizeRow);
+
+    // Color
+    sidebar.append(h('div', { class: 'filter-group', style: { marginTop: '16px' } }, h('div', { class: 'filter-title' }, 'Color')));
+    const colorRow = h('div', { class: 'row gap-2 wrap' });
+    COLORS.forEach(c => {
+      const isActive = activeColor === c.key;
+      colorRow.append(h('a', {
+        href: updateQuery({ color: c.key }),
+        class: 'color-swatch' + (isActive ? ' active' : ''),
+        title: c.key, style: { background: c.bg, borderColor: c.key === 'white' ? '#e5e5e5' : c.bg, width: '28px', height: '28px' }
+      }));
+    });
+    sidebar.append(colorRow);
+
+    // Fit
+    sidebar.append(h('div', { class: 'filter-group', style: { marginTop: '16px' } }, h('div', { class: 'filter-title' }, 'Fit')));
+    FITS.forEach(f => {
+      const isActive = activeFit === f;
+      sidebar.append(h('a', { href: updateQuery({ fit: f }), class: 'filter-link' + (isActive ? ' active' : '') }, f));
+    });
+
+    // Collection
+    sidebar.append(h('div', { class: 'filter-group', style: { marginTop: '16px' } }, h('div', { class: 'filter-title' }, 'Collection')));
+    COLLECTIONS.forEach(col => {
+      const isActive = activeCollection === col;
+      sidebar.append(h('a', { href: updateQuery({ collection: col }), class: 'filter-link' + (isActive ? ' active' : '') }, col));
+    });
   }
 
-  function catLink(id, label) {
-    const active = (query.category || '') === String(id || '');
-    return h('a', { href: `#/${module}?category=${id || ''}`, class: 'cat-link' + (active ? ' active' : ''), style: { display: 'block', padding: '8px 10px', borderRadius: 'var(--r-md)', color: active ? 'var(--zuno-primary)' : 'var(--ink-700)', fontWeight: active ? '700' : '600', fontSize: 'var(--fs-sm)', textDecoration: 'none' } }, label);
+  function updateQuery(patch) {
+    const q = { ...routerQuery(), ...patch };
+    // Toggle off if same value
+    for (const [k, v] of Object.entries(patch)) {
+      if (routerQuery()[k] === v) q[k] = '';
+    }
+    const clean = Object.entries(q).filter(([, v]) => v).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&');
+    return `#/shop${clean ? '?' + clean : ''}`;
+  }
+  function applySort() {
+    const q = routerQuery();
+    q.sort = sortSel.value;
+    const clean = Object.entries(q).filter(([, v]) => v).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&');
+    location.hash = `#/shop${clean ? '?' + clean : ''}`;
   }
 
-  function searchInline() {
-    const inp = h('input', { class: 'input', placeholder: 'Search in ' + title.toLowerCase() + '…', value: query.search || '', style: { maxWidth: '280px' } });
-    inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { const q = inp.value.trim(); location.hash = `#/${module}?search=${encodeURIComponent(q)}`; } });
-    return inp;
-  }
+  const header = h('div', { class: 'row between', style: { marginBottom: '16px', alignItems: 'center', flexWrap: 'wrap', gap: '12px' } },
+    h('div', {}, h('h1', { style: { fontFamily: 'var(--font-display)', letterSpacing: '-0.02em', margin: 0 } }, 'Shop'), countEl),
+    h('div', { class: 'row gap-3', style: { alignItems: 'center' } },
+      h('span', { class: 'muted text-sm' }, 'Sort by'), sortSel));
+
+  const main = h('div', { class: 'container section' }, header,
+    h('div', { class: 'split', style: { gridTemplateColumns: '260px 1fr' } }, sidebar, h('div', {}, grid)));
+
+  loadSidebar();
+  reload();
 
   async function reload() {
     const q = routerQuery();
     grid.innerHTML = ''; grid.append(skeletonGrid(8));
     try {
-      const { items, total } = await api.get('/products', { module, category: q.category || undefined, search: q.search || undefined, sort: q.sort || 'popular', page: 1, limit: 36 });
+      const params = { module: 'shop', limit: 32, sort: q.sort || 'popular' };
+      if (q.category) params.category = q.category;
+      if (q.search) params.search = q.search;
+      if (q.color) params.color = q.color;
+      if (q.size) params.size = q.size;
+      if (q.fit) params.fit = q.fit;
+      if (q.collection) params.collection = q.collection;
+      const { items, total } = await api.get('/products', params);
       grid.innerHTML = '';
-      countEl.textContent = total + ' items';
-      if (!items.length) grid.append(emptyState({ icon: '🔍', title: 'No results', desc: 'Try a different category or search term.' }));
+      countEl.textContent = total + ' products';
+      if (!items.length) grid.append(emptyState({ icon: '◐', title: 'No products found', desc: 'Try adjusting your filters.' }));
       else grid.append(...items.map(ProductCard));
     } catch (err) {
       grid.innerHTML = ''; grid.append(errorState(err.message, reload));
     }
   }
 
-  // keep sort in sync with query when hash changes
-  sortSel.addEventListener('change', () => { const q = routerQuery(); location.hash = `#/${module}?sort=${sortSel.value}${q.category ? '&category=' + q.category : ''}${q.search ? '&search=' + encodeURIComponent(q.search) : ''}`; });
-
   return main;
 }
 
 function routerQuery() {
-  const h2 = location.hash.slice(1).split('?')[1] || '';
-  const q = {}; new URLSearchParams(h2).forEach((v, k) => { q[k] = v; }); return q;
+  const hash = location.hash.slice(1).split('?')[1] || '';
+  const q = {}; new URLSearchParams(hash).forEach((v, k) => { q[k] = v; }); return q;
 }
 
-export function Shop() { return Listing({ module: 'shop', title: 'Shop', icon: '🛒' }); }
-export function Grocery() { return Listing({ module: 'grocery', title: 'Grocery', icon: '🥦' }); }
+export { Shop };
+export function Grocery() { location.hash = '#/shop'; return h('div', { class: 'container section' }, 'Redirecting…'); }
