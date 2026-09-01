@@ -1,0 +1,54 @@
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--ink-800);
+  font-size: var(--fs-md);
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+h1, h2, h3, h4, h5 { color: var(--ink-900); line-height: 1.2; margin: 0 0 var(--sp-3); font-weight: 700; letter-spacing: -0.01em; }
+h1 { font-size: var(--fs-3xl); }
+h2 { font-size: var(--fs-2xl); }
+h3 { font-size: var(--fs-xl); }
+p { margin: 0 0 var(--sp-3); }
+a { color: var(--zuno-primary); text-decoration: none; }
+a:hover { text-decoration: underline; }
+img { max-width: 100%; display: block; }
+button { font-family: inherit; cursor: pointer; }
+ul { margin: 0; padding: 0; list-style: none; }
+:focus-visible { outline: 3px solid var(--zuno-primary-100); outline-offset: 2px; border-radius: var(--r-sm); }
+::selection { background: var(--zuno-primary-100); color: var(--ink-900); }
+
+.skip-link {
+  position: absolute; left: -999px; top: 0; z-index: 999;
+  background: var(--zuno-primary); color: #fff; padding: 10px 16px; border-radius: var(--r-sm);
+}
+.skip-link:focus { left: 12px; top: 12px; }
+
+.muted { color: var(--ink-500); }
+.center { text-align: center; }
+.container { max-width: var(--maxw); margin: 0 auto; padding: 0 var(--sp-5); }
+.container-narrow { max-width: var(--maxw-narrow); margin: 0 auto; padding: 0 var(--sp-5); }
+.row { display: flex; align-items: center; }
+.col { display: flex; flex-direction: column; }
+.gap-1 { gap: var(--sp-1); } .gap-2 { gap: var(--sp-2); } .gap-3 { gap: var(--sp-3); }
+.gap-4 { gap: var(--sp-4); } .gap-5 { gap: var(--sp-5); } .gap-6 { gap: var(--sp-6); }
+.between { justify-content: space-between; }
+.wrap { flex-wrap: wrap; }
+.grow { flex: 1; }
+.hide { display: none !important; }
+.section { padding: var(--sp-8) 0; }
+.section-title { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: var(--sp-5); }
+.text-sm { font-size: var(--fs-sm); }
+.text-xs { font-size: var(--fs-xs); }
+.fw-600 { font-weight: 600; }
+.price { font-weight: 700; color: var(--ink-900); }
+.strike { color: var(--ink-400); text-decoration: line-through; font-weight: 500; }
+.discount { color: var(--zuno-success); font-weight: 600; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+}
