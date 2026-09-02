@@ -94,10 +94,18 @@ export async function Login() {
     otpForm.style.display = isOtp ? '' : 'none';
   }));
 
+  const demoBox = h('div', { class: 'card', style: { marginTop: '16px', background: 'var(--ink-50)', border: '1px dashed var(--ink-200)', padding: '12px' } },
+    h('div', { class: 'fw-600 text-sm', style: { marginBottom: '6px' } }, 'Demo accounts (try without registering)'),
+    h('div', { class: 'muted text-xs', style: { lineHeight: '1.6' } },
+      h('div', {}, h('strong', {}, 'Customer:'), ' demo@zuno.app / Demo@1234  (or 9876543210)'),
+      h('div', {}, h('strong', {}, 'Admin:'), ' admin@zuno.app / Admin@1234')),
+    h('button', { class: 'btn btn-ghost btn-sm', style: { marginTop: '8px' }, type: 'button', onclick: () => { idF.input.value = 'demo@zuno.app'; pwF.input.value = 'Demo@1234'; toast('Demo credentials filled — click Sign in', 'info'); } }, 'Fill demo customer →'));
+
   card.append(
-    h('div', { class: 'center', style: { marginBottom: '20px' } }, h('div', { class: 'brand', style: { justifyContent: 'center' } }, h('span', { class: 'logo' }, 'Z'), 'Zuno')),
-    h('h2', { class: 'center' }, 'Welcome back'),
+    h('div', { class: 'center', style: { marginBottom: '20px' } }, h('div', { class: 'brand', style: { justifyContent: 'center', fontFamily: 'var(--font-display)', letterSpacing: '0.12em' } }, 'ZUNO')),
+    h('h2', { class: 'center', style: { fontFamily: 'var(--font-display)' } }, 'Welcome back'),
     tabRow, pwForm, otpForm,
+    demoBox,
     h('div', { class: 'divider' }),
     googleWrap);
   root.append(card);

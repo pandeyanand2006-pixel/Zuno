@@ -86,7 +86,7 @@ export const cartService = {
     if (variantData) {
       existing = db.prepare('SELECT * FROM cart_items WHERE cart_id = ? AND product_id = ? AND variant_data = ?').get(cart.id, productId, variantData);
     } else {
-      existing = db.prepare('SELECT * FROM cart_items WHERE cart_id = ? AND product_id = ? AND (variant_data IS NULL OR variant_data = "")').get(cart.id, productId);
+      existing = db.prepare("SELECT * FROM cart_items WHERE cart_id = ? AND product_id = ? AND (variant_data IS NULL OR variant_data = '')").get(cart.id, productId);
     }
     if (existing) {
       db.prepare('UPDATE cart_items SET quantity = quantity + ? WHERE id = ?').run(quantity, existing.id);
