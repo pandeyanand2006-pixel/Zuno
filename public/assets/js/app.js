@@ -19,6 +19,7 @@ import { Search } from './pages/search.js';
 import { Admin } from './pages/admin.js';
 import { SellerDashboard, RestaurantDashboard, ProviderDashboard } from './pages/partner.js';
 import { Customize } from './pages/customize.js';
+import { About } from './pages/about.js';
 
 // Register routes
 route('/', Home);
@@ -42,6 +43,7 @@ route('/services', ServiceProviders);
 route('/services/:slug', Provider);
 route('/search', Search);
 route('/customize', Customize);
+route('/about', About);
 route('/admin', Admin);
 route('/seller', SellerDashboard);
 route('/restaurant-admin', RestaurantDashboard);

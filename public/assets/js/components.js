@@ -3,10 +3,10 @@ import { Store } from './store.js';
 import { api } from './api.js';
 
 const NAV = [
-  { label: 'T-Shirts', href: '#/shop?category=t-shirts', key: 'tshirts' },
-  { label: 'Shirts', href: '#/shop?category=shirts', key: 'shirts' },
-  { label: 'New Arrivals', href: '#/shop?sort=newest', key: 'new' },
-  { label: 'Custom Studio', href: '#/customize', key: 'custom', accent: true },
+  { label: 'Shop', href: '#/shop', key: 'shop' },
+  { label: 'New Drops', href: '#/shop?sort=newest', key: 'new' },
+  { label: 'Custom T-shirts', href: '#/customize', key: 'custom', accent: true },
+  { label: 'About', href: '#/about', key: 'about' },
 ];
 
 const MOBILE_NAV = [
@@ -64,7 +64,7 @@ export function footer() {
             h('a', { href: 'https://instagram.com', target: '_blank', class: 'icon-btn', style: { color: '#fff', borderColor: 'rgba(255,255,255,0.2)' }, title: 'Instagram' }, '◯'),
             h('a', { href: 'https://facebook.com', target: '_blank', class: 'icon-btn', style: { color: '#fff', borderColor: 'rgba(255,255,255,0.2)' }, title: 'Facebook' }, '⬡'),
             h('a', { href: 'https://youtube.com', target: '_blank', class: 'icon-btn', style: { color: '#fff', borderColor: 'rgba(255,255,255,0.2)' }, title: 'YouTube' }, '▷'))),
-        footerCol('SHOP', [['T-Shirts', '#/shop?category=t-shirts'], ['Shirts', '#/shop?category=shirts'], ['New Arrivals', '#/shop?sort=newest'], ['Best Sellers', '#/shop?sort=popular'], ['Custom Studio', '#/customize']]),
+        footerCol('SHOP', [['All T-shirts', '#/shop'], ['New Drops', '#/shop?sort=newest'], ['Best Sellers', '#/shop?sort=popular'], ['Custom T-shirts', '#/customize']]),
         footerCol('HELP', [['Contact Us', '#/'], ['Shipping', '#/'], ['Returns', '#/'], ['Size Guide', '#/'], ['FAQs', '#/']]),
         footerCol('COMPANY', [['About Zuno', '#/'], ['Our Story', '#/'], ['Careers', '#/']]),
         footerCol('LEGAL', [['Privacy', '#/'], ['Terms', '#/'], ['Refund Policy', '#/']])),

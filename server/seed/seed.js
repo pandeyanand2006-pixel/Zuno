@@ -42,21 +42,13 @@ function seed() {
   };
   // Top-level
   const tshirts = cat('shop', 'T-Shirts', null, '👕');
-  const shirts = cat('shop', 'Shirts', null, '👔');
-  // T-Shirts subcats
+  // T-Shirts subcats — ZUNO is T-shirts only
   const tOversized = cat('shop', 'Oversized', tshirts);
   const tRegular = cat('shop', 'Regular Fit', tshirts);
   const tGraphic = cat('shop', 'Graphic', tshirts);
   const tPlain = cat('shop', 'Plain', tshirts);
   const tPolo = cat('shop', 'Polo', tshirts);
   const tPremium = cat('shop', 'Premium Cotton', tshirts);
-  // Shirts subcats
-  const sCasual = cat('shop', 'Casual', shirts);
-  const sPrinted = cat('shop', 'Printed', shirts);
-  const sOvershirt = cat('shop', 'Overshirt', shirts);
-  const sSolid = cat('shop', 'Solid', shirts);
-  const sRelaxed = cat('shop', 'Relaxed Fit', shirts);
-  const sFormal = cat('shop', 'Formal', shirts);
 
   // ---------- Brands ----------
   const brand = (name) => db.prepare('INSERT INTO brands (name, slug) VALUES (?, ?)').run(name, slugify(name)).lastInsertRowid;
@@ -95,15 +87,9 @@ function seed() {
   clothingProd({ name: 'Zuno Polo Classic', categoryId: tPolo, brandId: bZuno, price: 1799, mrp: 2399, stock: 160, desc: 'Classic polo — piqué knit, minimal Zuno embroidery.', colors: ['navy', 'black', 'white', 'forest'], sizes: ['S', 'M', 'L', 'XL', 'XXL'], fit: 'regular', fabric: 'Piqué Cotton', collection: 'Essentials', specs: { Fabric: 'Piqué Cotton', Fit: 'Regular' } });
   clothingProd({ name: 'Zuno Street Graphic Oversized Tee', categoryId: tGraphic, brandId: bZunoStudio, price: 1699, mrp: 2299, stock: 220, desc: 'Bold back graphic — street culture, oversized drape.', colors: ['black', 'white', 'charcoal'], sizes: ['M', 'L', 'XL', 'XXL'], fit: 'oversized', fabric: 'Cotton', collection: 'After Dark', customizable: 1, newArrival: 1, specs: { Print: 'Puff Print' } });
   clothingProd({ name: 'Zuno Washed Vintage Tee', categoryId: tPlain, brandId: bZuno, price: 1399, mrp: 1899, stock: 250, desc: 'Garment-washed vintage tee — soft, lived-in feel from day one.', colors: ['washed-black', 'washed-grey', 'washed-olive'], sizes: ['S', 'M', 'L', 'XL'], fit: 'regular', fabric: 'Washed Cotton', collection: 'Essentials', specs: { Wash: 'Garment Dyed' } });
-
-  // ---------- Shirts ----------
-  clothingProd({ name: 'Zuno Relaxed Oxford Shirt', categoryId: sCasual, brandId: bZuno, price: 2499, mrp: 3299, stock: 140, desc: 'Relaxed Oxford — textured weave, effortless everyday shirt.', colors: ['white', 'light-blue', 'sage', 'charcoal'], sizes: ['S', 'M', 'L', 'XL', 'XXL'], fit: 'relaxed', fabric: 'Oxford Cotton', collection: 'Essentials', featured: 1, specs: { Fabric: 'Oxford Cotton' } });
-  clothingProd({ name: 'Zuno Everyday Linen Shirt', categoryId: sRelaxed, brandId: bZuno, price: 2799, mrp: 3599, stock: 120, desc: 'Breathable linen — relaxed drape for warm days and evenings.', colors: ['beige', 'white', 'olive', 'charcoal'], sizes: ['M', 'L', 'XL', 'XXL'], fit: 'relaxed', fabric: 'Linen', collection: 'Essentials', specs: { Fabric: '100% Linen' } });
-  clothingProd({ name: 'Zuno Utility Overshirt', categoryId: sOvershirt, brandId: bZuno, price: 3299, mrp: 4299, stock: 100, desc: 'Heavy utility overshirt — pockets, structure, street-ready.', colors: ['olive', 'charcoal', 'khaki'], sizes: ['M', 'L', 'XL', 'XXL'], fit: 'oversized', fabric: 'Cotton Twill', collection: 'Street Form', specs: { Pockets: '4' } });
-  clothingProd({ name: 'Zuno Minimal Check Shirt', categoryId: sPrinted, brandId: bZuno, price: 2299, mrp: 2999, stock: 130, desc: 'Minimal check — subtle pattern, premium finish.', colors: ['white-check', 'grey-check', 'navy-check'], sizes: ['S', 'M', 'L', 'XL'], fit: 'regular', fabric: 'Cotton', collection: 'Essentials', specs: { Pattern: 'Micro Check' } });
-  clothingProd({ name: 'Zuno Premium Casual Shirt', categoryId: sSolid, brandId: bZuno, price: 2599, mrp: 3399, stock: 150, desc: 'Premium casual — twill, soft collar, everyday elevated.', colors: ['black', 'white', 'charcoal', 'navy'], sizes: ['S', 'M', 'L', 'XL'], fit: 'regular', fabric: 'Cotton Twill', collection: 'After Dark', featured: 1, specs: { Fabric: 'Cotton Twill' } });
-  clothingProd({ name: 'Zuno Cuban Collar Shirt', categoryId: sPrinted, brandId: bZunoStudio, price: 2399, mrp: 3199, stock: 110, desc: 'Cuban collar — retro, relaxed, resort-ready.', colors: ['black', 'cream', 'sage'], sizes: ['S', 'M', 'L', 'XL'], fit: 'relaxed', fabric: 'Viscose', collection: 'After Dark', newArrival: 1, specs: { Collar: 'Cuban' } });
-  clothingProd({ name: 'Zuno Flannel Check Shirt', categoryId: sPrinted, brandId: bZuno, price: 2699, mrp: 3499, stock: 90, desc: 'Brushed flannel check — warm, soft, winter essential.', colors: ['red-check', 'green-check', 'navy-check'], sizes: ['M', 'L', 'XL', 'XXL'], fit: 'regular', fabric: 'Flannel', collection: 'After Dark', specs: { Fabric: 'Flannel' } });
+  clothingProd({ name: 'Zuno Signature Tee', categoryId: tPremium, brandId: bZuno, price: 1999, mrp: 2699, stock: 200, desc: 'Signature heavyweight tee — Zuno embroidered chest, premium 280 GSM.', colors: ['black', 'white', 'charcoal'], sizes: ['S', 'M', 'L', 'XL', 'XXL'], fit: 'regular', fabric: 'Heavyweight Cotton', collection: 'Essentials', featured: 1, specs: { GSM: '280', Embroidery: 'ZUNO chest' } });
+  clothingProd({ name: 'Zuno Core Black Tee', categoryId: tPlain, brandId: bZuno, price: 1199, mrp: 1599, stock: 350, desc: 'Core black tee — the one you reach for every day. Pure, minimal, perfect.', colors: ['black'], sizes: ['XS', 'S', 'M', 'L', 'XL', 'XXL'], fit: 'regular', fabric: '100% Cotton', collection: 'Essentials', featured: 1, newArrival: 1, specs: { Fabric: '100% Cotton' } });
+  clothingProd({ name: 'Zuno Graphic Series Tee', categoryId: tGraphic, brandId: bZunoStudio, price: 1799, mrp: 2399, stock: 180, desc: 'Graphic series — bold front print, street form, limited drop.', colors: ['black', 'white', 'beige'], sizes: ['M', 'L', 'XL', 'XXL'], fit: 'oversized', fabric: 'Cotton', collection: 'Street Form', customizable: 1, featured: 1, specs: { Print: 'HD Screen Print' } });
 
   // ---------- Coupons ----------
   db.prepare('INSERT INTO coupons (code, type, value, min_order, max_discount, module, active) VALUES (?, ?, ?, ?, ?, ?, 1)')
