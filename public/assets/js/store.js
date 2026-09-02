@@ -1,8 +1,8 @@
 import { toast } from './ui.js';
 
-const TOKEN_KEY = 'zuno_token';
-const THEME_KEY = 'zuno_theme';
-const GUEST_KEY = 'zuno_guest_cart';
+const TOKEN_KEY = 'Zuno_token';
+const THEME_KEY = 'Zuno_theme';
+const GUEST_KEY = 'Zuno_guest_cart';
 
 const listeners = new Set();
 

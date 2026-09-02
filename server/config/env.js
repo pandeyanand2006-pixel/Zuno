@@ -18,7 +18,7 @@ export const env = {
   nodeEnv: process.env.NODE_ENV || 'development',
   jwtSecret: process.env.JWT_SECRET || 'dev-insecure-secret-change-me',
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
-  dbPath: process.env.DB_PATH || path.resolve(__dirname, '../../data/zuno.db'),
+  dbPath: process.env.DB_PATH || path.resolve(__dirname, '../../data/Zuno.db'),
   frontendUrl: process.env.FRONTEND_URL || 'http://localhost:5500',
   apiBaseUrl: process.env.API_BASE_URL || 'http://localhost:4000',
   razorpay: {
@@ -33,7 +33,7 @@ export const env = {
     host: process.env.SMTP_HOST || '',
     user: process.env.SMTP_USER || '',
     pass: process.env.SMTP_PASS || '',
-    from: process.env.SMTP_FROM || 'noreply@zuno.app',
+    from: process.env.SMTP_FROM || 'noreply@Zuno.app',
   },
   isProduction: (process.env.NODE_ENV || 'development') === 'production',
 };

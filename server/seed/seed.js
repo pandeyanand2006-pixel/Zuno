@@ -16,7 +16,7 @@ function seed() {
   }
   const count = db.prepare('SELECT COUNT(*) c FROM products').get().c;
   if (count > 0) {
-    logger.info('Seed skipped: data already present (delete data/zuno.db to reseed)');
+    logger.info('Seed skipped: data already present (delete data/Zuno.db to reseed)');
     return;
   }
 
@@ -26,13 +26,13 @@ function seed() {
   const sellerRole = roleId('SELLER');
   const adminHash = bcryptHash('Admin@1234');
   db.prepare('INSERT OR IGNORE INTO users (name, email, mobile, password_hash, role_id, email_verified) VALUES (?, ?, ?, ?, ?, 1)')
-    .run('Zuno Admin', 'admin@zuno.app', '9999999999', adminHash, adminRole);
+    .run('Zuno Admin', 'admin@Zuno.app', '9999999999', adminHash, adminRole);
 
   const mkUser = (name, email, mobile, pass, role) =>
     db.prepare('INSERT INTO users (name, email, mobile, password_hash, role_id) VALUES (?, ?, ?, ?, ?)')
       .run(name, email, mobile, bcryptHash(pass), role).lastInsertRowid;
 
-  const sellerUserId = mkUser('Maya Seller', 'seller@zuno.app', '9123000001', 'Seller@1234', sellerRole);
+  const sellerUserId = mkUser('Maya Seller', 'seller@Zuno.app', '9123000001', 'Seller@1234', sellerRole);
 
   // ---------- Categories (Clothing) ----------
   const cat = (module, name, parent = null, icon = '') => {
@@ -42,7 +42,7 @@ function seed() {
   };
   // Top-level
   const tshirts = cat('shop', 'T-Shirts', null, '👕');
-  // T-Shirts subcats — ZUNO is T-shirts only
+  // T-Shirts subcats — Zuno is T-shirts only
   const tOversized = cat('shop', 'Oversized', tshirts);
   const tRegular = cat('shop', 'Regular Fit', tshirts);
   const tGraphic = cat('shop', 'Graphic', tshirts);
@@ -56,7 +56,7 @@ function seed() {
   const bZunoStudio = brand('Zuno Studio');
 
   // ---------- Seller (Zuno-owned catalogue) ----------
-  const sellerId = db.prepare("INSERT INTO sellers (name, slug, status, owner_user_id) VALUES (?, ?, 'verified', ?)").run('Zuno Clothing', 'zuno-clothing', sellerUserId).lastInsertRowid;
+  const sellerId = db.prepare("INSERT INTO sellers (name, slug, status, owner_user_id) VALUES (?, ?, 'verified', ?)").run('Zuno Clothing', 'Zuno-clothing', sellerUserId).lastInsertRowid;
 
   // ---------- Helpers ----------
   const clothingProd = ({ name, categoryId, brandId, price, mrp, stock, desc, colors, sizes, fit, fabric, collection, customizable = 0, featured = 0, newArrival = 0, specs = {}, images = [] }) => {
@@ -71,7 +71,7 @@ function seed() {
     const varIns = db.prepare('INSERT INTO product_variants (product_id, sku, color, size, stock, price) VALUES (?, ?, ?, ?, ?, ?)');
     for (const color of colors) {
       for (const size of sizes) {
-        const sku = `ZUNO-${pid}-${color.toUpperCase().replace(/[^A-Z0-9]/g, '')}-${size}`;
+        const sku = `Zuno-${pid}-${color.toUpperCase().replace(/[^A-Z0-9]/g, '')}-${size}`;
         varIns.run(pid, sku, color, size, Math.floor(stock / (colors.length * sizes.length)) + 5, price);
       }
     }
@@ -87,13 +87,13 @@ function seed() {
   clothingProd({ name: 'Zuno Polo Classic', categoryId: tPolo, brandId: bZuno, price: 1799, mrp: 2399, stock: 160, desc: 'Classic polo — piqué knit, minimal Zuno embroidery.', colors: ['navy', 'black', 'white', 'forest'], sizes: ['S', 'M', 'L', 'XL', 'XXL'], fit: 'regular', fabric: 'Piqué Cotton', collection: 'Essentials', specs: { Fabric: 'Piqué Cotton', Fit: 'Regular' } });
   clothingProd({ name: 'Zuno Street Graphic Oversized Tee', categoryId: tGraphic, brandId: bZunoStudio, price: 1699, mrp: 2299, stock: 220, desc: 'Bold back graphic — street culture, oversized drape.', colors: ['black', 'white', 'charcoal'], sizes: ['M', 'L', 'XL', 'XXL'], fit: 'oversized', fabric: 'Cotton', collection: 'After Dark', customizable: 1, newArrival: 1, specs: { Print: 'Puff Print' } });
   clothingProd({ name: 'Zuno Washed Vintage Tee', categoryId: tPlain, brandId: bZuno, price: 1399, mrp: 1899, stock: 250, desc: 'Garment-washed vintage tee — soft, lived-in feel from day one.', colors: ['washed-black', 'washed-grey', 'washed-olive'], sizes: ['S', 'M', 'L', 'XL'], fit: 'regular', fabric: 'Washed Cotton', collection: 'Essentials', specs: { Wash: 'Garment Dyed' } });
-  clothingProd({ name: 'Zuno Signature Tee', categoryId: tPremium, brandId: bZuno, price: 1999, mrp: 2699, stock: 200, desc: 'Signature heavyweight tee — Zuno embroidered chest, premium 280 GSM.', colors: ['black', 'white', 'charcoal'], sizes: ['S', 'M', 'L', 'XL', 'XXL'], fit: 'regular', fabric: 'Heavyweight Cotton', collection: 'Essentials', featured: 1, specs: { GSM: '280', Embroidery: 'ZUNO chest' } });
+  clothingProd({ name: 'Zuno Signature Tee', categoryId: tPremium, brandId: bZuno, price: 1999, mrp: 2699, stock: 200, desc: 'Signature heavyweight tee — Zuno embroidered chest, premium 280 GSM.', colors: ['black', 'white', 'charcoal'], sizes: ['S', 'M', 'L', 'XL', 'XXL'], fit: 'regular', fabric: 'Heavyweight Cotton', collection: 'Essentials', featured: 1, specs: { GSM: '280', Embroidery: 'Zuno chest' } });
   clothingProd({ name: 'Zuno Core Black Tee', categoryId: tPlain, brandId: bZuno, price: 1199, mrp: 1599, stock: 350, desc: 'Core black tee — the one you reach for every day. Pure, minimal, perfect.', colors: ['black'], sizes: ['XS', 'S', 'M', 'L', 'XL', 'XXL'], fit: 'regular', fabric: '100% Cotton', collection: 'Essentials', featured: 1, newArrival: 1, specs: { Fabric: '100% Cotton' } });
   clothingProd({ name: 'Zuno Graphic Series Tee', categoryId: tGraphic, brandId: bZunoStudio, price: 1799, mrp: 2399, stock: 180, desc: 'Graphic series — bold front print, street form, limited drop.', colors: ['black', 'white', 'beige'], sizes: ['M', 'L', 'XL', 'XXL'], fit: 'oversized', fabric: 'Cotton', collection: 'Street Form', customizable: 1, featured: 1, specs: { Print: 'HD Screen Print' } });
 
   // ---------- Coupons ----------
   db.prepare('INSERT INTO coupons (code, type, value, min_order, max_discount, module, active) VALUES (?, ?, ?, ?, ?, ?, 1)')
-    .run('ZUNO100', 'flat', 10000, 0, null, null);
+    .run('Zuno100', 'flat', 10000, 0, null, null);
   db.prepare('INSERT INTO coupons (code, type, value, min_order, max_discount, module, active) VALUES (?, ?, ?, ?, ?, ?, 1)')
     .run('WELCOME10', 'percent', 10, 100000, 50000, null);
   db.prepare('INSERT INTO coupons (code, type, value, min_order, max_discount, module, active) VALUES (?, ?, ?, ?, ?, ?, 1)')

@@ -3,7 +3,7 @@ import { api } from '../api.js';
 import { Store } from '../store.js';
 import { runPayment } from '../pay.js';
 
-const FOOD_CART_KEY = 'zuno_food_cart';
+const FOOD_CART_KEY = 'Zuno_food_cart';
 
 function getFoodCart() { try { return JSON.parse(localStorage.getItem(FOOD_CART_KEY)) || []; } catch { return []; } }
 function setFoodCart(c) { localStorage.setItem(FOOD_CART_KEY, JSON.stringify(c)); }
@@ -94,7 +94,7 @@ export async function FoodCheckout() {
   const total = subtotal + tax;
 
   const addrBox = h('div', { class: 'card card-pad', style: { marginBottom: '16px' } }, h('h3', {}, 'Address'),
-    ...(addresses.length ? addresses.map((a) => h('label', { class: 'row gap-3', style: { padding: '10px', border: '1px solid ' + (a.id === selected ? 'var(--zuno-primary)' : 'var(--ink-200)'), borderRadius: 'var(--r-md)', marginBottom: '8px', cursor: 'pointer', background: a.id === selected ? 'var(--zuno-primary-50)' : 'transparent' } },
+    ...(addresses.length ? addresses.map((a) => h('label', { class: 'row gap-3', style: { padding: '10px', border: '1px solid ' + (a.id === selected ? 'var(--Zuno-primary)' : 'var(--ink-200)'), borderRadius: 'var(--r-md)', marginBottom: '8px', cursor: 'pointer', background: a.id === selected ? 'var(--Zuno-primary-50)' : 'transparent' } },
       h('input', { type: 'radio', name: 'fa', checked: a.id === selected, onchange: () => { selected = a.id; } }), h('div', {}, h('div', { class: 'fw-600' }, (a.label ? a.label + ' · ' : '') + a.line1), h('div', { class: 'muted text-sm' }, a.city + ' ' + a.pincode)))) : h('p', { class: 'muted' }, 'Add an address in your profile first.')));
   const sumBox = h('div', { class: 'card card-pad' }, h('h3', {}, 'Summary'),
     h('div', { class: 'row between' }, h('span', { class: 'muted' }, 'Subtotal'), h('span', {}, money(subtotal))),

@@ -83,10 +83,10 @@ export async function Product({ params }) {
       const variant = (product.variants || []).find(v => v.color === selColor && v.size === selSize);
       if (variant) {
         variantInfo.textContent = variant.stock > 0 ? `✓ In stock · ${variant.stock} left` : 'Out of stock in this variant';
-        variantInfo.style.color = variant.stock > 0 ? 'var(--zuno-success)' : 'var(--zuno-danger)';
+        variantInfo.style.color = variant.stock > 0 ? 'var(--Zuno-success)' : 'var(--Zuno-danger)';
       } else {
         variantInfo.textContent = '✓ Available';
-        variantInfo.style.color = 'var(--zuno-success)';
+        variantInfo.style.color = 'var(--Zuno-success)';
       }
     }
     updateVariantInfo();
@@ -143,7 +143,7 @@ export async function Product({ params }) {
     }
 
     const info = h('div', {},
-      h('div', { class: 'muted text-sm', style: { letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: '700' } }, 'ZUNO'),
+      h('div', { class: 'muted text-sm', style: { letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: '700' } }, 'Zuno'),
       h('h1', { style: { fontFamily: 'var(--font-display)', letterSpacing: '-0.02em', margin: '4px 0 8px', lineHeight: '1.1' } }, product.name),
       h('div', { class: 'muted text-sm' }, '★ ' + (product.rating || '—') + ' · ' + (product.ratingCount || 0) + ' ratings · ' + (product.collection || 'Essentials')),
       h('div', { class: 'row gap-2', style: { marginTop: '12px', alignItems: 'baseline' } },
