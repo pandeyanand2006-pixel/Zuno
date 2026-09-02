@@ -1,10 +1,11 @@
 import { Router } from 'express';
 import { db } from '../config/db.js';
-import { ok } from '../utils/response.js';
+import { ok, fail } from '../utils/response.js';
 import { authMiddleware, requireRole } from '../middleware/auth.js';
 import { z } from 'zod';
 import { validate } from '../middleware/validate.js';
 import { slugify } from '../utils/id.js';
+import { orderService } from '../services/order.service.js';
 
 const router = Router();
 router.use(authMiddleware, requireRole('ADMIN'));
@@ -80,15 +81,49 @@ router.get('/custom-orders', (req, res) => {
 router.get('/orders', (req, res) => {
   const clauses = [];
   const params = [];
-  if (req.query.status) { clauses.push('status = ?'); params.push(req.query.status); }
+  if (req.query.status) { clauses.push('o.status = ?'); params.push(req.query.status); }
+  if (req.query.q) {
+    clauses.push('(o.order_number LIKE ? OR u.name LIKE ? OR u.mobile LIKE ? OR u.email LIKE ?)');
+    const q = `%${req.query.q}%`;
+    params.push(q, q, q, q);
+  }
+  if (req.query.custom === '1') clauses.push('EXISTS (SELECT 1 FROM order_items oi WHERE oi.order_id = o.id AND oi.customization_data IS NOT NULL)');
+  if (req.query.custom === '0') clauses.push('NOT EXISTS (SELECT 1 FROM order_items oi WHERE oi.order_id = o.id AND oi.customization_data IS NOT NULL)');
   const where = clauses.length ? 'WHERE ' + clauses.join(' AND ') : '';
-  const orders = db.prepare(`SELECT * FROM orders ${where} ORDER BY created_at DESC LIMIT 300`).all(...params);
+  const orders = db.prepare(`
+    SELECT o.*, u.name as customer_name, u.mobile as customer_mobile, u.email as customer_email
+    FROM orders o LEFT JOIN users u ON u.id = o.user_id
+    ${where} ORDER BY o.created_at DESC LIMIT 300
+  `).all(...params);
   return ok(res, { orders });
 });
 router.post('/orders/:id/status', (req, res) => {
-  const { status } = req.body;
-  db.prepare("UPDATE orders SET status = ?, updated_at = datetime('now') WHERE id = ?").run(status, req.params.id);
-  return ok(res, null, 'Status updated');
+  const { status, note } = req.body;
+  const allowed = ['PAYMENT_PENDING','PAID','CONFIRMED','PROCESSING','PRINTING','QUALITY_CHECK','PACKED','SHIPPED','OUT_FOR_DELIVERY','DELIVERED','CANCELLED'];
+  if (!allowed.includes(status)) return fail(res, 'Invalid status', 400);
+  try {
+    orderService.updateStatus(Number(req.params.id), status, req.user.id, note || null);
+    return ok(res, null, 'Status updated');
+  } catch (e) { return fail(res, e.message, 400); }
+});
+router.get('/orders/:id/history', (req, res) => {
+  const history = db.prepare('SELECT h.*, u.name as changed_by_name FROM order_status_history h LEFT JOIN users u ON u.id = h.changed_by WHERE h.order_id = ? ORDER BY h.created_at ASC').all(req.params.id);
+  return ok(res, { history });
+});
+router.post('/orders/:id/notes', (req, res) => {
+  const { note } = req.body;
+  if (!note || !note.trim()) return fail(res, 'Note required', 400);
+  orderService.addAdminNote(Number(req.params.id), note.trim(), req.user.id);
+  return ok(res, null, 'Note added');
+});
+router.get('/orders/:id', (req, res) => {
+  const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(req.params.id);
+  if (!order) return fail(res, 'Not found', 404);
+  const items = db.prepare('SELECT * FROM order_items WHERE order_id = ?').all(req.params.id).map(it => ({ ...it, customization: it.customization_data ? JSON.parse(it.customization_data) : null, variant: it.variant_data ? JSON.parse(it.variant_data) : null }));
+  const history = db.prepare('SELECT h.*, u.name as changed_by_name FROM order_status_history h LEFT JOIN users u ON u.id = h.changed_by WHERE h.order_id = ? ORDER BY h.created_at ASC').all(req.params.id);
+  const customer = db.prepare('SELECT id, name, email, mobile FROM users WHERE id = ?').get(order.user_id);
+  const address = db.prepare('SELECT * FROM addresses WHERE id = ?').get(order.address_id);
+  return ok(res, { order: { ...order, items, history, customer, address } });
 });
 
 // Payments

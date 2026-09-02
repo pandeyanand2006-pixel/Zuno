@@ -11,18 +11,21 @@ const createSchema = z.object({
   module: z.enum(['shop', 'grocery', 'food']).default('shop'),
   addressId: z.number().int().positive(),
   couponCode: z.string().optional(),
+  customerNotes: z.string().max(500).optional(),
 });
 
 export function createOrder(req, res) {
   try {
-    const { module, addressId, couponCode } = req.validated;
+    const { module, addressId, couponCode, customerNotes } = req.validated;
     const cart = cartService.view(req.user.id, module);
     if (!cart.items.length) return fail(res, 'Your cart is empty', 400, 'EMPTY_CART');
 
     const created = orderService.createFromCart({
-      userId: req.user.id, module, addressId, couponCode,
-      items: cart.items.map((i) => ({ productId: i.productId, name: i.name, price: i.price, quantity: i.quantity, lineTotal: i.lineTotal })),
+      userId: req.user.id, module, addressId, couponCode, customerNotes,
+      items: cart.items.map((i) => ({ productId: i.productId, name: i.name, price: i.price, quantity: i.quantity, lineTotal: i.lineTotal, customization: i.customization, variant: i.variant, isCustom: i.isCustom })),
     });
+    // Clear cart after order creation
+    cartService.clear(req.user.id, module);
     return ok(res, created, 'Order created', 201);
   } catch (err) {
     if (err.message === 'EMPTY_CART') return fail(res, 'Your cart is empty', 400, 'EMPTY_CART');

@@ -4,10 +4,16 @@ import * as paymentCtrl from '../controllers/payment.controller.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { z } from 'zod';
+import { orderService } from '../services/order.service.js';
+import { ok } from '../utils/response.js';
 
 const orderRouter = Router();
 orderRouter.use(authMiddleware);
-orderRouter.post('/', validate(z.object({ module: z.enum(['shop','grocery','food']).default('shop'), addressId: z.number().int().positive(), couponCode: z.string().optional() })), orderCtrl.createOrder);
+orderRouter.get('/:id/history', (req, res) => {
+  const history = orderService.getHistory(Number(req.params.id));
+  return ok(res, { history });
+});
+orderRouter.post('/', validate(z.object({ module: z.enum(['shop','grocery','food']).default('shop'), addressId: z.number().int().positive(), couponCode: z.string().optional(), customerNotes: z.string().max(500).optional() })), orderCtrl.createOrder);
 orderRouter.get('/', orderCtrl.listOrders);
 orderRouter.get('/:id', orderCtrl.getOrder);
 orderRouter.post('/:id/cancel', orderCtrl.cancelOrder);

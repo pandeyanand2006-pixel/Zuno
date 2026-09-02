@@ -21,11 +21,26 @@ export async function Checkout() {
   const left = h('div', { class: 'col gap-5' });
   const right = h('div', { class: 'card card-pad elevated', style: { position: 'sticky', top: 'calc(var(--nav-h) + 16px)' } });
 
-  root.append(h('h1', {}, 'Checkout'), h('div', { class: 'split' }, left, h('div', {}, right)));
+  let customerNotes = '';
+  root.append(h('h1', { style: { fontFamily: 'var(--font-display)' } }, 'Checkout'), h('div', { class: 'split' }, left, h('div', {}, right)));
 
   renderAddress();
   renderItems();
+  renderNotes();
   renderSummary();
+
+  function renderNotes() {
+    const box = h('div', { class: 'card card-pad' },
+      h('h3', {}, 'Order notes'),
+      h('p', { class: 'muted text-sm', style: { marginBottom: '8px' } }, 'Add instructions for your order or custom design (optional)'),
+      h('textarea', {
+        class: 'input', placeholder: 'e.g. Please print design in center chest, higher placement...', rows: '3',
+        style: { minHeight: '80px', resize: 'vertical' },
+        value: customerNotes,
+        oninput: (e) => { customerNotes = e.target.value; }
+      }));
+    replaceIn(left, box, 'notes');
+  }
 
   function renderAddress() {
     const box = h('div', { class: 'card card-pad' }, h('h3', {}, 'Delivery address'));
@@ -109,7 +124,7 @@ export async function Checkout() {
       try {
         let order = null;
         if (!oid) {
-          order = await api.post('/orders', { module, addressId: selectedAddress, couponCode: coupon ? coupon.code : undefined });
+          order = await api.post('/orders', { module, addressId: selectedAddress, couponCode: coupon ? coupon.code : undefined, customerNotes: customerNotes || undefined });
           const { razorpay } = await api.post('/payments/create', { orderId: order.orderId });
           oid = razorpay.orderId; pid = razorpay.paymentId; sig = razorpay.signature;
         }
@@ -129,7 +144,7 @@ export async function Checkout() {
           onDismiss: () => { payBtn.disabled = false; payBtn.textContent = 'Pay securely'; },
         });
       } else {
-        const order = await api.post('/orders', { module, addressId: selectedAddress, couponCode: coupon ? coupon.code : undefined });
+        const order = await api.post('/orders', { module, addressId: selectedAddress, couponCode: coupon ? coupon.code : undefined, customerNotes: customerNotes || undefined });
         const { razorpay } = await api.post('/payments/create', { orderId: order.orderId });
         await runPayment({
           razorpay,

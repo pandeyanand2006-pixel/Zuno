@@ -370,6 +370,20 @@ export function initializeSchema() {
     );
     CREATE INDEX IF NOT EXISTS idx_audit_action ON audit_logs(action);
 
+    CREATE TABLE IF NOT EXISTS order_status_history (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      order_id INTEGER NOT NULL,
+      from_status TEXT,
+      to_status TEXT NOT NULL,
+      changed_by INTEGER,
+      note TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
+      FOREIGN KEY (changed_by) REFERENCES users(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_status_history_order ON order_status_history(order_id);
+    CREATE INDEX IF NOT EXISTS idx_status_history_created ON order_status_history(created_at);
+
     CREATE TABLE IF NOT EXISTS otp_codes (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       mobile TEXT,
@@ -408,6 +422,8 @@ export function initializeSchema() {
   addColumn('order_items', 'customization_data', 'TEXT');
   addColumn('order_items', 'variant_data', 'TEXT');
   addColumn('order_items', 'custom_price', 'INTEGER');
+  addColumn('orders', 'customer_notes', 'TEXT');
+  addColumn('orders', 'admin_notes', 'TEXT');
 }
 
 export default db;

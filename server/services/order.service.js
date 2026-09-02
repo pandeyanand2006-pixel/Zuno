@@ -37,7 +37,11 @@ export const orderService = {
     return { subtotal, discount, deliveryFee, serviceFee, tax, total, couponValid: coupon.valid, couponMessage: coupon.valid ? null : (coupon.message || null) };
   },
 
-  createFromCart({ userId, module, addressId, couponCode, items }) {
+  _logStatus(orderId, from, to, changedBy = null, note = null) {
+    try { db.prepare('INSERT INTO order_status_history (order_id, from_status, to_status, changed_by, note) VALUES (?, ?, ?, ?, ?)').run(orderId, from, to, changedBy, note); } catch {}
+  },
+
+  createFromCart({ userId, module, addressId, couponCode, items, customerNotes = null }) {
     if (!items || items.length === 0) throw new Error('EMPTY_CART');
     const subtotal = items.reduce((a, b) => a + b.lineTotal, 0);
     const totals = this.computeTotals({ module, subtotal, couponCode, userId });
@@ -46,17 +50,17 @@ export const orderService = {
     const address = db.prepare('SELECT * FROM addresses WHERE id = ? AND user_id = ?').get(addressId, userId);
     if (!address) throw new Error('ADDRESS_REQUIRED');
 
-    const orderNumber = generateOrderNumber(module === 'grocery' ? 'ZNG' : module === 'food' ? 'ZNF' : 'ZN');
+    const orderNumber = 'ZNO-' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '-' + String(Date.now()).slice(-6);
 
     const tx = () => {
       db.exec('BEGIN');
       try {
         const info = db
           .prepare(
-            `INSERT INTO orders (order_number, user_id, module, status, subtotal, discount, delivery_fee, service_fee, tax, total, address_id, coupon_code, restaurant_id)
-             VALUES (?, ?, ?, 'PAYMENT_PENDING', ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+            `INSERT INTO orders (order_number, user_id, module, status, subtotal, discount, delivery_fee, service_fee, tax, total, address_id, coupon_code, restaurant_id, customer_notes)
+             VALUES (?, ?, ?, 'PAYMENT_PENDING', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
           )
-          .run(orderNumber, userId, module, totals.subtotal, totals.discount, totals.deliveryFee, totals.serviceFee, totals.tax, totals.total, addressId, couponCode || null, null);
+          .run(orderNumber, userId, module, totals.subtotal, totals.discount, totals.deliveryFee, totals.serviceFee, totals.tax, totals.total, addressId, couponCode || null, null, customerNotes || null);
 
         const orderId = info.lastInsertRowid;
         for (const it of items) {
@@ -64,9 +68,12 @@ export const orderService = {
             .run(orderId, it.productId, it.name, it.price, it.quantity, it.customization ? JSON.stringify(it.customization) : null, it.variant ? JSON.stringify(it.variant) : null, it.isCustom ? it.price : null);
           db.prepare('UPDATE products SET stock = stock - ? WHERE id = ? AND stock >= ?').run(it.quantity, it.productId, it.quantity);
         }
+        db.prepare('INSERT INTO order_status_history (order_id, from_status, to_status, changed_by, note) VALUES (?, ?, ?, ?, ?)').run(orderId, null, 'PAYMENT_PENDING', userId, 'Order placed');
         if (couponCode && totals.couponValid) {
           db.prepare('UPDATE coupons SET used_count = used_count + 1 WHERE code = ?').run(couponCode);
         }
+        // Notify admin/user
+        try { db.prepare("INSERT INTO notifications (user_id, type, title, body) VALUES (?, 'order', 'Order placed', ?)").run(userId, `Order ${orderNumber} placed`); } catch {}
         db.exec('COMMIT');
         return orderId;
       } catch (e) {
@@ -79,13 +86,16 @@ export const orderService = {
   },
 
   markPaid(orderId, paymentId) {
+    const prev = db.prepare('SELECT status FROM orders WHERE id = ?').get(orderId);
     db.exec('BEGIN');
     try {
       db.prepare("UPDATE payments SET status = 'captured', verified = 1, updated_at = datetime('now') WHERE id = ?").run(paymentId);
       db.prepare("UPDATE orders SET status = 'PAID', payment_id = ?, updated_at = datetime('now') WHERE id = ?").run(paymentId, orderId);
       const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
+      db.prepare('INSERT INTO order_status_history (order_id, from_status, to_status, changed_by, note) VALUES (?, ?, ?, ?, ?)').run(orderId, prev ? prev.status : null, 'PAID', order.user_id, 'Payment verified');
       db.prepare("INSERT INTO notifications (user_id, type, title, body) VALUES (?, 'order', 'Payment successful', ?)")
         .run(order.user_id, `Payment received for order ${order.order_number}`);
+      try { db.prepare("INSERT INTO notifications (user_id, type, title, body) VALUES (?, 'order', 'Order confirmed', ?)").run(order.user_id, `Order ${order.order_number} confirmed — printing will start soon`); } catch {}
       db.exec('COMMIT');
       return order;
     } catch (e) {
@@ -121,6 +131,8 @@ export const orderService = {
       }));
       out.address = db.prepare('SELECT * FROM addresses WHERE id = ?').get(order.address_id);
       out.payment = db.prepare('SELECT * FROM payments WHERE order_id = ?').get(order.id);
+      out.history = this.getHistory(order.id);
+      out.customer = db.prepare('SELECT id, name, email, mobile FROM users WHERE id = ?').get(order.user_id);
     }
     return out;
   },
@@ -185,19 +197,38 @@ export const orderService = {
 
   cancel(userId, orderId) {    const order = db.prepare('SELECT * FROM orders WHERE id = ? AND user_id = ?').get(orderId, userId);
     if (!order) throw new Error('NOT_FOUND');
-    if (!['PAID', 'CONFIRMED', 'PROCESSING'].includes(order.status)) throw new Error('CANNOT_CANCEL');
+    if (!['PAID', 'CONFIRMED', 'PROCESSING', 'PRINTING', 'QUALITY_CHECK', 'PACKED'].includes(order.status)) throw new Error('CANNOT_CANCEL');
+    const prev = order.status;
     db.prepare("UPDATE orders SET status = 'CANCELLED', updated_at = datetime('now') WHERE id = ?").run(orderId);
+    db.prepare('INSERT INTO order_status_history (order_id, from_status, to_status, changed_by, note) VALUES (?, ?, ?, ?, ?)').run(orderId, prev, 'CANCELLED', userId, 'Cancelled by customer');
+    try { db.prepare("INSERT INTO notifications (user_id, type, title, body) VALUES (?, 'order', 'Order cancelled', ?)").run(order.user_id, `Order ${order.order_number} cancelled`); } catch {}
     // restock
-    db.prepare('UPDATE order_items oi SET oi.quantity = oi.quantity WHERE 1=1');
     db.prepare(`UPDATE products p SET p.stock = p.stock + (
       SELECT COALESCE(SUM(quantity),0) FROM order_items WHERE order_id = ? AND product_id = p.id
     ) WHERE p.id IN (SELECT product_id FROM order_items WHERE order_id = ?)`).run(orderId, orderId);
-    return order;
+    return db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
   },
 
-  updateStatus(orderId, status) {
+  updateStatus(orderId, status, changedBy = null, note = null) {
+    const prev = db.prepare('SELECT status, user_id, order_number FROM orders WHERE id = ?').get(orderId);
     db.prepare("UPDATE orders SET status = ?, updated_at = datetime('now') WHERE id = ?").run(status, orderId);
+    db.prepare('INSERT INTO order_status_history (order_id, from_status, to_status, changed_by, note) VALUES (?, ?, ?, ?, ?)').run(orderId, prev ? prev.status : null, status, changedBy, note);
+    // Notify customer
+    if (prev) {
+      const titles = { CONFIRMED: 'Order confirmed', PRINTING: 'Your design is being printed', QUALITY_CHECK: 'Quality check', PACKED: 'Order packed', SHIPPED: 'Order shipped', OUT_FOR_DELIVERY: 'Out for delivery', DELIVERED: 'Delivered' };
+      if (titles[status]) try { db.prepare("INSERT INTO notifications (user_id, type, title, body) VALUES (?, 'order', ?, ?)").run(prev.user_id, titles[status], `Order ${prev.order_number} — ${titles[status].toLowerCase()}`); } catch {}
+    }
     return db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
+  },
+
+  addAdminNote(orderId, note, adminId) {
+    db.prepare("UPDATE orders SET admin_notes = COALESCE(admin_notes || '\n','') || ?, updated_at = datetime('now') WHERE id = ?").run(note + ' [' + new Date().toISOString().slice(0,10) + ']', orderId);
+    db.prepare('INSERT INTO order_status_history (order_id, from_status, to_status, changed_by, note) VALUES (?, ?, ?, ?, ?)').run(orderId, null, 'NOTE', adminId, note);
+    return db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
+  },
+
+  getHistory(orderId) {
+    return db.prepare('SELECT h.*, u.name as changed_by_name FROM order_status_history h LEFT JOIN users u ON u.id = h.changed_by WHERE h.order_id = ? ORDER BY h.created_at ASC').all(orderId);
   },
 };
 
