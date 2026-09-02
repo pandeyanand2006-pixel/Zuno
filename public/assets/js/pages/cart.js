@@ -78,7 +78,7 @@ function renderAuthed(root) {
       h('div', { style: { display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' } },
         qty,
         h('div', { class: 'fw-600' }, money(it.lineTotal)),
-        h('button', { class: 'btn btn-ghost btn-sm', style: { color: 'var(--Zuno-danger)', fontSize: 'var(--fs-xs)' }, onclick: async () => {
+        h('button', { class: 'btn btn-ghost btn-sm', style: { color: 'var(--ZUNO-danger)', fontSize: 'var(--fs-xs)' }, onclick: async () => {
           await api.del('/cart/items/' + it.productId + '?module=' + module);
           await refreshCart();
           const s = await api.get('/cart/summary'); Store.setCart(s); render();
@@ -134,7 +134,7 @@ function renderGuest(root) {
       h('div', { style: { display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' } },
         qty,
         h('div', { class: 'fw-600' }, money(it.price * it.quantity)),
-        h('button', { class: 'btn btn-ghost btn-sm', style: { color: 'var(--Zuno-danger)' }, onclick: () => { Store.removeGuestItem(it.productId); render(); } }, 'Remove')));
+        h('button', { class: 'btn btn-ghost btn-sm', style: { color: 'var(--ZUNO-danger)' }, onclick: () => { Store.removeGuestItem(it.productId); render(); } }, 'Remove')));
   }
 
   render();

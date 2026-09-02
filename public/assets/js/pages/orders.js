@@ -107,11 +107,11 @@ export async function OrderDetail({ params }) {
       h('button', { class: 'btn btn-outline btn-sm', style: { marginTop: '12px' }, onclick: () => window.print() }, 'Download / Print invoice'));
     root.append(invoice);
     if (['PAID', 'CONFIRMED', 'PROCESSING', 'PRINTING', 'QUALITY_CHECK', 'PACKED'].includes(order.status)) {
-      root.append(h('button', { class: 'btn btn-ghost', style: { marginTop: '16px', color: 'var(--Zuno-danger)' }, onclick: async () => { if (confirm('Cancel this order? Custom printed orders cannot be cancelled once printing starts.')) { try { await api.post('/orders/' + order.id + '/cancel'); toast('Order cancelled', 'success'); location.reload(); } catch (e) { toast(e.message, 'error'); } } } }, 'Cancel order'));
+      root.append(h('button', { class: 'btn btn-ghost', style: { marginTop: '16px', color: 'var(--ZUNO-danger)' }, onclick: async () => { if (confirm('Cancel this order? Custom printed orders cannot be cancelled once printing starts.')) { try { await api.post('/orders/' + order.id + '/cancel'); toast('Order cancelled', 'success'); location.reload(); } catch (e) { toast(e.message, 'error'); } } } }, 'Cancel order'));
     }
     // Admin notes / history visible to customer (admin notes are internal, but show if present)
     if (order.admin_notes) {
-      root.append(h('div', { class: 'card card-pad', style: { marginTop: '16px', background: 'var(--ink-50)' } }, h('h4', {}, 'Note from Zuno'), h('p', { class: 'muted text-sm', style: { whiteSpace: 'pre-wrap' } }, order.admin_notes)));
+      root.append(h('div', { class: 'card card-pad', style: { marginTop: '16px', background: 'var(--ink-50)' } }, h('h4', {}, 'Note from ZUNO'), h('p', { class: 'muted text-sm', style: { whiteSpace: 'pre-wrap' } }, order.admin_notes)));
     }
   } catch (e) {
     root.innerHTML = ''; root.append(emptyState({ icon: '◐', title: 'Order not found', action: h('a', { class: 'btn btn-primary', href: '#/orders' }, 'Back to orders') }));

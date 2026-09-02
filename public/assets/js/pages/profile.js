@@ -74,7 +74,7 @@ async function renderDesigns(root, content) {
           h('button', { class: 'btn btn-ghost btn-sm', onclick: async () => {
             try { await api.post('/custom-designs/' + d.id + '/cart', { quantity: 1 }); toast('Added to bag', 'success'); } catch (e) { toast(e.message, 'error'); }
           } }, 'Add to bag'),
-          h('button', { class: 'btn btn-ghost btn-sm', style: { color: 'var(--Zuno-danger)' }, onclick: async () => {
+          h('button', { class: 'btn btn-ghost btn-sm', style: { color: 'var(--ZUNO-danger)' }, onclick: async () => {
             if (!confirm('Delete this design?')) return;
             await api.del('/custom-designs/' + d.id); toast('Deleted', 'success'); location.reload();
           } }, 'Delete')));

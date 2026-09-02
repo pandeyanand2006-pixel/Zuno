@@ -72,7 +72,7 @@ export async function Login() {
   const pwSubmit = h('button', { class: 'btn btn-primary btn-block btn-lg', type: 'submit' }, 'Sign in');
   const pwForm = h('form', { onsubmit: onPwSubmit },
     idF.wrap, pwF.wrap, pwSubmit,
-    h('p', { class: 'center muted text-sm', style: { marginTop: '16px' } }, 'New to Zuno? ', h('a', { href: '#/register' }, 'Create an account')));
+    h('p', { class: 'center muted text-sm', style: { marginTop: '16px' } }, 'New to ZUNO? ', h('a', { href: '#/register' }, 'Create an account')));
 
   // OTP form
   const otpMobile = field({ label: 'Mobile', name: 'mobile', placeholder: '10-digit Indian mobile', inputmode: 'numeric' });
@@ -97,12 +97,12 @@ export async function Login() {
   const demoBox = h('div', { class: 'card', style: { marginTop: '16px', background: 'var(--ink-50)', border: '1px dashed var(--ink-200)', padding: '12px' } },
     h('div', { class: 'fw-600 text-sm', style: { marginBottom: '6px' } }, 'Demo accounts (try without registering)'),
     h('div', { class: 'muted text-xs', style: { lineHeight: '1.6' } },
-      h('div', {}, h('strong', {}, 'Customer:'), ' demo@Zuno.app / Demo@1234  (or 9876543210)'),
-      h('div', {}, h('strong', {}, 'Admin:'), ' admin@Zuno.app / Admin@1234')),
-    h('button', { class: 'btn btn-ghost btn-sm', style: { marginTop: '8px' }, type: 'button', onclick: () => { idF.input.value = 'demo@Zuno.app'; pwF.input.value = 'Demo@1234'; toast('Demo credentials filled — click Sign in', 'info'); } }, 'Fill demo customer →'));
+      h('div', {}, h('strong', {}, 'Customer:'), ' demo@ZUNO.app / Demo@1234  (or 9876543210)'),
+      h('div', {}, h('strong', {}, 'Admin:'), ' admin@ZUNO.app / Admin@1234')),
+    h('button', { class: 'btn btn-ghost btn-sm', style: { marginTop: '8px' }, type: 'button', onclick: () => { idF.input.value = 'demo@ZUNO.app'; pwF.input.value = 'Demo@1234'; toast('Demo credentials filled — click Sign in', 'info'); } }, 'Fill demo customer →'));
 
   card.append(
-    h('div', { class: 'center', style: { marginBottom: '20px' } }, h('div', { class: 'brand', style: { justifyContent: 'center', fontFamily: 'var(--font-display)', letterSpacing: '0.12em' } }, 'Zuno')),
+    h('div', { class: 'center', style: { marginBottom: '20px' } }, h('div', { class: 'brand', style: { justifyContent: 'center', fontFamily: 'var(--font-display)', letterSpacing: '0.12em' } }, 'ZUNO')),
     h('h2', { class: 'center', style: { fontFamily: 'var(--font-display)' } }, 'Welcome back'),
     tabRow, pwForm, otpForm,
     demoBox,
@@ -157,10 +157,10 @@ export function Register() {
   const submit = h('button', { class: 'btn btn-primary btn-block btn-lg', type: 'submit' }, 'Create account');
 
   const form = h('form', { onsubmit: onSubmit },
-    h('div', { class: 'center', style: { marginBottom: '20px' } }, h('div', { class: 'brand', style: { justifyContent: 'center' } }, h('span', { class: 'logo' }, 'Z'), 'Zuno')),
+    h('div', { class: 'center', style: { marginBottom: '20px' } }, h('div', { class: 'brand', style: { justifyContent: 'center' } }, h('span', { class: 'logo' }, 'Z'), 'ZUNO')),
     h('h2', { class: 'center' }, 'Create your account'),
     nameF.wrap, emailF.wrap, mobF.wrap, pwF.wrap,
-    h('p', { class: 'muted text-xs', style: { margin: '4px 0 16px' } }, 'By continuing you agree to Zuno’s Terms & Privacy. Passwords are hashed — we never store them in plain text.'),
+    h('p', { class: 'muted text-xs', style: { margin: '4px 0 16px' } }, 'By continuing you agree to ZUNO’s Terms & Privacy. Passwords are hashed — we never store them in plain text.'),
     submit,
     h('p', { class: 'center muted text-sm', style: { marginTop: '16px' } }, 'Already have an account? ', h('a', { href: '#/login' }, 'Sign in')));
   card.append(form);

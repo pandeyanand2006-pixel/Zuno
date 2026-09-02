@@ -7,7 +7,7 @@ export function authMiddleware(req, res, next) {
   try {
     const header = req.headers.authorization || '';
     let token = header.startsWith('Bearer ') ? header.slice(7) : null;
-    if (!token && req.cookies && req.cookies.Zuno_token) token = req.cookies.Zuno_token;
+    if (!token && req.cookies && req.cookies.ZUNO_token) token = req.cookies.ZUNO_token;
 
     if (!token) return unauthorized(res, 'Authentication required');
 

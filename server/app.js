@@ -49,7 +49,7 @@ const limiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 300, standardHeaders:
 app.use('/api/', limiter);
 
 app.get('/api/health', (_req, res) => {
-  res.status(200).json({ success: true, data: { status: 'healthy', time: new Date().toISOString(), testMode: !env.razorpay.keyId }, message: 'Zuno API is running' });
+  res.status(200).json({ success: true, data: { status: 'healthy', time: new Date().toISOString(), testMode: !env.razorpay.keyId }, message: 'ZUNO API is running' });
 });
 
 app.use('/api/auth', authRoutes);
@@ -100,6 +100,6 @@ app.get('*', (req, res, next) => {
 app.use(notFoundHandler);
 app.use(errorHandler);
 
-logger.info('Zuno app initialized');
+logger.info('ZUNO app initialized');
 
 export default app;

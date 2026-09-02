@@ -21,7 +21,7 @@ if (roleCount === 0) {
 }
 
 const server = app.listen(env.port, () => {
-  logger.info(`Zuno API listening on http://localhost:${env.port}`); // eslint-disable-line
+  logger.info(`ZUNO API listening on http://localhost:${env.port}`); // eslint-disable-line
 });
 
 process.on('unhandledRejection', (reason) => logger.error('unhandledRejection', reason));

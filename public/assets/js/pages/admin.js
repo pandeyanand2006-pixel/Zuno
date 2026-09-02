@@ -16,7 +16,7 @@ export async function Admin() {
     h('button', { class: 'tab', 'data-t': 'products' }, 'Products'),
     h('button', { class: 'tab', 'data-t': 'users' }, 'Customers'));
   const panel = h('div', {}, skeletonPanel());
-  root.append(h('h1', { style: { fontFamily: 'var(--font-display)', letterSpacing: '-0.02em' } }, 'Zuno Admin'), tabs, panel);
+  root.append(h('h1', { style: { fontFamily: 'var(--font-display)', letterSpacing: '-0.02em' } }, 'ZUNO Admin'), tabs, panel);
 
   tabs.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => { tabs.querySelectorAll('.tab').forEach((x) => x.classList.remove('active')); t.classList.add('active'); load(t.dataset.t); }));
 
@@ -159,13 +159,13 @@ async function products() {
     h('td', {}, (p.sizes || []).join(', ') || '—'),
     h('td', {}, money(p.price)),
     h('td', {}, String(p.stock)),
-    h('td', {}, h('button', { class: 'btn btn-ghost btn-sm', style: { color: 'var(--Zuno-danger)' }, onclick: async () => { if (confirm('Deactivate ' + p.name + '?')) { await api.del('/admin/products/' + p.id); toast('Deactivated', 'success'); location.reload(); } } }, 'Deactivate'))));
+    h('td', {}, h('button', { class: 'btn btn-ghost btn-sm', style: { color: 'var(--ZUNO-danger)' }, onclick: async () => { if (confirm('Deactivate ' + p.name + '?')) { await api.del('/admin/products/' + p.id); toast('Deactivated', 'success'); location.reload(); } } }, 'Deactivate'))));
   const table = h('div', { style: { overflowX: 'auto' } }, h('table', { class: 'table' }, h('thead', {}, h('tr', {}, h('th', {}, 'Product'), h('th', {}, 'Colors'), h('th', {}, 'Sizes'), h('th', {}, 'Price'), h('th', {}, 'Stock'), h('th', {}, ''))), ...rows));
   return card('', head, table);
 }
 
 function showAddProduct() {
-  const name = h('input', { class: 'input', placeholder: 'Product name — e.g. Zuno Essential Tee' });
+  const name = h('input', { class: 'input', placeholder: 'Product name — e.g. ZUNO Essential Tee' });
   const price = h('input', { class: 'input', type: 'number', placeholder: 'Price in paise — e.g. 129900 for ₹1299' });
   const mrp = h('input', { class: 'input', type: 'number', placeholder: 'MRP in paise' });
   const stock = h('input', { class: 'input', type: 'number', placeholder: 'Stock' });

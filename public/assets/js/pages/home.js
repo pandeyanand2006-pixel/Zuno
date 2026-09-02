@@ -9,7 +9,7 @@ export async function Home() {
   const hero = h('section', { class: 'hero-fashion' },
     h('div', { class: 'hero-fashion-inner container' },
       h('div', { class: 'hero-copy' },
-        h('p', { class: 'hero-eyebrow' }, 'Zuno — Est. 2024 · Made in India'),
+        h('p', { class: 'hero-eyebrow' }, 'ZUNO — Est. 2024 · Made in India'),
         h('h1', { class: 'hero-title' }, 'WEAR', h('br'), 'YOUR', h('br'), h('span', { class: 'hero-accent' }, 'ATTITUDE.')),
         h('p', { class: 'hero-sub' }, 'Premium T-shirts designed for everyday confidence. Heavyweight cotton, perfect fit, made for you.'),
         h('div', { class: 'hero-cta' },
@@ -66,7 +66,7 @@ export async function Home() {
     h('div', { class: 'container' },
       h('div', { class: 'studio-teaser-inner' },
         h('div', {},
-          h('p', { class: 'hero-eyebrow', style: { color: '#fff', opacity: '0.7' } }, 'Zuno CUSTOM STUDIO'),
+          h('p', { class: 'hero-eyebrow', style: { color: '#fff', opacity: '0.7' } }, 'ZUNO CUSTOM STUDIO'),
           h('h2', {}, 'MAKE IT', h('br'), 'YOURS.'),
           h('p', { style: { color: 'rgba(255,255,255,0.7)', marginTop: '12px', maxWidth: '36ch', lineHeight: '1.6' } }, 'Create a T-shirt that is completely yours. Add text, upload artwork, choose colors — and see it live. Premium printing, made to order.'),
           h('a', { class: 'btn btn-primary btn-lg', href: '#/customize', style: { marginTop: '20px', background: '#fff', color: '#0a0a0a', borderColor: '#fff' } }, 'START DESIGNING →')),
@@ -75,9 +75,9 @@ export async function Home() {
             h('div', { class: 'studio-shirt-label' }, 'YOUR DESIGN HERE'),
             h('div', { style: { fontSize: '48px', marginTop: '12px' } }, '✦'))))));
 
-  // ── WHY Zuno ─────────────────────────────────────────────────────
+  // ── WHY ZUNO ─────────────────────────────────────────────────────
   const why = h('section', { class: 'section container' },
-    h('div', { class: 'section-title fashion' }, h('h2', {}, 'Why Zuno')),
+    h('div', { class: 'section-title fashion' }, h('h2', {}, 'Why ZUNO')),
     h('div', { class: 'trust-grid' },
       h('div', { class: 'trust-item' }, h('div', { class: 'trust-icon' }, '◧'), h('h4', {}, 'Premium fabric'), h('p', { class: 'muted text-sm' }, '240 GSM heavyweight cotton')),
       h('div', { class: 'trust-item' }, h('div', { class: 'trust-icon' }, '✦'), h('h4', {}, 'High-quality printing'), h('p', { class: 'muted text-sm' }, 'HD screen & puff print')),
@@ -99,18 +99,18 @@ export async function Home() {
 
   // ── INSTAGRAM GALLERY ────────────────────────────────────────────
   const gallery = h('section', { class: 'section container' },
-    h('div', { class: 'section-title fashion' }, h('h2', {}, 'Worn by you'), h('a', { href: '#', class: 'link-arrow' }, 'Follow @Zuno →')),
+    h('div', { class: 'section-title fashion' }, h('h2', {}, 'Worn by you'), h('a', { href: '#', class: 'link-arrow' }, 'Follow @ZUNO →')),
     h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '8px', aspectRatio: '6/1' } },
       ...Array.from({ length: 6 }, (_, i) => h('div', { style: { background: i % 2 === 0 ? '#f5f5f3' : '#0a0a0a', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: i % 2 === 0 ? '#0a0a0a' : '#fff', fontSize: '24px' } }, '◐'))));
 
   // ── NEWSLETTER ───────────────────────────────────────────────────
   const newsletter = h('section', { class: 'section', style: { background: '#0a0a0a', color: '#fff', padding: '48px 0', margin: '48px 0 0' } },
     h('div', { class: 'container', style: { textAlign: 'center', maxWidth: '640px', margin: '0 auto' } },
-      h('h2', { style: { fontFamily: 'var(--font-display)', color: '#fff', letterSpacing: '-0.02em' } }, 'Join the Zuno community'),
+      h('h2', { style: { fontFamily: 'var(--font-display)', color: '#fff', letterSpacing: '-0.02em' } }, 'Join the ZUNO community'),
       h('p', { class: 'muted', style: { color: 'rgba(255,255,255,0.6)', marginTop: '8px' } }, 'Get early access to drops, custom studio tips and member-only offers.'),
       h('div', { class: 'row gap-3', style: { marginTop: '20px', justifyContent: 'center', maxWidth: '480px', margin: '20px auto 0' } },
         h('input', { class: 'input', placeholder: 'Enter your email', style: { flex: '1', background: '#fff', color: '#0a0a0a' } }),
-        h('button', { class: 'btn btn-primary', style: { background: '#fff', color: '#0a0a0a', borderColor: '#fff', whiteSpace: 'nowrap' }, onclick: (e) => { e.preventDefault(); toast('Welcome to Zuno — coming soon!', 'success'); } }, 'Join'))));
+        h('button', { class: 'btn btn-primary', style: { background: '#fff', color: '#0a0a0a', borderColor: '#fff', whiteSpace: 'nowrap' }, onclick: (e) => { e.preventDefault(); toast('Welcome to ZUNO — coming soon!', 'success'); } }, 'Join'))));
 
   main.append(hero, featured, newDrops, bestSellers, categories, studio, why, reviews, gallery, newsletter);
 

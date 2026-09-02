@@ -33,7 +33,7 @@ export async function runPayment({ razorpay, onSuccess, onDismiss }) {
       amount: razorpay.amount,
       currency: razorpay.currency,
       order_id: razorpay.orderId,
-      name: 'Zuno',
+      name: 'ZUNO',
       description: 'Order payment',
       handler: (r) => onSuccess(r.razorpay_order_id, r.razorpay_payment_id, r.razorpay_signature),
       modal: { ondismiss: () => onDismiss && onDismiss() },
@@ -65,7 +65,7 @@ function showTestSheet(razorpay, onSuccess) {
   });
   const content = h('div', {},
     h('div', { class: 'row between', style: { marginBottom: '10px' } },
-      h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '700' } }, h('span', { class: 'logo', style: { width: '28px', height: '28px', fontSize: '14px' } }, 'Z'), 'Zuno'),
+      h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '700' } }, h('span', { class: 'logo', style: { width: '28px', height: '28px', fontSize: '14px' } }, 'Z'), 'ZUNO'),
       h('span', { class: 'badge badge-warning' }, 'Test mode')),
     h('div', { style: { fontSize: 'var(--fs-2xl)', fontWeight: '800' } }, money(razorpay.amount)),
     h('p', { class: 'muted text-sm' }, 'Secured by Razorpay · demo payment (no real charge)'),

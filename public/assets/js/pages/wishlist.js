@@ -79,7 +79,7 @@ export async function Notifications() {
   try {
     const { notifications } = await api.get('/notifications');
     if (!notifications.length) list.append(emptyState({ icon: '🔔', title: 'No notifications', desc: 'We’ll let you know about orders, offers and more.' }));
-    else notifications.forEach((n) => list.append(h('div', { class: 'card card-pad', style: { opacity: n.read ? '0.7' : '1', borderLeft: n.read ? '' : '4px solid var(--Zuno-primary)' } },
+    else notifications.forEach((n) => list.append(h('div', { class: 'card card-pad', style: { opacity: n.read ? '0.7' : '1', borderLeft: n.read ? '' : '4px solid var(--ZUNO-primary)' } },
       h('div', { class: 'fw-600' }, n.title), n.body && h('div', { class: 'muted text-sm' }, n.body), h('div', { class: 'muted text-xs', style: { marginTop: '4px' } }, new Date(n.created_at).toLocaleString('en-IN')))));
   } catch (e) { toast(e.message, 'error'); }
   return root;

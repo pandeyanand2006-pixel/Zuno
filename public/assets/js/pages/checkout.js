@@ -46,7 +46,7 @@ export async function Checkout() {
     const box = h('div', { class: 'card card-pad' }, h('h3', {}, 'Delivery address'));
     if (!addresses.length) box.append(h('p', { class: 'muted' }, 'Add a delivery address to continue.'));
     addresses.forEach((a) => {
-      box.append(h('label', { class: 'row gap-3', style: { padding: '12px', border: '1px solid ' + (a.id === selectedAddress ? 'var(--Zuno-primary)' : 'var(--ink-200)'), borderRadius: 'var(--r-md)', marginBottom: '8px', cursor: 'pointer', background: a.id === selectedAddress ? 'var(--Zuno-primary-50)' : 'transparent' } },
+      box.append(h('label', { class: 'row gap-3', style: { padding: '12px', border: '1px solid ' + (a.id === selectedAddress ? 'var(--ZUNO-primary)' : 'var(--ink-200)'), borderRadius: 'var(--r-md)', marginBottom: '8px', cursor: 'pointer', background: a.id === selectedAddress ? 'var(--ZUNO-primary-50)' : 'transparent' } },
         h('input', { type: 'radio', name: 'addr', checked: a.id === selectedAddress, onchange: () => { selectedAddress = a.id; renderAddress(); } }),
         h('div', {}, h('div', { class: 'fw-600' }, (a.label ? a.label + ' · ' : '') + a.line1), h('div', { class: 'muted text-sm' }, a.city + ' ' + a.pincode))));
     });
@@ -89,7 +89,7 @@ export async function Checkout() {
       h('div', { class: 'divider' }),
       h('div', { class: 'row between' }, h('strong', {}, 'Total'), h('strong', { style: { fontSize: 'var(--fs-lg)' } }, money(total))));
 
-    const couponInput = h('input', { class: 'input', placeholder: 'Have a coupon? (try Zuno100)' });
+    const couponInput = h('input', { class: 'input', placeholder: 'Have a coupon? (try ZUNO100)' });
     const couponBtn = h('button', { class: 'btn btn-outline btn-sm', onclick: applyCoupon }, 'Apply');
     const couponRow = h('div', { class: 'row gap-2', style: { margin: '12px 0' } }, couponInput, couponBtn);
 
@@ -171,7 +171,7 @@ export async function Checkout() {
   function showConfirmation(order) {
     root.innerHTML = '';
     root.append(h('div', { class: 'container-narrow section center' },
-      h('div', { class: 'em-ic', style: { background: 'var(--Zuno-success-50)', color: 'var(--Zuno-success)', fontSize: '40px', width: '88px', height: '88px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' } }, '✓'),
+      h('div', { class: 'em-ic', style: { background: 'var(--ZUNO-success-50)', color: 'var(--ZUNO-success)', fontSize: '40px', width: '88px', height: '88px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' } }, '✓'),
       h('h1', {}, 'Payment successful'),
       h('p', { class: 'muted' }, 'Order ' + order.orderNumber + ' is confirmed and being prepared.'),
       h('div', { class: 'row gap-3', style: { justifyContent: 'center', marginTop: '20px' } },

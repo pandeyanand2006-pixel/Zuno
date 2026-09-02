@@ -294,7 +294,7 @@ export async function Customize() {
     }, f.label)));
 
   // Text controls
-  const textInput = h('input', { class: 'input', placeholder: 'Enter text — e.g. Zuno', style: { marginTop: '8px' } });
+  const textInput = h('input', { class: 'input', placeholder: 'Enter text — e.g. ZUNO', style: { marginTop: '8px' } });
   const fontSel = h('select', { class: 'input', style: { marginTop: '8px' } },
     ...FONTS.map(f => h('option', { value: f.family }, f.label)));
   const textColor = h('input', { type: 'color', value: '#0a0a0a', style: { width: '44px', height: '36px', padding: '2px', borderRadius: '6px', border: '1px solid var(--ink-200)' } });
@@ -307,7 +307,7 @@ export async function Customize() {
 
   const addTextBtn = h('button', { class: 'btn btn-outline btn-block', type: 'button', style: { marginTop: '10px' } }, '+ Add Text');
   addTextBtn.addEventListener('click', () => {
-    const val = textInput.value.trim() || 'Zuno';
+    const val = textInput.value.trim() || 'ZUNO';
     const el = {
       id: nextId(),
       type: 'text',
@@ -390,8 +390,8 @@ export async function Customize() {
       selectedId ? (() => {
         const active = getActive(); const el = active.find(e => e.id === selectedId);
         if (!el) return h('div', {});
-        const delBtn = h('button', { class: 'btn btn-ghost btn-sm', type: 'button', style: { color: 'var(--Zuno-danger)' }, onclick: () => { removeElement(el.id); } }, 'Delete selected');
-        return h('div', { class: 'card card-pad', style: { marginTop: '16px', borderColor: 'var(--Zuno-primary)' } },
+        const delBtn = h('button', { class: 'btn btn-ghost btn-sm', type: 'button', style: { color: 'var(--ZUNO-danger)' }, onclick: () => { removeElement(el.id); } }, 'Delete selected');
+        return h('div', { class: 'card card-pad', style: { marginTop: '16px', borderColor: 'var(--ZUNO-primary)' } },
           h('h3', {}, 'Selected'),
           h('p', { class: 'muted text-sm' }, el.type === 'text' ? `Text: "${el.value}"` : 'Image'),
           h('div', { class: 'row gap-2', style: { marginTop: '10px' } }, delBtn, h('button', { class: 'btn btn-outline btn-sm', type: 'button', onclick: () => duplicateElement(el.id) }, 'Duplicate')));
@@ -436,7 +436,7 @@ export async function Customize() {
   async function saveDesign() {
     if (!Store.isAuthed()) { toast('Please sign in to save designs', 'warning'); location.hash = '#/login'; return; }
     if (!front.length && !back.length) { toast('Add something to your design first', 'warning'); return; }
-    const name = designName.trim() || `Zuno Custom — ${color} ${size}`;
+    const name = designName.trim() || `ZUNO Custom — ${color} ${size}`;
     const payload = {
       name, productId: selectedProduct?.id || null, color, size, fit,
       designData: { front: { elements: front }, back: { elements: back } },
@@ -467,9 +467,9 @@ export async function Customize() {
         isCustom: true, customization: designData, variant: { color, size, fit }
       };
       // Reuse guest cart but mark as custom
-      const guest = JSON.parse(localStorage.getItem('Zuno_guest_cart') || '[]');
+      const guest = JSON.parse(localStorage.getItem('ZUNO_guest_cart') || '[]');
       guest.push({ productId: guestCustom.productId, name: guestCustom.name, price: guestCustom.price, slug: guestCustom.slug, image: guestCustom.image, module: 'shop', quantity: 1, customization: designData, variant: { color, size, fit }, isCustom: true });
-      localStorage.setItem('Zuno_guest_cart', JSON.stringify(guest));
+      localStorage.setItem('ZUNO_guest_cart', JSON.stringify(guest));
       Store._guest = guest; Store.emit();
       toast('Custom design added to bag', 'success');
       location.hash = '#/cart';
@@ -492,7 +492,7 @@ export async function Customize() {
   root.append(
     h('div', { class: 'row between', style: { alignItems: 'center', marginBottom: '16px' } },
       h('div', {},
-        h('h1', { style: { fontFamily: 'var(--font-display)', letterSpacing: '-0.02em', margin: 0 } }, 'Zuno CUSTOM STUDIO'),
+        h('h1', { style: { fontFamily: 'var(--font-display)', letterSpacing: '-0.02em', margin: 0 } }, 'ZUNO CUSTOM STUDIO'),
         h('p', { class: 'muted' }, 'Make it yours — design your T-shirt live')),
       h('a', { class: 'btn btn-ghost', href: '#/shop' }, '← Back to shop')),
     layout);

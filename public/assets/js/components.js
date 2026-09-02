@@ -52,8 +52,8 @@ export function topBar(active) {
   return h('header', { class: 'topbar' },
     announcement,
     h('div', { class: 'topbar-inner' },
-      h('a', { class: 'brand', href: '#/', 'aria-label': 'Zuno home', style: { fontFamily: 'var(--font-display)', letterSpacing: '0.12em', fontWeight: '700', fontSize: '22px' } },
-        'Zuno'),
+      h('a', { class: 'brand', href: '#/', 'aria-label': 'ZUNO home', style: { fontFamily: 'var(--font-display)', letterSpacing: '0.12em', fontWeight: '700', fontSize: '22px' } },
+        'ZUNO'),
       nav,
       search,
       actions),
@@ -74,7 +74,7 @@ export function footer() {
     h('div', { class: 'container' },
       h('div', { class: 'footer-grid' },
         h('div', {},
-          h('div', { class: 'brand', style: { color: '#fff', fontFamily: 'var(--font-display)', letterSpacing: '0.08em' } }, 'Zuno'),
+          h('div', { class: 'brand', style: { color: '#fff', fontFamily: 'var(--font-display)', letterSpacing: '0.08em' } }, 'ZUNO'),
           h('p', { class: 'muted', style: { maxWidth: '30ch', marginTop: '12px', lineHeight: '1.6' } }, 'Modern everyday clothing. Designed for people who don\'t follow the ordinary. Made in India, worn everywhere.'),
           h('div', { class: 'row gap-3', style: { marginTop: '16px' } },
             h('a', { href: 'https://instagram.com', target: '_blank', class: 'icon-btn', style: { color: '#fff', borderColor: 'rgba(255,255,255,0.2)' }, title: 'Instagram' }, '◯'),
@@ -82,11 +82,11 @@ export function footer() {
             h('a', { href: 'https://youtube.com', target: '_blank', class: 'icon-btn', style: { color: '#fff', borderColor: 'rgba(255,255,255,0.2)' }, title: 'YouTube' }, '▷'))),
         footerCol('SHOP', [['All T-shirts', '#/shop'], ['New Drops', '#/shop?sort=newest'], ['Best Sellers', '#/shop?sort=popular'], ['Custom T-shirts', '#/customize']]),
         footerCol('HELP', [['Contact Us', '#/'], ['Shipping', '#/'], ['Returns', '#/'], ['Size Guide', '#/'], ['FAQs', '#/']]),
-        footerCol('COMPANY', [['About Zuno', '#/'], ['Our Story', '#/'], ['Careers', '#/']]),
+        footerCol('COMPANY', [['About ZUNO', '#/'], ['Our Story', '#/'], ['Careers', '#/']]),
         footerCol('LEGAL', [['Privacy', '#/'], ['Terms', '#/'], ['Refund Policy', '#/']])),
       h('div', { class: 'divider', style: { background: '#262626', margin: '32px 0 20px' } }),
       h('div', { class: 'row between', style: { flexWrap: 'wrap', gap: '12px' } },
-        h('p', { class: 'muted', style: { fontSize: 'var(--fs-xs)', letterSpacing: '0.04em' } }, '© ' + new Date().getFullYear() + ' Zuno. All rights reserved.'),
+        h('p', { class: 'muted', style: { fontSize: 'var(--fs-xs)', letterSpacing: '0.04em' } }, '© ' + new Date().getFullYear() + ' ZUNO. All rights reserved.'),
         h('p', { class: 'muted', style: { fontSize: 'var(--fs-xs)' } }, 'Payments secured by Razorpay • Made with care in India'))));
 }
 
@@ -178,7 +178,7 @@ export function ProductCard(p) {
     discounted ? h('span', { class: 'strike text-xs' }, money(p.mrp)) : null);
 
   const body = h('div', { class: 'product-body', style: { padding: '12px' } },
-    h('div', { class: 'muted text-xs', style: { letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: '700', color: 'var(--ink-500)' } }, 'Zuno'),
+    h('div', { class: 'muted text-xs', style: { letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: '700', color: 'var(--ink-500)' } }, 'ZUNO'),
     h('div', { class: 'product-name', style: { fontSize: 'var(--fs-sm)', fontWeight: '600', lineHeight: '1.3', marginTop: '2px', display: '-webkit-box', WebkitLineClamp: '2', WebkitBoxOrient: 'vertical', overflow: 'hidden' } }, p.name),
     h('div', { class: 'product-meta', style: { fontSize: 'var(--fs-xs)', marginTop: '4px' } }, '★ ' + (p.rating || '—') + ' · ' + (p.ratingCount || 0)),
     priceRow,

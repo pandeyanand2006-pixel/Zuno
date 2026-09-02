@@ -72,7 +72,7 @@ export const authService = {
     const role = db.prepare("SELECT id FROM roles WHERE name = 'USER'").get();
     const info = db
       .prepare('INSERT INTO users (name, mobile, role_id, mobile_verified) VALUES (?, ?, ?, 1)')
-      .run(name || 'Zuno User', mobile, role.id);
+      .run(name || 'ZUNO User', mobile, role.id);
     return db.prepare('SELECT * FROM users WHERE id = ?').get(info.lastInsertRowid);
   },
 
@@ -82,7 +82,7 @@ export const authService = {
     const role = db.prepare("SELECT id FROM roles WHERE name = 'USER'").get();
     const info = db
       .prepare('INSERT INTO users (name, email, role_id, email_verified) VALUES (?, ?, ?, 1)')
-      .run(name || 'Zuno User', email, role.id);
+      .run(name || 'ZUNO User', email, role.id);
     return db.prepare('SELECT * FROM users WHERE id = ?').get(info.lastInsertRowid);
   },
 
