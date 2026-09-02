@@ -35,13 +35,29 @@ export function topBar(active) {
       ? h('a', { class: 'avatar', href: '#/profile', title: user.name, style: { textDecoration: 'none', background: '#0a0a0a', color: '#fff' } }, initials(user.name))
       : h('a', { class: 'btn btn-primary btn-sm', href: '#/login', style: { background: '#0a0a0a', borderColor: '#0a0a0a', letterSpacing: '0.04em' } }, 'Sign in'));
 
+  const announcement = h('div', { style: { background: '#0a0a0a', color: '#fff', textAlign: 'center', padding: '8px 16px', fontSize: 'var(--fs-xs)', letterSpacing: '0.08em', fontWeight: '600' } },
+    'FREE SHIPPING ON ORDERS OVER ₹999  •  EASY 7-DAY RETURNS  •  MADE IN INDIA');
+
+  const categoryBar = h('div', { class: 'category-bar', style: { background: '#fff', borderTop: '1px solid var(--ink-100)', borderBottom: '1px solid var(--ink-100)', overflowX: 'auto', scrollbarWidth: 'none' } },
+    h('div', { class: 'container', style: { display: 'flex', gap: '24px', padding: '12px 20px', whiteSpace: 'nowrap', alignItems: 'center' } },
+      h('a', { href: '#/shop', style: { fontWeight: '700', color: 'var(--ink-900)', fontSize: 'var(--fs-sm)', textDecoration: 'none', borderBottom: active === 'shop' ? '2px solid #0a0a0a' : 'none', paddingBottom: '2px' } }, 'All T-shirts'),
+      h('a', { href: '#/shop?category=oversized', style: { color: 'var(--ink-700)', fontSize: 'var(--fs-sm)', textDecoration: 'none' } }, 'Oversized'),
+      h('a', { href: '#/shop?category=graphic', style: { color: 'var(--ink-700)', fontSize: 'var(--fs-sm)', textDecoration: 'none' } }, 'Graphic'),
+      h('a', { href: '#/shop?category=plain', style: { color: 'var(--ink-700)', fontSize: 'var(--fs-sm)', textDecoration: 'none' } }, 'Plain'),
+      h('a', { href: '#/shop?category=polo', style: { color: 'var(--ink-700)', fontSize: 'var(--fs-sm)', textDecoration: 'none' } }, 'Polo'),
+      h('a', { href: '#/shop?collection=Essentials', style: { color: 'var(--ink-700)', fontSize: 'var(--fs-sm)', textDecoration: 'none' } }, 'Essentials'),
+      h('a', { href: '#/shop?collection=Street%20Form', style: { color: 'var(--ink-700)', fontSize: 'var(--fs-sm)', textDecoration: 'none' } }, 'Street Form'),
+      h('a', { href: '#/customize', style: { color: '#0a0a0a', fontWeight: '700', fontSize: 'var(--fs-sm)', textDecoration: 'none', background: 'var(--ink-50)', padding: '6px 12px', borderRadius: '20px' } }, '✦ Custom')));
+
   return h('header', { class: 'topbar' },
+    announcement,
     h('div', { class: 'topbar-inner' },
-      h('a', { class: 'brand', href: '#/', 'aria-label': 'Zuno home', style: { fontFamily: 'var(--font-display)', letterSpacing: '0.12em', fontWeight: '700' } },
+      h('a', { class: 'brand', href: '#/', 'aria-label': 'Zuno home', style: { fontFamily: 'var(--font-display)', letterSpacing: '0.12em', fontWeight: '700', fontSize: '22px' } },
         'ZUNO'),
       nav,
       search,
-      actions));
+      actions),
+    categoryBar);
 }
 
 export function bottomNav(active) {
@@ -118,36 +134,57 @@ function SearchBar() {
 
 export function ProductCard(p) {
   const discounted = p.discountPercent > 0;
+  const isNew = p.newArrival;
+  const isBestseller = p.ratingCount > 200;
   const img = p.images && p.images[0] ? p.images[0] : productImage(p);
+  const img2 = p.images && p.images[1] ? p.images[1] : null;
   const wished = Store.isWished(p.id);
   const heart = h('button', { class: 'wish-btn' + (wished ? ' active' : ''), type: 'button', title: 'Save to wishlist', 'aria-label': 'Save to wishlist', onclick: async (e) => {
     e.preventDefault(); e.stopPropagation();
     await Store.toggleWish(p.id);
     heart.classList.toggle('active', Store.isWished(p.id));
-  } }, '♥');
-  const thumb = h('div', { class: 'product-thumb' },
-    discounted && h('span', { class: 'product-badge' }, p.discountPercent + '% OFF'),
-    heart,
-    h('img', { class: 'product-img', src: img, alt: p.name, loading: 'lazy' }));
-  const priceRow = h('div', {},
-    h('span', { class: 'price' }, money(p.price)),
-    discounted && h('span', { class: 'strike text-sm', style: { marginLeft: '6px' } }, money(p.mrp)));
-  const addBtn = h('button', { class: 'btn btn-primary btn-sm', type: 'button', onclick: async (e) => {
+    heart.style.transform = 'scale(1.2)'; setTimeout(() => heart.style.transform = '', 180);
+  } }, '♡');
+  // Update heart text based on wished
+  if (wished) heart.textContent = '♥';
+
+  const badge = discounted ? h('span', { class: 'product-badge' }, p.discountPercent + '% OFF') : isNew ? h('span', { class: 'product-badge', style: { background: '#0a0a0a' } }, 'NEW') : isBestseller ? h('span', { class: 'product-badge', style: { background: '#c9a96e', color: '#fff' } }, 'BESTSELLER') : null;
+
+  const quickAdd = h('button', { class: 'quick-add', type: 'button', onclick: async (e) => {
     e.preventDefault(); e.stopPropagation();
+    const variant = p.colors && p.sizes ? { color: p.colors[0], size: p.sizes[1] || p.sizes[0] } : null;
+    const payload = variant ? { productId: p.id, quantity: 1, variant } : { productId: p.id, quantity: 1 };
     if (Store.isAuthed()) {
-      try { await api.post('/cart/items?module=' + (p.module || 'shop'), { productId: p.id, quantity: 1 }); await refreshCart(); toast('Added to cart', 'success'); }
+      try { await api.post('/cart/items?module=shop', payload); await refreshCart(); toast('Added to bag', 'success'); }
       catch (err) { toast(err.message, 'error'); }
     } else {
-      Store.addGuestItem({ productId: p.id, name: p.name, price: p.price, mrp: p.mrp, slug: p.slug, image: img, module: p.module || 'shop', quantity: 1 });
-      toast('Added to cart', 'success');
+      Store.addGuestItem({ productId: p.id, name: p.name, price: p.price, mrp: p.mrp, slug: p.slug, image: img, module: 'shop', quantity: 1, variant });
+      toast('Added to bag', 'success');
     }
-  } }, 'Add');
-  const foot = h('div', { class: 'product-foot' }, priceRow, addBtn);
-  const body = h('div', { class: 'product-body' },
-    h('div', { class: 'product-name' }, p.name),
-    h('div', { class: 'product-meta' }, '★ ' + (p.rating || '—') + ' · ' + (p.ratingCount || 0) + ' ratings'),
-    foot);
-  return h('a', { class: 'product-card', href: '#/product/' + p.slug, style: { textDecoration: 'none', color: 'inherit' } }, thumb, body);
+  } }, 'Add to bag');
+
+  const thumb = h('div', { class: 'product-thumb' },
+    badge, heart,
+    h('img', { class: 'product-img', src: img, alt: p.name, loading: 'lazy' }),
+    img2 ? h('img', { class: 'product-img-hover', src: img2, alt: p.name, loading: 'lazy' }) : null,
+    quickAdd);
+
+  const colors = (p.colors || []).slice(0, 4);
+  const colorDots = colors.length > 1 ? h('div', { class: 'row gap-1', style: { marginTop: '6px' } },
+    ...colors.map(c => h('span', { class: 'color-dot', style: { background: c === 'white' ? '#fff' : c, borderColor: c === 'white' ? '#e5e5e5' : c, width: '12px', height: '12px', borderRadius: '50%', border: '1px solid var(--ink-200)', display: 'inline-block' }, title: c }))) : null;
+
+  const priceRow = h('div', { style: { display: 'flex', alignItems: 'baseline', gap: '8px', marginTop: '4px' } },
+    h('span', { class: 'price', style: { fontSize: 'var(--fs-md)', fontWeight: '800' } }, money(p.price)),
+    discounted ? h('span', { class: 'strike text-xs' }, money(p.mrp)) : null);
+
+  const body = h('div', { class: 'product-body', style: { padding: '12px' } },
+    h('div', { class: 'muted text-xs', style: { letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: '700', color: 'var(--ink-500)' } }, 'ZUNO'),
+    h('div', { class: 'product-name', style: { fontSize: 'var(--fs-sm)', fontWeight: '600', lineHeight: '1.3', marginTop: '2px', display: '-webkit-box', WebkitLineClamp: '2', WebkitBoxOrient: 'vertical', overflow: 'hidden' } }, p.name),
+    h('div', { class: 'product-meta', style: { fontSize: 'var(--fs-xs)', marginTop: '4px' } }, '★ ' + (p.rating || '—') + ' · ' + (p.ratingCount || 0)),
+    priceRow,
+    colorDots);
+
+  return h('a', { class: 'product-card', href: '#/product/' + p.slug, style: { textDecoration: 'none', color: 'inherit', background: '#fff', borderRadius: '8px', overflow: 'hidden', border: '1px solid var(--ink-100)', display: 'flex', flexDirection: 'column' } }, thumb, body);
 }
 
 export async function refreshCart() {
