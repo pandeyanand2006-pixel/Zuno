@@ -3,10 +3,12 @@ import { Store } from './store.js';
 import { api } from './api.js';
 
 const NAV = [
-  { label: 'Men', href: '#/shop?category=oversized', key: 'men' },
-  { label: 'Women', href: '#/shop?category=graphic', key: 'women' },
-  { label: 'Sneakers', href: '#/shop?collection=Street%20Form', key: 'sneakers' },
-  { label: 'Accessories', href: '#/shop?collection=Essentials', key: 'accessories' },
+  { label: 'T-Shirts', href: '#/shop', key: 'shop' },
+  { label: 'Oversized', href: '#/shop?category=oversized', key: 'oversized' },
+  { label: 'Graphic', href: '#/shop?category=graphic', key: 'graphic' },
+  { label: 'Polo', href: '#/shop?category=polo', key: 'polo' },
+  { label: 'New Arrivals', href: '#/shop?sort=newest', key: 'new' },
+  { label: 'Custom Studio', href: '#/customize', key: 'custom' },
 ];
 
 const MOBILE_NAV = [
@@ -205,12 +207,8 @@ function footerCol(title, links) {
     ...links.map(([label, href]) => h('div', { style: { marginBottom: '8px' } }, h('a', { href }, label))));
 }
 
-function themeIcon() {
-  return document.documentElement.getAttribute('data-theme') === 'dark' ? '☀️' : '🌙';
-}
-
 function SearchBar() {
-  const input = h('input', { type: 'search', placeholder: 'Search for T-shirts, shirts, oversized…', 'aria-label': 'Search', autocomplete: 'off' });
+  const input = h('input', { type: 'search', placeholder: 'Search for T-shirts, oversized, graphic…', 'aria-label': 'Search', autocomplete: 'off' });
   const box = h('div', { class: 'search-suggest hide' });
   const wrap = h('div', { class: 'searchbar' },
     h('span', { class: 's-ic' }, '🔍'), input, box);

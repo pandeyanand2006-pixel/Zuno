@@ -98,21 +98,24 @@ export async function Home() {
   });
   restart();
 
-  // ── CATEGORY CIRCLES — horizontal scrolling row with zoom ──
+  // ── CATEGORY CIRCLES — only real backend categories ──
   const categories = [
-    { label: 'Oversized Tees', img: 'https://images.unsplash.com/photo-1576566588028-4147f3842f27?w=200&h=200&fit=crop', q: 'oversized' },
-    { label: 'Cargos', img: 'https://images.unsplash.com/photo-1542272604-787c3835535d?w=200&h=200&fit=crop', q: 'cargo' },
-    { label: 'Sneakers', img: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=200&h=200&fit=crop', q: 'sneakers' },
-    { label: 'Shirts', img: 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=200&h=200&fit=crop', q: 'shirts' },
-    { label: 'Hoodies', img: 'https://images.unsplash.com/photo-1556821840-3a63f95609a7?w=200&h=200&fit=crop', q: 'hoodie' },
-    { label: 'Accessories', img: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=200&h=200&fit=crop', q: 'accessories' },
+    { label: 'Oversized', img: 'https://images.unsplash.com/photo-1576566588028-4147f3842f27?w=200&h=200&fit=crop', q: 'oversized' },
     { label: 'Graphic', img: 'https://images.unsplash.com/photo-1583743814966-8936f5b7be1a?w=200&h=200&fit=crop', q: 'graphic' },
     { label: 'Plain', img: 'https://images.unsplash.com/photo-1618354691321-e851c56960d1?w=200&h=200&fit=crop', q: 'plain' },
+    { label: 'Polo', img: 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=200&h=200&fit=crop', q: 'polo' },
+    { label: 'Premium Cotton', img: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=200&h=200&fit=crop', q: 'premium-cotton' },
+    { label: 'Essentials', img: 'https://images.unsplash.com/photo-1618354691373-d851c5c3a990?w=200&h=200&fit=crop', q: '', collection: 'Essentials' },
+    { label: 'Street Form', img: 'https://images.unsplash.com/photo-1556821840-3a63f95609a7?w=200&h=200&fit=crop', q: '', collection: 'Street Form' },
+    { label: 'Custom Studio', img: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=200&h=200&fit=crop', q: '', href: '#/customize' },
   ];
   const catRow = h('div', { class: 'cat-bubbles', 'aria-label': 'Shop by category', onwheel: (e) => { if (Math.abs(e.deltaX) < Math.abs(e.deltaY)) { e.currentTarget.scrollLeft += e.deltaY; e.preventDefault(); } } },
-    ...categories.map(c => h('a', { href: '#/shop?category=' + encodeURIComponent(c.q), class: 'cat-bubble', 'aria-label': c.label },
-      h('div', { class: 'cat-bubble__circle', 'aria-hidden': 'true' }, h('img', { src: c.img, alt: c.label, loading: 'lazy' })),
-      h('span', { class: 'cat-bubble__label' }, c.label))));
+    ...categories.map(c => {
+      const href = c.href || (c.collection ? '#/shop?collection=' + encodeURIComponent(c.collection) : c.q ? '#/shop?category=' + encodeURIComponent(c.q) : '#/shop');
+      return h('a', { href, class: 'cat-bubble', 'aria-label': c.label },
+        h('div', { class: 'cat-bubble__circle', 'aria-hidden': 'true' }, h('img', { src: c.img, alt: c.label, loading: 'lazy' })),
+        h('span', { class: 'cat-bubble__label' }, c.label));
+    }));
 
   // ── PRODUCT FEED GRID — 4-col desktop → 2-col mobile (no rigid px) ──
   const feedSection = h('section', { class: 'feed-section' },

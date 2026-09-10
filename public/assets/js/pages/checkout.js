@@ -75,6 +75,7 @@ export async function Checkout() {
     replaceIn(left, box, 'items');
   }
 
+  let couponInput = null;
   function renderSummary() {
     const subtotal = cart.subtotal;
     const discount = coupon ? coupon.discount : 0;
@@ -89,8 +90,11 @@ export async function Checkout() {
       h('div', { class: 'divider' }),
       h('div', { class: 'row between' }, h('strong', {}, 'Total'), h('strong', { style: { fontSize: 'var(--fs-lg)' } }, money(total))));
 
-    const couponInput = h('input', { class: 'input', placeholder: 'Have a coupon? (try ZUNO100)' });
-    const couponBtn = h('button', { class: 'btn btn-outline btn-sm', onclick: applyCoupon }, 'Apply');
+    couponInput = h('input', { class: 'input', placeholder: 'Have a coupon? (try ZUNO100)', value: coupon ? coupon.code : '' });
+    const couponBtn = h('button', { class: 'btn btn-outline btn-sm', onclick: applyCoupon }, coupon ? 'Remove' : 'Apply');
+    if (coupon) {
+      couponBtn.onclick = () => { coupon = null; toast('Coupon removed', 'info'); renderSummary(); };
+    }
     const couponRow = h('div', { class: 'row gap-2', style: { margin: '12px 0' } }, couponInput, couponBtn);
 
     payBtn = h('button', { class: 'btn btn-primary btn-block btn-lg', onclick: startPayment }, 'Pay ' + money(total) + ' securely');
@@ -99,10 +103,13 @@ export async function Checkout() {
   }
 
   async function applyCoupon() {
-    const code = couponInput.value.trim();
-    if (!code) return;
-    try { const r = await api.post('/coupons/validate', { code, module, subtotal: cart.subtotal }); if (r.valid) { coupon = r; toast('Coupon applied', 'success'); } else { coupon = null; toast(r.message || 'Invalid coupon', 'error'); } renderSummary(); }
-    catch (e) { toast(e.message, 'error'); }
+    const code = couponInput ? couponInput.value.trim() : '';
+    if (!code) { toast('Enter a coupon code', 'warning'); return; }
+    try {
+      const r = await api.post('/coupons/validate', { code, module, subtotal: cart.subtotal });
+      if (r.valid) { coupon = r; toast('Coupon applied: ' + code, 'success'); } else { coupon = null; toast(r.message || 'Invalid coupon', 'error'); }
+      renderSummary();
+    } catch (e) { toast(e.message, 'error'); }
   }
 
   function cartTotal() {

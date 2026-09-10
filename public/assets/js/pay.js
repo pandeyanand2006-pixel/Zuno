@@ -57,7 +57,8 @@ function showTestSheet(razorpay, onSuccess) {
     { key: 'nb', label: 'Netbanking', ph: 'Select your bank' },
     { key: 'wallet', label: 'Wallet', ph: 'PhonePe / Paytm / Amazon' },
   ];
-  const input = h('input', { class: 'input', placeholder: methods[0].ph, style: { marginTop: '12px' } });
+  const defaultMethod = methods.find(m => m.key === method) || methods[0];
+  const input = h('input', { class: 'input', placeholder: defaultMethod.ph, style: { marginTop: '12px' } });
   const methodRow = h('div', { class: 'row gap-2 wrap' });
   methods.forEach((m) => {
     const btn = h('button', { type: 'button', class: 'chip' + (m.key === method ? ' chip-active' : ''), onclick: () => { method = m.key; input.placeholder = m.ph; methodRow.querySelectorAll('button').forEach((b) => b.classList.remove('chip-active')); btn.classList.add('chip-active'); } }, m.label);
