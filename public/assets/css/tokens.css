@@ -8,7 +8,7 @@
 
   /* ZUNO legacy tokens → mapped to Denim for backwards compat */
   --zuno-primary: var(--primary-denim);
-  --zuno-primary-600: #1e3a5f;
+  --zuno-primary-600: var(--secondary-wash);
   --zuno-primary-700: var(--dark-charcoal);
   --zuno-primary-50: var(--light-indigo);
   --zuno-primary-100: #d6deee;

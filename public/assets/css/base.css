@@ -14,17 +14,17 @@ h1 { font-size: var(--fs-3xl); }
 h2 { font-size: var(--fs-2xl); }
 h3 { font-size: var(--fs-xl); }
 p { margin: 0 0 var(--sp-3); }
-a { color: var(--zuno-primary); text-decoration: none; }
-a:hover { text-decoration: underline; }
+a { color: var(--primary-denim); text-decoration: none; }
+a:hover { text-decoration: underline; color: var(--secondary-wash); }
 img { max-width: 100%; display: block; }
 button { font-family: inherit; cursor: pointer; }
 ul { margin: 0; padding: 0; list-style: none; }
-:focus-visible { outline: 3px solid var(--zuno-primary-100); outline-offset: 2px; border-radius: var(--r-sm); }
-::selection { background: var(--zuno-primary-100); color: var(--ink-900); }
+:focus-visible { outline: 3px solid var(--secondary-wash); outline-offset: 2px; border-radius: var(--r-sm); }
+::selection { background: var(--light-indigo); color: var(--dark-charcoal); }
 
 .skip-link {
   position: absolute; left: -999px; top: 0; z-index: 999;
-  background: var(--zuno-primary); color: #fff; padding: 10px 16px; border-radius: var(--r-sm);
+  background: var(--primary-denim); color: var(--pure-white); padding: 10px 16px; border-radius: var(--r-sm);
 }
 .skip-link:focus { left: 12px; top: 12px; }
 
@@ -70,19 +70,14 @@ ul { margin: 0; padding: 0; list-style: none; }
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* Smooth transitions for interactive elements */
-.btn, .product-card, .hero-card {
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
+/* Smooth transitions for interactive elements — 0.2s ease-in per Denim spec */
+.btn, .product-card, .hero-card, .cat-bubble__circle, .icon-btn, .size-pill {
+  transition: transform 0.2s ease-in, box-shadow 0.2s ease-in, background 0.2s ease-in, border-color 0.2s ease-in, color 0.2s ease-in;
 }
 
 .btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 20px rgba(0,0,0,0.15) !important;
-}
-
-.product-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 12px 30px rgba(0,0,0,0.12);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px rgba(28,37,65,0.12) !important;
 }
 
 .hero-card:hover {

@@ -49,17 +49,22 @@ export function topBar(active) {
       } : {}
     }, n.label)));
 
-  // Cart drawer
-  const cartDrawer = h('div', { class: 'drawer', style: { position: 'fixed', inset: 0, zIndex: '200', pointerEvents: 'none' } },
+  // Cart drawer — right-side slide-over (Denim spec: 0.2s ease-in CTA)
+  const cartDrawer = h('div', { class: 'drawer', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Mini cart', style: { position: 'fixed', inset: 0, zIndex: '200', pointerEvents: 'none' } },
     h('div', { class: 'drawer__backdrop', style: { position: 'absolute', inset: 0, background: 'rgba(28,37,65,0.4)', opacity: '0', transition: 'opacity 0.2s ease-in' }, onclick: closeCart }),
-    h('div', { class: 'drawer__panel', style: { position: 'absolute', top: 0, right: 0, height: '100%', width: 'min(420px, 92vw)', background: 'var(--pure-white)', display: 'flex', flexDirection: 'column', transform: 'translateX(100%)', transition: 'transform 0.32s cubic-bezier(0.22,1,0.36,1)', boxShadow: '0 8px 32px rgba(28,37,65,0.12)' } },
+    h('div', { class: 'drawer__panel', style: { position: 'absolute', top: 0, right: 0, height: '100%', width: 'min(420px, 92vw)', background: 'var(--pure-white)', display: 'flex', flexDirection: 'column', transform: 'translateX(100%)', transition: 'transform 0.32s cubic-bezier(0.22,1,0.36,1)', boxShadow: '-8px 0 32px rgba(28,37,65,0.12)' } },
       h('div', { style: { padding: '20px', borderBottom: '1px solid var(--light-indigo)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
-        h('h3', { style: { margin: 0, fontFamily: 'var(--font-display)' } }, 'Your Bag'),
+        h('h3', { style: { margin: 0, fontFamily: 'var(--font-display)', fontSize: '18px', letterSpacing: '-0.02em' } }, 'Your Bag'),
         h('button', { class: 'icon-btn', onclick: closeCart, 'aria-label': 'Close cart' }, '✕')),
       h('div', { class: 'drawer__items', style: { flex: '1', overflowY: 'auto', padding: '20px' } }, 'Loading…'),
-      h('div', { style: { padding: '20px', borderTop: '1px solid var(--light-indigo)' } },
-        h('div', { class: 'drawer__total', style: { display: 'flex', justifyContent: 'space-between', marginBottom: '16px', fontWeight: '700' } }, h('span', {}, 'Subtotal'), h('span', { id: 'drawer-subtotal' }, '—')),
-        h('a', { href: '#/cart', class: 'btn', style: { display: 'block', width: '100%', background: 'var(--primary-denim)', color: 'var(--pure-white)', textAlign: 'center', padding: '14px', borderRadius: '999px', fontWeight: '700', letterSpacing: '0.04em', textDecoration: 'none', transition: 'background 0.2s ease-in' }, onmouseenter: (e) => e.target.style.background = 'var(--secondary-wash)', onmouseleave: (e) => e.target.style.background = 'var(--primary-denim)', onclick: closeCart }, 'PROCEED TO CHECKOUT'))));
+      h('div', { style: { padding: '20px', borderTop: '1px solid var(--light-indigo)', background: 'var(--pure-white)' } },
+        h('div', { style: { display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' } },
+          h('div', { class: 'drawer__total', style: { display: 'flex', justifyContent: 'space-between', fontWeight: '700', fontSize: 'var(--fs-md)' } }, h('span', {}, 'Subtotal'), h('span', { id: 'drawer-subtotal' }, '—')),
+          h('div', { style: { display: 'flex', justifyContent: 'space-between', fontSize: 'var(--fs-sm)', color: 'var(--ink-500)' } }, h('span', {}, 'Shipping'), h('span', {}, 'Calculated at checkout')),
+          h('div', { style: { display: 'flex', justifyContent: 'space-between', fontSize: 'var(--fs-sm)', color: 'var(--ink-500)' } }, h('span', {}, 'Estimated total'), h('span', { id: 'drawer-total', style: { fontWeight: '700', color: 'var(--dark-charcoal)' } }, '—'))
+        ),
+        h('a', { href: '#/cart', class: 'btn-checkout', style: { display: 'block', width: '100%', background: 'var(--primary-denim)', color: 'var(--pure-white)', textAlign: 'center', padding: '14px', borderRadius: '999px', fontWeight: '800', letterSpacing: '0.04em', textDecoration: 'none', transition: 'background 0.2s ease-in' }, onmouseenter: (e) => e.target.style.background = 'var(--secondary-wash)', onmouseleave: (e) => e.target.style.background = 'var(--primary-denim)', onclick: closeCart, 'aria-label': 'Proceed to checkout' }, 'PROCEED TO CHECKOUT'),
+        h('p', { style: { textAlign: 'center', fontSize: '11px', color: 'var(--ink-500)', marginTop: '10px', marginBottom: '0' } }, 'Free shipping over ₹999 • 7-day returns'))));
   function openCart() {
     cartDrawer.style.pointerEvents = 'auto';
     cartDrawer.querySelector('.drawer__backdrop').style.opacity = '1';
@@ -74,20 +79,23 @@ export function topBar(active) {
   async function loadCartDrawer() {
     const itemsEl = cartDrawer.querySelector('.drawer__items');
     const subEl = cartDrawer.querySelector('#drawer-subtotal');
+    const totalEl = cartDrawer.querySelector('#drawer-total');
     try {
       if (!Store.isAuthed()) {
         const guest = Store.getGuest();
-        if (!guest.length) { itemsEl.innerHTML = '<p class="muted">Your bag is empty</p>'; subEl.textContent = '₹0'; return; }
-        itemsEl.innerHTML = guest.map(it => `<div style="display:flex;gap:12px;padding:12px 0;border-bottom:1px solid var(--light-indigo)"><img src="${it.image || ''}" style="width:64px;height:64px;object-fit:cover;border-radius:8px;background:var(--light-indigo)"><div><div style="font-weight:600">${it.name}</div><div style="font-size:12px;color:var(--text-muted)">Qty ${it.quantity}</div><div style="font-weight:700">₹${(it.price/100).toFixed(0)}</div></div></div>`).join('');
+        if (!guest.length) { itemsEl.innerHTML = '<p class="muted">Your bag is empty — add a tee to get started.</p>'; subEl.textContent = '₹0'; if (totalEl) totalEl.textContent = '₹0'; return; }
+        itemsEl.innerHTML = guest.map(it => `<div style="display:flex;gap:12px;padding:12px 0;border-bottom:1px solid var(--light-indigo)"><img src="${it.image || ''}" alt="" style="width:64px;height:64px;object-fit:cover;border-radius:8px;background:var(--light-indigo)"><div><div style="font-weight:700;color:var(--dark-charcoal)">${it.name}</div><div style="font-size:12px;color:var(--ink-500)">${it.variant ? it.variant.color + ' · ' + it.variant.size + ' · ' : ''}Qty ${it.quantity}</div><div style="font-weight:800;color:var(--secondary-wash)">₹${(it.price/100).toFixed(0)}</div></div></div>`).join('');
         const total = guest.reduce((s, i) => s + i.price * i.quantity, 0);
-        subEl.textContent = '₹' + (total/100).toFixed(0);
+        const fmt = '₹' + (total/100).toFixed(0);
+        subEl.textContent = fmt; if (totalEl) totalEl.textContent = fmt;
         return;
       }
       const s = await api.get('/cart/summary');
       const items = s.shop?.items || [];
-      if (!items.length) { itemsEl.innerHTML = '<p class="muted">Your bag is empty</p>'; subEl.textContent = '₹0'; return; }
-      itemsEl.innerHTML = items.map(it => `<div style="display:flex;gap:12px;padding:12px 0;border-bottom:1px solid var(--light-indigo)"><img src="${it.image || ''}" style="width:64px;height:64px;object-fit:cover;border-radius:8px;background:var(--light-indigo)"><div><div style="font-weight:600">${it.name}</div><div style="font-size:12px;color:var(--text-muted)">${it.variant ? it.variant.color + ' · ' + it.variant.size : ''} · Qty ${it.quantity}</div><div style="font-weight:700">₹${(it.price/100).toFixed(0)}</div></div></div>`).join('');
-      subEl.textContent = '₹' + ((s.shop.subtotal || 0)/100).toFixed(0);
+      if (!items.length) { itemsEl.innerHTML = '<p class="muted">Your bag is empty</p>'; subEl.textContent = '₹0'; if (totalEl) totalEl.textContent = '₹0'; return; }
+      itemsEl.innerHTML = items.map(it => `<div style="display:flex;gap:12px;padding:12px 0;border-bottom:1px solid var(--light-indigo)"><img src="${it.image || ''}" alt="" style="width:64px;height:64px;object-fit:cover;border-radius:8px;background:var(--light-indigo)"><div><div style="font-weight:700;color:var(--dark-charcoal)">${it.name}</div><div style="font-size:12px;color:var(--ink-500)">${it.variant ? it.variant.color + ' · ' + it.variant.size + ' · ' : ''}Qty ${it.quantity}</div><div style="font-weight:800;color:var(--secondary-wash)">₹${(it.price/100).toFixed(0)}</div></div></div>`).join('');
+      const fmt2 = '₹' + ((s.shop.subtotal || 0)/100).toFixed(0);
+      subEl.textContent = fmt2; if (totalEl) totalEl.textContent = fmt2;
     } catch { itemsEl.innerHTML = '<p class="muted">Could not load bag</p>'; }
   }
   // Hamburger menu
@@ -240,52 +248,71 @@ export function ProductCard(p) {
   const img = p.images && p.images[0] ? p.images[0] : productImage(p);
   const img2 = p.images && p.images[1] ? p.images[1] : null;
   const wished = Store.isWished(p.id);
-  const heart = h('button', { class: 'wish-btn' + (wished ? ' active' : ''), type: 'button', title: 'Save to wishlist', 'aria-label': 'Save to wishlist', onclick: async (e) => {
+  const heart = h('button', { class: 'wish-btn' + (wished ? ' active' : ''), type: 'button', title: wished ? 'Remove from wishlist' : 'Add to wishlist', 'aria-label': wished ? 'Remove from wishlist' : 'Add to wishlist', 'aria-pressed': wished ? 'true' : 'false', onclick: async (e) => {
     e.preventDefault(); e.stopPropagation();
     await Store.toggleWish(p.id);
-    heart.classList.toggle('active', Store.isWished(p.id));
+    const now = Store.isWished(p.id);
+    heart.classList.toggle('active', now);
+    heart.textContent = now ? '♥' : '♡';
+    heart.setAttribute('aria-label', now ? 'Remove from wishlist' : 'Add to wishlist');
+    heart.setAttribute('aria-pressed', now ? 'true' : 'false');
     heart.style.transform = 'scale(1.2)'; setTimeout(() => heart.style.transform = '', 180);
-  } }, '♡');
-  // Update heart text based on wished
-  if (wished) heart.textContent = '♥';
+  } }, wished ? '♥' : '♡');
 
-  const badge = discounted ? h('span', { class: 'product-badge' }, p.discountPercent + '% OFF') : isNew ? h('span', { class: 'product-badge', style: { background: '#0a0a0a' } }, 'NEW') : isBestseller ? h('span', { class: 'product-badge', style: { background: '#c9a96e', color: '#fff' } }, 'BESTSELLER') : null;
+  const badge = discounted ? h('span', { class: 'product-badge' }, p.discountPercent + '% OFF') : isNew ? h('span', { class: 'product-badge', style: { background: 'var(--dark-charcoal)' } }, 'NEW') : isBestseller ? h('span', { class: 'product-badge', style: { background: 'var(--secondary-wash)' } }, 'BESTSELLER') : null;
 
-  const quickAdd = h('button', { class: 'quick-add', type: 'button', onclick: async (e) => {
-    e.preventDefault(); e.stopPropagation();
-    const variant = p.colors && p.sizes ? { color: p.colors[0], size: p.sizes[1] || p.sizes[0] } : null;
-    const payload = variant ? { productId: p.id, quantity: 1, variant } : { productId: p.id, quantity: 1 };
-    if (Store.isAuthed()) {
-      try { await api.post('/cart/items?module=shop', payload); await refreshCart(); toast('Added to bag', 'success'); }
-      catch (err) { toast(err.message, 'error'); }
-    } else {
-      Store.addGuestItem({ productId: p.id, name: p.name, price: p.price, mrp: p.mrp, slug: p.slug, image: img, module: 'shop', quantity: 1, variant });
-      toast('Added to bag', 'success');
+  // ── Quick Add Size panel — slides up on hover (Denim spec) ──
+  const SIZES = ['S', 'M', 'L', 'XL'];
+  let selectedSize = null;
+  const pills = SIZES.map(sz => h('button', {
+    class: 'size-pill',
+    type: 'button',
+    'aria-label': 'Select size ' + sz,
+    onclick: async (e) => {
+      e.preventDefault(); e.stopPropagation();
+      // toggle selected visual
+      selectedSize = sz;
+      panel.querySelectorAll('.size-pill').forEach(el => el.classList.toggle('selected', el.textContent === sz));
+      // add to cart with selected size
+      const variant = { color: (p.colors && p.colors[0]) || 'black', size: sz };
+      if (Store.isAuthed()) {
+        try { await api.post('/cart/items?module=shop', { productId: p.id, quantity: 1, variant }); await refreshCart(); toast('Added size ' + sz + ' to bag', 'success'); }
+        catch (err) { toast(err.message, 'error'); }
+      } else {
+        Store.addGuestItem({ productId: p.id, name: p.name, price: p.price, mrp: p.mrp, slug: p.slug, image: img, module: 'shop', quantity: 1, variant });
+        toast('Added size ' + sz + ' to bag', 'success');
+      }
     }
-  } }, 'Add to bag');
+  }, sz));
+
+  const panel = h('div', { class: 'quick-add-panel', 'aria-hidden': 'false' },
+    h('span', { class: 'quick-add-panel__label' }, 'Quick Add'),
+    h('div', { class: 'quick-add-panel__pills' }, ...pills)
+  );
 
   const thumb = h('div', { class: 'product-thumb' },
     badge, heart,
     h('img', { class: 'product-img', src: img, alt: p.name, loading: 'lazy' }),
     img2 ? h('img', { class: 'product-img-hover', src: img2, alt: p.name, loading: 'lazy' }) : null,
-    quickAdd);
+    panel);
 
-  const colors = (p.colors || []).slice(0, 4);
-  const colorDots = colors.length > 1 ? h('div', { class: 'row gap-1', style: { marginTop: '6px' } },
-    ...colors.map(c => h('span', { class: 'color-dot', style: { background: c === 'white' ? '#fff' : c, borderColor: c === 'white' ? '#e5e5e5' : c, width: '12px', height: '12px', borderRadius: '50%', border: '1px solid var(--ink-200)', display: 'inline-block' }, title: c }))) : null;
-
-  const priceRow = h('div', { style: { display: 'flex', alignItems: 'baseline', gap: '8px', marginTop: '4px' } },
-    h('span', { class: 'price', style: { fontSize: 'var(--fs-md)', fontWeight: '800' } }, money(p.price)),
-    discounted ? h('span', { class: 'strike text-xs' }, money(p.mrp)) : null);
+  // Body — bold title, subtle category subtext, price (mrp crossed + discounted in secondary-wash)
+  const categoryLabel = p.category || p.collection || 'ZUNO';
+  const priceRow = h('div', { style: { display: 'flex', alignItems: 'baseline', gap: '8px', marginTop: '4px', flexWrap: 'wrap' } },
+    // Discounted price in secondary-wash per spec
+    h('span', { class: 'discount-price', style: { fontSize: 'var(--fs-md)' } }, money(p.price)),
+    discounted ? h('span', { class: 'strike text-xs' }, money(p.mrp)) : null,
+    discounted ? h('span', { style: { fontSize: '11px', fontWeight: '700', color: 'var(--secondary-wash)' } }, p.discountPercent + '% OFF') : null
+  );
 
   const body = h('div', { class: 'product-body', style: { padding: '12px' } },
-    h('div', { class: 'muted text-xs', style: { letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: '700', color: 'var(--ink-500)' } }, 'ZUNO'),
-    h('div', { class: 'product-name', style: { fontSize: 'var(--fs-sm)', fontWeight: '600', lineHeight: '1.3', marginTop: '2px', display: '-webkit-box', WebkitLineClamp: '2', WebkitBoxOrient: 'vertical', overflow: 'hidden' } }, p.name),
-    h('div', { class: 'product-meta', style: { fontSize: 'var(--fs-xs)', marginTop: '4px' } }, '★ ' + (p.rating || '—') + ' · ' + (p.ratingCount || 0)),
-    priceRow,
-    colorDots);
+    h('div', { class: 'product-name', style: { fontSize: 'var(--fs-sm)', fontWeight: '700', lineHeight: '1.3' } }, p.name),
+    h('div', { class: 'product-meta' }, String(categoryLabel).toUpperCase()),
+    h('div', { class: 'product-meta', style: { fontSize: '11px', marginTop: '2px' } }, '★ ' + (p.rating || '—') + ' · ' + (p.ratingCount || 0)),
+    priceRow
+  );
 
-  return h('a', { class: 'product-card', href: '#/product/' + p.slug, style: { textDecoration: 'none', color: 'inherit', background: '#fff', borderRadius: '8px', overflow: 'hidden', border: '1px solid var(--ink-100)', display: 'flex', flexDirection: 'column' } }, thumb, body);
+  return h('a', { class: 'product-card', href: '#/product/' + p.slug, 'aria-label': p.name, style: { textDecoration: 'none', color: 'inherit', background: 'var(--pure-white)', borderRadius: '12px', overflow: 'hidden', border: '1px solid var(--light-indigo)', display: 'flex', flexDirection: 'column' } }, thumb, body);
 }
 
 export async function refreshCart() {

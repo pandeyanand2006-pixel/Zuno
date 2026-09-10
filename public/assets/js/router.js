@@ -66,6 +66,8 @@ async function render() {
   try {
     const result = matched ? await matched.handler({ params: matched.params, query }) : notFound();
     page = result;
+    if (page && typeof page._cleanup === 'function') currentCleanup = page._cleanup;
+    else if (page && page.querySelector && page.querySelector('[data-cleanup]')) currentCleanup = null;
   } catch (err) {
     console.error('route error', err);
     page = h('div', { class: 'container section' }, h('h2', {}, 'Page error'), h('p', { class: 'muted' }, err.message));
