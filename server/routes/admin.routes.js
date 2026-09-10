@@ -91,8 +91,12 @@ router.get('/orders', (req, res) => {
   if (req.query.custom === '0') clauses.push('NOT EXISTS (SELECT 1 FROM order_items oi WHERE oi.order_id = o.id AND oi.customization_data IS NOT NULL)');
   const where = clauses.length ? 'WHERE ' + clauses.join(' AND ') : '';
   const orders = db.prepare(`
-    SELECT o.*, u.name as customer_name, u.mobile as customer_mobile, u.email as customer_email
+    SELECT o.*, u.name as customer_name, u.mobile as customer_mobile, u.email as customer_email,
+           a.line1 as addr_line1, a.city as addr_city, a.pincode as addr_pincode,
+           p.status as payment_status, p.method as payment_method
     FROM orders o LEFT JOIN users u ON u.id = o.user_id
+    LEFT JOIN addresses a ON a.id = o.address_id
+    LEFT JOIN payments p ON p.order_id = o.id
     ${where} ORDER BY o.created_at DESC LIMIT 300
   `).all(...params);
   return ok(res, { orders });
@@ -123,7 +127,8 @@ router.get('/orders/:id', (req, res) => {
   const history = db.prepare('SELECT h.*, u.name as changed_by_name FROM order_status_history h LEFT JOIN users u ON u.id = h.changed_by WHERE h.order_id = ? ORDER BY h.created_at ASC').all(req.params.id);
   const customer = db.prepare('SELECT id, name, email, mobile FROM users WHERE id = ?').get(order.user_id);
   const address = db.prepare('SELECT * FROM addresses WHERE id = ?').get(order.address_id);
-  return ok(res, { order: { ...order, items, history, customer, address } });
+  const payment = db.prepare('SELECT * FROM payments WHERE order_id = ? ORDER BY created_at DESC LIMIT 1').get(req.params.id);
+  return ok(res, { order: { ...order, items, history, customer, address, payment } });
 });
 
 // Payments
