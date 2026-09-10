@@ -100,24 +100,6 @@ export function topBar(active) {
       subEl.textContent = fmt2; if (totalEl) totalEl.textContent = fmt2;
     } catch { itemsEl.innerHTML = '<p class="muted">Could not load bag</p>'; }
   }
-  // Hamburger menu
-  const hamburgerMenu = h('div', { class: 'hamburger-menu', style: { position: 'fixed', inset: 0, zIndex: '150', pointerEvents: 'none', display: 'flex' } },
-    h('div', { style: { flex: 1, background: 'rgba(28,37,65,0.4)', opacity: '0', transition: 'opacity 0.2s ease-in' }, onclick: closeHamburger }),
-    h('div', { style: { width: '280px', background: 'var(--pure-white)', height: '100%', transform: 'translateX(-100%)', transition: 'transform 0.32s ease', padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' } },
-      h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } }, h('span', { style: { fontWeight: '800', letterSpacing: '0.12em', color: 'var(--dark-charcoal)' } }, 'ZUNO'), h('button', { class: 'icon-btn', onclick: closeHamburger, 'aria-label': 'Close menu' }, '✕')),
-      h('nav', { style: { display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '16px' } },
-        ...NAV.map(n => h('a', { href: n.href, style: { padding: '12px', fontWeight: '600', borderBottom: '1px solid var(--light-indigo)', textDecoration: 'none', color: 'var(--dark-charcoal)' }, onclick: closeHamburger }, n.label)))));
-  function openHamburger() {
-    hamburgerMenu.style.pointerEvents = 'auto';
-    hamburgerMenu.children[0].style.opacity = '1';
-    hamburgerMenu.children[1].style.transform = 'translateX(0)';
-  }
-  function closeHamburger() {
-    hamburgerMenu.children[0].style.opacity = '0';
-    hamburgerMenu.children[1].style.transform = 'translateX(-100%)';
-    setTimeout(() => hamburgerMenu.style.pointerEvents = 'none', 320);
-  }
-
   const actions = h('div', { class: 'nav-actions' },
     h('a', { class: 'icon-btn', href: '#/wishlist', title: 'Wishlist', 'aria-label': 'Wishlist' }, '♡', wishCount ? h('span', { class: 'cart-count', style: { background: 'var(--primary-denim)' } }, String(wishCount)) : null),
     h('button', { class: 'icon-btn', title: 'Bag', 'aria-label': 'Bag', onclick: openCart },
@@ -126,8 +108,7 @@ export function topBar(active) {
     user
       ? h('a', { class: 'avatar', href: '#/profile', title: user.name, style: { textDecoration: 'none', background: 'var(--primary-denim)', color: '#fff' } }, initials(user.name))
       : h('a', { class: 'btn btn-primary btn-sm', href: '#/login', style: { background: 'var(--primary-denim)', borderColor: 'var(--primary-denim)', letterSpacing: '0.04em' } }, 'Sign in'),
-    h('button', { class: 'icon-btn hamburger', 'aria-label': 'Open menu', onclick: openHamburger, style: { display: 'none' } }, '☰'),
-    cartDrawer, hamburgerMenu);
+    cartDrawer);
 
   const announcement = h('div', { style: { background: '#0a0a0a', color: '#fff', textAlign: 'center', padding: '8px 16px', fontSize: 'var(--fs-xs)', letterSpacing: '0.08em', fontWeight: '600' } },
     'FREE SHIPPING ON ORDERS OVER ₹999  •  EASY 7-DAY RETURNS  •  MADE IN INDIA');
