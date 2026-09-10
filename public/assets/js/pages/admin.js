@@ -6,17 +6,85 @@ import { Store } from '../store.js';
 export async function Admin() {
   const root = h('div', { class: 'container section' });
   const user = Store.getUser();
-  if (!user || user.role !== 'ADMIN') { root.append(emptyState({ icon: '◐', title: 'Admin access only', desc: 'Sign in with an admin account.', action: h('a', { class: 'btn btn-primary', href: '#/login' }, 'Sign in') })); return root; }
+  if (!user || user.role !== 'ADMIN') { root.append(emptyState({ icon: '◐', title: 'Founder Access Only', desc: 'This dashboard is exclusively for the Zuno founder. Please sign in with founder credentials.', action: h('a', { class: 'btn btn-primary', href: '#/login' }, 'Sign in as Founder') })); return root; }
+
+  // Founder Welcome Banner with enhanced styling
+  const founderBanner = h('div', { style: { 
+    background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%)', 
+    color: 'white', 
+    padding: '32px', 
+    borderRadius: '16px', 
+    marginBottom: '32px', 
+    boxShadow: '0 20px 40px rgba(0,0,0,0.3), 0 0 0 1px rgba(255,255,255,0.1)',
+    position: 'relative',
+    overflow: 'hidden'
+  } },
+    // Decorative elements
+    h('div', { style: { 
+      position: 'absolute', 
+      top: '-50px', 
+      right: '-50px', 
+      width: '200px', 
+      height: '200px', 
+      background: 'radial-gradient(circle, rgba(251,191,36,0.15) 0%, transparent 70%)',
+      borderRadius: '50%'
+    } }),
+    h('div', { style: { 
+      position: 'absolute', 
+      bottom: '-30px', 
+      left: '-30px', 
+      width: '150px', 
+      height: '150px', 
+      background: 'radial-gradient(circle, rgba(59,130,246,0.15) 0%, transparent 70%)',
+      borderRadius: '50%'
+    } }),
+    h('div', { class: 'row between', style: { alignItems: 'center', position: 'relative', zIndex: '2' } },
+      h('div', {},
+        h('div', { style: { 
+          fontSize: '0.75rem', 
+          fontWeight: '700',
+          letterSpacing: '0.1em',
+          textTransform: 'uppercase',
+          color: '#fbbf24', 
+          marginBottom: '8px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px'
+        } }, 
+          h('span', { style: { fontSize: '20px' } }, '⚡'),
+          'FOUNDER DASHBOARD'),
+        h('h1', { style: { 
+          fontFamily: 'var(--font-display)', 
+          letterSpacing: '-0.02em', 
+          margin: '0', 
+          fontSize: '2.5rem',
+          background: 'linear-gradient(135deg, #ffffff 0%, #e2e8f0 100%)',
+          WebkitBackgroundClip: 'text',
+          WebkitTextFillColor: 'transparent',
+          backgroundClip: 'text'
+        } }, 'ZUNO Admin'),
+        h('div', { style: { marginTop: '12px', opacity: '0.9', fontSize: '1rem', color: '#cbd5e1' } }, 
+          'Welcome back, ' + (user.name || 'Founder') + '! 👋 Manage your orders and business.')),
+      h('div', { style: { 
+        textAlign: 'right',
+        background: 'rgba(255,255,255,0.1)',
+        padding: '16px 20px',
+        borderRadius: '12px',
+        backdropFilter: 'blur(10px)',
+        border: '1px solid rgba(255,255,255,0.2)'
+      } },
+        h('div', { style: { fontSize: '0.7rem', opacity: '0.8', marginBottom: '4px', color: '#94a3b8' } }, 'Logged in as'),
+        h('div', { class: 'fw-700', style: { fontSize: '0.95rem' } }, user.email || user.mobile))));
 
   const tabs = h('div', { class: 'tabs', style: { marginBottom: '20px', overflowX: 'auto' } },
     h('button', { class: 'tab active', 'data-t': 'overview' }, 'Overview'),
-    h('button', { class: 'tab', 'data-t': 'orders' }, 'Orders'),
+    h('button', { class: 'tab', 'data-t': 'orders' }, 'All Orders'),
     h('button', { class: 'tab', 'data-t': 'production' }, 'Production'),
-    h('button', { class: 'tab', 'data-t': 'custom' }, 'Custom'),
+    h('button', { class: 'tab', 'data-t': 'custom' }, '✦ Custom Orders'),
     h('button', { class: 'tab', 'data-t': 'products' }, 'Products'),
     h('button', { class: 'tab', 'data-t': 'users' }, 'Customers'));
   const panel = h('div', {}, skeletonPanel());
-  root.append(h('h1', { style: { fontFamily: 'var(--font-display)', letterSpacing: '-0.02em' } }, 'ZUNO Admin'), tabs, panel);
+  root.append(founderBanner, tabs, panel);
 
   tabs.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => { tabs.querySelectorAll('.tab').forEach((x) => x.classList.remove('active')); t.classList.add('active'); load(t.dataset.t); }));
 
@@ -63,19 +131,84 @@ async function orders() {
     tableWrap.innerHTML = 'Loading…';
     const { orders } = await api.get('/admin/orders' + (q ? '?q=' + encodeURIComponent(q) : ''));
     if (!orders.length) { tableWrap.innerHTML = ''; tableWrap.append(emptyState({ title: 'No orders' })); return; }
-    const rows = orders.slice(0, 100).map((o) => h('tr', {},
-      h('td', {}, h('a', { href: '#/admin/orders/' + o.id, style: { fontWeight: '700', color: 'var(--ink-900)' } }, o.order_number), h('div', { class: 'muted text-xs' }, (o.customer_name || '') + (o.customer_mobile ? ' · ' + o.customer_mobile : ''))),
-      h('td', {}, money(o.total)),
+    const rows = orders.slice(0, 100).map((o) => h('tr', { style: { cursor: 'pointer' }, onclick: () => { showOrderDetail(o.id); } },
+      h('td', {}, 
+        h('a', { href: '#/admin/orders/' + o.id, style: { fontWeight: '700', color: 'var(--ink-900)' }, onclick: (e) => e.stopPropagation() }, o.order_number), 
+        h('div', { class: 'muted text-xs', style: { marginTop: '2px' } }, 
+          h('div', {}, (o.customer_name || 'Guest')),
+          (o.customer_mobile ? h('div', {}, '📱 ' + o.customer_mobile) : null),
+          (o.customer_email ? h('div', {}, '✉️ ' + o.customer_email) : null))),
+      h('td', {}, 
+        h('div', { class: 'fw-700' }, money(o.total)),
+        h('div', { class: 'text-xs muted' }, new Date(o.created_at).toLocaleDateString('en-IN'))),
       h('td', {}, statusBadge(o.status)),
-      h('td', {}, new Date(o.created_at).toLocaleDateString('en-IN')),
-      h('td', {}, h('select', { class: 'input', style: { padding: '6px 8px', fontSize: 'var(--fs-sm)' }, onchange: async (e) => { try { await api.post('/admin/orders/' + o.id + '/status', { status: e.target.value }); toast('Updated', 'success'); } catch (err) { toast(err.message, 'error'); } } },
-        ...['PAYMENT_PENDING', 'PAID', 'CONFIRMED', 'PROCESSING', 'PRINTING', 'QUALITY_CHECK', 'PACKED', 'SHIPPED', 'OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED'].map((s) => h('option', { value: s, selected: s === o.status }, s))))));
+      h('td', {}, h('select', { class: 'input', style: { padding: '6px 8px', fontSize: 'var(--fs-sm)' }, onclick: (e) => e.stopPropagation(), onchange: async (e) => { 
+        try { 
+          await api.post('/admin/orders/' + o.id + '/status', { status: e.target.value }); 
+          toast('✅ Status updated', 'success');
+          setTimeout(() => load(q), 500);
+        } catch (err) { toast('❌ ' + err.message, 'error'); } 
+      } },
+        ...['PAYMENT_PENDING', 'PAID', 'CONFIRMED', 'PROCESSING', 'PRINTING', 'QUALITY_CHECK', 'PACKED', 'SHIPPED', 'OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED'].map((s) => h('option', { value: s, selected: s === o.status }, s.replace(/_/g, ' ')))))));
     tableWrap.innerHTML = '';
-    tableWrap.append(h('table', { class: 'table' }, h('thead', {}, h('tr', {}, h('th', {}, 'Order / Customer'), h('th', {}, 'Total'), h('th', {}, 'Status'), h('th', {}, 'Date'), h('th', {}, 'Update'))), ...rows));
+    tableWrap.append(h('table', { class: 'table' }, h('thead', {}, h('tr', {}, h('th', {}, 'Order / Customer Details'), h('th', {}, 'Total / Date'), h('th', {}, 'Status'), h('th', {}, 'Update Status'))), ...rows));
   }
+  
+  async function showOrderDetail(orderId) {
+    const { order } = await api.get('/admin/orders/' + orderId);
+    const customer = order.customer || {};
+    const address = order.address || {};
+    const items = order.items || [];
+    
+    const content = h('div', {},
+      h('h2', {}, '📦 Order: ' + order.order_number),
+      h('div', { style: { background: '#f0f9ff', padding: '16px', borderRadius: '12px', marginTop: '16px', border: '1px solid #bae6fd' } },
+        h('div', { class: 'fw-700', style: { marginBottom: '12px', fontSize: '1rem', color: '#0369a1' } }, '👤 CUSTOMER INFORMATION'),
+        h('div', { class: 'row gap-4 wrap' },
+          h('div', {},
+            h('div', { class: 'text-xs muted' }, 'NAME'),
+            h('div', { class: 'fw-600' }, customer.name || 'N/A'),
+            h('div', { class: 'text-xs muted', style: { marginTop: '8px' } }, 'PHONE'),
+            h('div', { class: 'fw-600' }, customer.mobile || 'N/A'),
+            h('div', { class: 'text-xs muted', style: { marginTop: '8px' } }, 'EMAIL'),
+            h('div', {}, customer.email || 'N/A')),
+          h('div', {},
+            h('div', { class: 'text-xs muted' }, 'SHIPPING ADDRESS'),
+            address.line1 ? h('div', { class: 'fw-600' },
+              h('div', {}, address.line1),
+              address.line2 ? h('div', {}, address.line2) : null,
+              h('div', {}, `${address.city || ''}, ${address.state || ''} ${address.pincode || ''}`),
+              address.landmark ? h('div', { class: 'text-sm muted' }, 'Landmark: ' + address.landmark) : null
+            ) : h('div', { class: 'muted' }, 'No address')))),
+      h('div', { style: { marginTop: '16px' } },
+        h('div', { class: 'fw-700', style: { marginBottom: '12px' } }, '🛍️ ORDER ITEMS'),
+        ...items.map(it => {
+          const variant = it.variant || {};
+          const cust = it.customization;
+          return h('div', { style: { background: 'var(--ink-50)', padding: '12px', borderRadius: '8px', marginBottom: '8px' } },
+            h('div', { class: 'fw-600' }, it.name),
+            variant.color ? h('div', { class: 'text-sm' }, `Color: ${variant.color}, Size: ${variant.size || 'N/A'}`) : null,
+            cust ? h('div', { class: 'text-xs', style: { marginTop: '6px', padding: '8px', background: '#fff7ed', borderRadius: '6px' } },
+              h('div', { class: 'fw-600' }, '🎨 Custom Design'),
+              cust.front?.elements?.length ? h('div', {}, `Front: ${cust.front.elements.length} elements`) : null,
+              cust.back?.elements?.length ? h('div', {}, `Back: ${cust.back.elements.length} elements`) : null
+            ) : null,
+            h('div', { class: 'text-sm', style: { marginTop: '6px' } }, `Quantity: ${it.quantity} × ${money(it.price)} = ${money(it.price * it.quantity)}`));
+        }),
+        h('div', { class: 'fw-700', style: { marginTop: '12px', fontSize: '1.2rem' } }, `TOTAL: ${money(order.total)}`)),
+      h('div', { style: { marginTop: '16px' } },
+        h('div', { class: 'fw-600', style: { marginBottom: '8px' } }, 'Current Status: ' + order.status),
+        order.history?.length ? h('div', { class: 'text-sm muted' },
+          h('div', { style: { marginTop: '8px' } }, 'Status History:'),
+          ...order.history.map(h => h('div', {}, `${h.status} - ${new Date(h.created_at).toLocaleString()}`))
+        ) : null));
+    
+    modal(content);
+  }
+  
   search.addEventListener('keydown', (e) => { if (e.key === 'Enter') load(search.value.trim()); });
   await load('');
-  return card('Orders', container);
+  return card('All Orders', container);
 }
 
 async function productionQueue() {
@@ -120,32 +253,129 @@ async function customOrders() {
   const { orders } = await api.get('/admin/custom-orders');
   if (!orders.length) return emptyState({ icon: '✦', title: 'No custom orders', desc: 'Custom T-shirt orders will appear here.' });
   const wrap = h('div', { class: 'col gap-4' });
-  orders.forEach((o) => {
-    const items = o.items || [];
-    wrap.append(h('div', { class: 'card card-pad' },
-      h('div', { class: 'row between', style: { marginBottom: '12px' } },
-        h('div', {}, h('div', { class: 'fw-600' }, o.order_number), h('div', { class: 'muted text-sm' }, new Date(o.created_at).toLocaleString('en-IN') + ' · ' + money(o.total))),
-        statusBadge(o.status)),
+  
+  // Fetch detailed order info for each custom order
+  for (const o of orders) {
+    const { order: fullOrder } = await api.get('/admin/orders/' + o.id).catch(() => ({ order: o }));
+    const items = fullOrder.items || o.items || [];
+    const customer = fullOrder.customer || {};
+    const address = fullOrder.address || {};
+    
+    wrap.append(h('div', { class: 'card', style: { border: '2px solid var(--accent)', background: 'linear-gradient(to bottom, #fffbf0, white)', padding: '20px' } },
+      // Order Header with Status
+      h('div', { class: 'row between', style: { marginBottom: '16px', paddingBottom: '12px', borderBottom: '2px solid var(--ink-100)' } },
+        h('div', {},
+          h('div', { class: 'fw-700', style: { fontSize: '1.1rem' } }, '✦ ' + o.order_number),
+          h('div', { class: 'muted text-sm' }, new Date(o.created_at).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }))),
+        h('div', { style: { textAlign: 'right' } },
+          statusBadge(o.status),
+          h('div', { class: 'fw-700', style: { fontSize: '1.2rem', marginTop: '6px', color: 'var(--accent)' } }, money(o.total)))),
+      
+      // CUSTOMER DETAILS SECTION - Most Important for Founder!
+      h('div', { style: { background: '#f0f9ff', padding: '16px', borderRadius: '12px', marginBottom: '16px', border: '1px solid #bae6fd' } },
+        h('div', { class: 'fw-700', style: { marginBottom: '12px', fontSize: '1rem', color: '#0369a1' } }, '👤 CUSTOMER DETAILS (For Delivery Preparation)'),
+        h('div', { class: 'row gap-4 wrap' },
+          // Customer Name & Contact
+          h('div', { style: { flex: '1', minWidth: '250px' } },
+            h('div', { class: 'text-xs muted', style: { marginBottom: '4px' } }, 'NAME'),
+            h('div', { class: 'fw-600' }, customer.name || 'N/A'),
+            h('div', { class: 'text-xs muted', style: { marginTop: '8px', marginBottom: '4px' } }, 'CONTACT'),
+            h('div', { class: 'fw-600' }, customer.mobile || customer.email || 'N/A')),
+          // Shipping Address
+          h('div', { style: { flex: '2', minWidth: '300px' } },
+            h('div', { class: 'text-xs muted', style: { marginBottom: '4px' } }, 'SHIPPING ADDRESS'),
+            address.line1 ? h('div', { class: 'fw-600' }, 
+              h('div', {}, address.line1),
+              address.line2 ? h('div', {}, address.line2) : null,
+              h('div', {}, `${address.city || ''}, ${address.state || ''} ${address.pincode || ''}`),
+              address.landmark ? h('div', { class: 'text-sm muted' }, 'Landmark: ' + address.landmark) : null
+            ) : h('div', { class: 'muted' }, 'No address provided')))),
+      
+      // T-SHIRT CUSTOMIZATION DETAILS
       ...items.map((it) => {
-        const variant = it.variant ? `${it.variant.color || ''} · ${it.variant.size || ''} ${it.variant.fit || ''}` : '';
+        const variant = it.variant || {};
         const cust = it.customization;
-        return h('div', { class: 'row gap-3', style: { padding: '12px 0', borderTop: '1px solid var(--ink-100)', alignItems: 'flex-start' } },
-          h('div', { style: { width: '80px', height: '80px', background: '#f5f5f3', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', flexShrink: '0' } }, '✦'),
-          h('div', { class: 'grow' },
-            h('div', { class: 'fw-600' }, it.name + (it.isCustom ? ' · Custom' : '')),
-            variant ? h('div', { class: 'muted text-sm' }, variant) : null,
-            cust ? h('div', { class: 'muted text-xs', style: { marginTop: '6px', background: 'var(--ink-50)', padding: '8px', borderRadius: '6px' } },
-              h('div', {}, `Front: ${cust.front?.elements?.length || 0} elements`),
-              h('div', {}, `Back: ${cust.back?.elements?.length || 0} elements`),
-              cust.front?.elements?.filter(e => e.type === 'text').map(e => h('div', { style: { fontStyle: e.italic ? 'italic' : 'normal', fontWeight: e.bold ? '700' : '400', color: e.color || '#0a0a0a' } }, `"${e.value}"`))
-            ) : null,
-            h('div', { class: 'muted text-sm', style: { marginTop: '4px' } }, `${it.quantity} × ${money(it.price)}`)));
+        return h('div', { style: { background: 'white', border: '1px solid var(--ink-200)', borderRadius: '12px', padding: '16px', marginBottom: '12px' } },
+          h('div', { class: 'fw-700', style: { marginBottom: '12px', fontSize: '1rem' } }, '👕 T-SHIRT CUSTOMIZATION'),
+          h('div', { class: 'row gap-4', style: { alignItems: 'flex-start' } },
+            // T-shirt Visual Preview
+            h('div', { style: { width: '120px', flexShrink: '0' } },
+              h('div', { style: { 
+                width: '120px', 
+                height: '120px', 
+                background: variant.color || '#f5f5f3', 
+                borderRadius: '12px', 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center', 
+                fontSize: '48px',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                border: '2px solid var(--ink-200)'
+              } }, '👕'),
+              h('div', { class: 'text-xs text-center fw-600', style: { marginTop: '8px' } }, variant.color || 'Default')),
+            
+            // Customization Details
+            h('div', { class: 'grow' },
+              h('div', { class: 'fw-700', style: { marginBottom: '8px' } }, it.name + (it.isCustom ? ' (Custom Design)' : '')),
+              
+              // Variant Details (Color, Size, Fit)
+              h('div', { style: { background: 'var(--ink-50)', padding: '12px', borderRadius: '8px', marginBottom: '12px' } },
+                h('div', { class: 'text-xs fw-700 muted', style: { marginBottom: '6px' } }, 'SPECIFICATIONS'),
+                h('div', { class: 'row gap-3 wrap' },
+                  variant.color ? h('div', {}, h('span', { class: 'text-xs muted' }, 'Color: '), h('span', { class: 'fw-600' }, variant.color)) : null,
+                  variant.size ? h('div', {}, h('span', { class: 'text-xs muted' }, 'Size: '), h('span', { class: 'fw-600' }, variant.size)) : null,
+                  variant.fit ? h('div', {}, h('span', { class: 'text-xs muted' }, 'Fit: '), h('span', { class: 'fw-600' }, variant.fit)) : null,
+                  h('div', {}, h('span', { class: 'text-xs muted' }, 'Quantity: '), h('span', { class: 'fw-600' }, it.quantity)))),
+              
+              // Custom Design Details
+              cust ? h('div', { style: { background: '#fff7ed', padding: '12px', borderRadius: '8px', border: '1px solid #fed7aa' } },
+                h('div', { class: 'text-xs fw-700', style: { marginBottom: '8px', color: '#c2410c' } }, '🎨 CUSTOM DESIGN DETAILS'),
+                h('div', { class: 'col gap-2' },
+                  cust.front?.elements?.length ? h('div', {},
+                    h('div', { class: 'fw-600 text-sm' }, `FRONT: ${cust.front.elements.length} element(s)`),
+                    h('div', { class: 'col gap-1', style: { marginTop: '6px', paddingLeft: '12px' } },
+                      ...cust.front.elements.map(e => {
+                        if (e.type === 'text') {
+                          return h('div', { style: { fontStyle: e.italic ? 'italic' : 'normal', fontWeight: e.bold ? '700' : '400', color: e.color || '#0a0a0a', background: 'white', padding: '6px 8px', borderRadius: '4px' } }, `📝 Text: "${e.value}"`);
+                        } else if (e.type === 'image') {
+                          return h('div', { style: { background: 'white', padding: '6px 8px', borderRadius: '4px' } }, `🖼️ Image uploaded (${e.width || 100}x${e.height || 100}px)`);
+                        }
+                        return null;
+                      }))) : h('div', { class: 'text-sm muted' }, 'FRONT: No custom design'),
+                  cust.back?.elements?.length ? h('div', { style: { marginTop: '8px' } },
+                    h('div', { class: 'fw-600 text-sm' }, `BACK: ${cust.back.elements.length} element(s)`),
+                    h('div', { class: 'col gap-1', style: { marginTop: '6px', paddingLeft: '12px' } },
+                      ...cust.back.elements.map(e => {
+                        if (e.type === 'text') {
+                          return h('div', { style: { fontStyle: e.italic ? 'italic' : 'normal', fontWeight: e.bold ? '700' : '400', color: e.color || '#0a0a0a', background: 'white', padding: '6px 8px', borderRadius: '4px' } }, `📝 Text: "${e.value}"`);
+                        } else if (e.type === 'image') {
+                          return h('div', { style: { background: 'white', padding: '6px 8px', borderRadius: '4px' } }, `🖼️ Image uploaded`);
+                        }
+                        return null;
+                      }))) : h('div', { class: 'text-sm muted', style: { marginTop: '8px' } }, 'BACK: No custom design')
+                )) : h('div', { class: 'text-sm muted' }, 'No customization'),
+              
+              h('div', { class: 'fw-600', style: { marginTop: '12px', fontSize: '1.1rem' } }, `Price: ${money(it.price)} × ${it.quantity} = ${money(it.price * it.quantity)}`))
+          ));
       }),
-      h('div', { style: { marginTop: '12px' } },
-        h('select', { class: 'input', style: { maxWidth: '200px' }, onchange: async (e) => { try { await api.post('/admin/orders/' + o.id + '/status', { status: e.target.value }); toast('Updated', 'success'); } catch (err) { toast(err.message, 'error'); } } },
-          ...['PAID', 'CONFIRMED', 'PRINTING', 'PACKED', 'SHIPPED', 'DELIVERED', 'CANCELLED'].map(s => h('option', { value: s, selected: s === o.status }, s))))));
-  });
-  return card('Custom Orders', wrap);
+      
+      // Order Status Update
+      h('div', { style: { marginTop: '16px', paddingTop: '16px', borderTop: '2px solid var(--ink-100)' } },
+        h('div', { class: 'row gap-3', style: { alignItems: 'center' } },
+          h('label', { class: 'fw-600' }, 'Update Order Status:'),
+          h('select', { class: 'input', style: { maxWidth: '220px' }, onchange: async (e) => { 
+            try { 
+              await api.post('/admin/orders/' + o.id + '/status', { status: e.target.value }); 
+              toast('✅ Order status updated to ' + e.target.value, 'success'); 
+              setTimeout(() => location.reload(), 1000);
+            } catch (err) { toast('❌ ' + err.message, 'error'); } 
+          } },
+            ...['PAID', 'CONFIRMED', 'PRINTING', 'QUALITY_CHECK', 'PACKED', 'SHIPPED', 'OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED'].map(s => 
+              h('option', { value: s, selected: s === o.status }, s.replace(/_/g, ' ')))),
+          h('a', { href: `#/admin/orders/${o.id}`, class: 'btn btn-ghost btn-sm' }, 'View Full Details')))));
+  }
+  
+  return card('Custom Orders - Complete Details for Production', wrap);
 }
 
 async function products() {
@@ -209,5 +439,22 @@ async function users() {
   return card('Customers', h('table', { class: 'table' }, h('thead', {}, h('tr', {}, h('th', {}, 'Name'), h('th', {}, 'Contact'), h('th', {}, 'Role'), h('th', {}, 'Status'))), ...rows));
 }
 
-function stat(v, l) { return h('div', { class: 'stat' }, h('div', { class: 'v' }, v), h('div', { class: 'l' }, l)); }
+function stat(v, l) { 
+  const icons = {
+    'Revenue': '💰',
+    'Orders': '📦',
+    'Custom orders': '✨',
+    'Customers': '👥',
+    'Today': '📅',
+    'AOV': '📊'
+  };
+  const icon = icons[l] || '📈';
+  
+  return h('div', { class: 'stat' }, 
+    h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' } },
+      h('span', { style: { fontSize: '32px' } }, icon),
+      h('div', { style: { fontSize: '0.7rem', fontWeight: '700', color: '#10b981', background: '#d1fae5', padding: '4px 8px', borderRadius: '6px' } }, '▲ Live')),
+    h('div', { class: 'v' }, v), 
+    h('div', { class: 'l' }, l)); 
+}
 function card(title, ...body) { return h('div', { class: 'card card-pad' }, title ? h('h3', {}, title) : null, ...body); }

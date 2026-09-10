@@ -3,10 +3,10 @@ import { Store } from './store.js';
 import { api } from './api.js';
 
 const NAV = [
-  { label: 'Shop', href: '#/shop', key: 'shop' },
-  { label: 'New Drops', href: '#/shop?sort=newest', key: 'new' },
-  { label: 'Custom T-shirts', href: '#/customize', key: 'custom', accent: true },
-  { label: 'About', href: '#/about', key: 'about' },
+  { label: 'Men', href: '#/shop?category=oversized', key: 'men' },
+  { label: 'Women', href: '#/shop?category=graphic', key: 'women' },
+  { label: 'Sneakers', href: '#/shop?collection=Street%20Form', key: 'sneakers' },
+  { label: 'Accessories', href: '#/shop?collection=Essentials', key: 'accessories' },
 ];
 
 const MOBILE_NAV = [
@@ -23,17 +23,101 @@ export function topBar(active) {
   const cartCount = Store.cartCount();
   const wishCount = Store.wishlistCount ? Store.wishlistCount() : (Store._wishlist ? Store._wishlist.size : 0);
 
+  // Build navigation links - add Founder Dashboard if user is ADMIN
+  const navLinks = [...NAV];
+  if (user && user.role === 'ADMIN') {
+    navLinks.push({ 
+      label: '⚡ Founder Dashboard', 
+      href: '#/admin', 
+      key: 'admin',
+      accent: false,
+      isAdmin: true 
+    });
+  }
+
   const nav = h('nav', { class: 'nav-links', 'aria-label': 'Primary' },
-    ...NAV.map((n) => h('a', { href: n.href, class: (active === n.key ? 'active' : '') + (n.accent ? ' accent-link' : '') }, n.label)));
+    ...navLinks.map((n) => h('a', { 
+      href: n.href, 
+      class: (active === n.key ? 'active' : '') + (n.accent ? ' accent-link' : '') + (n.isAdmin ? ' admin-link' : ''),
+      style: n.isAdmin ? { 
+        background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)', 
+        color: '#fbbf24', 
+        padding: '8px 16px', 
+        borderRadius: '6px',
+        fontWeight: '700',
+        border: '2px solid #fbbf24'
+      } : {}
+    }, n.label)));
+
+  // Cart drawer
+  const cartDrawer = h('div', { class: 'drawer', style: { position: 'fixed', inset: 0, zIndex: '200', pointerEvents: 'none' } },
+    h('div', { class: 'drawer__backdrop', style: { position: 'absolute', inset: 0, background: 'rgba(28,37,65,0.4)', opacity: '0', transition: 'opacity 0.2s ease-in' }, onclick: closeCart }),
+    h('div', { class: 'drawer__panel', style: { position: 'absolute', top: 0, right: 0, height: '100%', width: 'min(420px, 92vw)', background: 'var(--pure-white)', display: 'flex', flexDirection: 'column', transform: 'translateX(100%)', transition: 'transform 0.32s cubic-bezier(0.22,1,0.36,1)', boxShadow: '0 8px 32px rgba(28,37,65,0.12)' } },
+      h('div', { style: { padding: '20px', borderBottom: '1px solid var(--light-indigo)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
+        h('h3', { style: { margin: 0, fontFamily: 'var(--font-display)' } }, 'Your Bag'),
+        h('button', { class: 'icon-btn', onclick: closeCart, 'aria-label': 'Close cart' }, '✕')),
+      h('div', { class: 'drawer__items', style: { flex: '1', overflowY: 'auto', padding: '20px' } }, 'Loading…'),
+      h('div', { style: { padding: '20px', borderTop: '1px solid var(--light-indigo)' } },
+        h('div', { class: 'drawer__total', style: { display: 'flex', justifyContent: 'space-between', marginBottom: '16px', fontWeight: '700' } }, h('span', {}, 'Subtotal'), h('span', { id: 'drawer-subtotal' }, '—')),
+        h('a', { href: '#/cart', class: 'btn', style: { display: 'block', width: '100%', background: 'var(--primary-denim)', color: 'var(--pure-white)', textAlign: 'center', padding: '14px', borderRadius: '999px', fontWeight: '700', letterSpacing: '0.04em', textDecoration: 'none', transition: 'background 0.2s ease-in' }, onmouseenter: (e) => e.target.style.background = 'var(--secondary-wash)', onmouseleave: (e) => e.target.style.background = 'var(--primary-denim)', onclick: closeCart }, 'PROCEED TO CHECKOUT'))));
+  function openCart() {
+    cartDrawer.style.pointerEvents = 'auto';
+    cartDrawer.querySelector('.drawer__backdrop').style.opacity = '1';
+    cartDrawer.querySelector('.drawer__panel').style.transform = 'translateX(0)';
+    loadCartDrawer();
+  }
+  function closeCart() {
+    cartDrawer.querySelector('.drawer__backdrop').style.opacity = '0';
+    cartDrawer.querySelector('.drawer__panel').style.transform = 'translateX(100%)';
+    setTimeout(() => cartDrawer.style.pointerEvents = 'none', 320);
+  }
+  async function loadCartDrawer() {
+    const itemsEl = cartDrawer.querySelector('.drawer__items');
+    const subEl = cartDrawer.querySelector('#drawer-subtotal');
+    try {
+      if (!Store.isAuthed()) {
+        const guest = Store.getGuest();
+        if (!guest.length) { itemsEl.innerHTML = '<p class="muted">Your bag is empty</p>'; subEl.textContent = '₹0'; return; }
+        itemsEl.innerHTML = guest.map(it => `<div style="display:flex;gap:12px;padding:12px 0;border-bottom:1px solid var(--light-indigo)"><img src="${it.image || ''}" style="width:64px;height:64px;object-fit:cover;border-radius:8px;background:var(--light-indigo)"><div><div style="font-weight:600">${it.name}</div><div style="font-size:12px;color:var(--text-muted)">Qty ${it.quantity}</div><div style="font-weight:700">₹${(it.price/100).toFixed(0)}</div></div></div>`).join('');
+        const total = guest.reduce((s, i) => s + i.price * i.quantity, 0);
+        subEl.textContent = '₹' + (total/100).toFixed(0);
+        return;
+      }
+      const s = await api.get('/cart/summary');
+      const items = s.shop?.items || [];
+      if (!items.length) { itemsEl.innerHTML = '<p class="muted">Your bag is empty</p>'; subEl.textContent = '₹0'; return; }
+      itemsEl.innerHTML = items.map(it => `<div style="display:flex;gap:12px;padding:12px 0;border-bottom:1px solid var(--light-indigo)"><img src="${it.image || ''}" style="width:64px;height:64px;object-fit:cover;border-radius:8px;background:var(--light-indigo)"><div><div style="font-weight:600">${it.name}</div><div style="font-size:12px;color:var(--text-muted)">${it.variant ? it.variant.color + ' · ' + it.variant.size : ''} · Qty ${it.quantity}</div><div style="font-weight:700">₹${(it.price/100).toFixed(0)}</div></div></div>`).join('');
+      subEl.textContent = '₹' + ((s.shop.subtotal || 0)/100).toFixed(0);
+    } catch { itemsEl.innerHTML = '<p class="muted">Could not load bag</p>'; }
+  }
+  // Hamburger menu
+  const hamburgerMenu = h('div', { class: 'hamburger-menu', style: { position: 'fixed', inset: 0, zIndex: '150', pointerEvents: 'none', display: 'flex' } },
+    h('div', { style: { flex: 1, background: 'rgba(28,37,65,0.4)', opacity: '0', transition: 'opacity 0.2s ease-in' }, onclick: closeHamburger }),
+    h('div', { style: { width: '280px', background: 'var(--pure-white)', height: '100%', transform: 'translateX(-100%)', transition: 'transform 0.32s ease', padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' } },
+      h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } }, h('span', { style: { fontWeight: '800', letterSpacing: '0.12em', color: 'var(--dark-charcoal)' } }, 'ZUNO'), h('button', { class: 'icon-btn', onclick: closeHamburger, 'aria-label': 'Close menu' }, '✕')),
+      h('nav', { style: { display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '16px' } },
+        ...NAV.map(n => h('a', { href: n.href, style: { padding: '12px', fontWeight: '600', borderBottom: '1px solid var(--light-indigo)', textDecoration: 'none', color: 'var(--dark-charcoal)' }, onclick: closeHamburger }, n.label)))));
+  function openHamburger() {
+    hamburgerMenu.style.pointerEvents = 'auto';
+    hamburgerMenu.children[0].style.opacity = '1';
+    hamburgerMenu.children[1].style.transform = 'translateX(0)';
+  }
+  function closeHamburger() {
+    hamburgerMenu.children[0].style.opacity = '0';
+    hamburgerMenu.children[1].style.transform = 'translateX(-100%)';
+    setTimeout(() => hamburgerMenu.style.pointerEvents = 'none', 320);
+  }
 
   const actions = h('div', { class: 'nav-actions' },
-    h('a', { class: 'icon-btn', href: '#/wishlist', title: 'Wishlist', 'aria-label': 'Wishlist' }, '♡', wishCount ? h('span', { class: 'cart-count', style: { background: '#0a0a0a' } }, String(wishCount)) : null),
-    h('a', { class: 'icon-btn', href: '#/cart', title: 'Bag', 'aria-label': 'Bag' },
+    h('a', { class: 'icon-btn', href: '#/wishlist', title: 'Wishlist', 'aria-label': 'Wishlist' }, '♡', wishCount ? h('span', { class: 'cart-count', style: { background: 'var(--primary-denim)' } }, String(wishCount)) : null),
+    h('button', { class: 'icon-btn', title: 'Bag', 'aria-label': 'Bag', onclick: openCart },
       '◧', cartCount ? h('span', { class: 'cart-count' }, String(cartCount)) : null),
     h('a', { class: 'icon-btn', href: '#/search', title: 'Search', 'aria-label': 'Search' }, '⌕'),
     user
-      ? h('a', { class: 'avatar', href: '#/profile', title: user.name, style: { textDecoration: 'none', background: '#0a0a0a', color: '#fff' } }, initials(user.name))
-      : h('a', { class: 'btn btn-primary btn-sm', href: '#/login', style: { background: '#0a0a0a', borderColor: '#0a0a0a', letterSpacing: '0.04em' } }, 'Sign in'));
+      ? h('a', { class: 'avatar', href: '#/profile', title: user.name, style: { textDecoration: 'none', background: 'var(--primary-denim)', color: '#fff' } }, initials(user.name))
+      : h('a', { class: 'btn btn-primary btn-sm', href: '#/login', style: { background: 'var(--primary-denim)', borderColor: 'var(--primary-denim)', letterSpacing: '0.04em' } }, 'Sign in'),
+    h('button', { class: 'icon-btn hamburger', 'aria-label': 'Open menu', onclick: openHamburger, style: { display: 'none' } }, '☰'),
+    cartDrawer, hamburgerMenu);
 
   const announcement = h('div', { style: { background: '#0a0a0a', color: '#fff', textAlign: 'center', padding: '8px 16px', fontSize: 'var(--fs-xs)', letterSpacing: '0.08em', fontWeight: '600' } },
     'FREE SHIPPING ON ORDERS OVER ₹999  •  EASY 7-DAY RETURNS  •  MADE IN INDIA');
@@ -62,8 +146,25 @@ export function topBar(active) {
 
 export function bottomNav(active) {
   const cartCount = Store.cartCount();
+  const user = Store.getUser();
+  
+  // Add admin link to mobile nav if user is ADMIN
+  const mobileLinks = [...MOBILE_NAV];
+  if (user && user.role === 'ADMIN') {
+    mobileLinks.push({ 
+      label: 'Founder', 
+      href: '#/admin', 
+      key: 'admin', 
+      em: '⚡' 
+    });
+  }
+  
   return h('nav', { class: 'bottom-nav', 'aria-label': 'Mobile' },
-    ...MOBILE_NAV.map((n) => h('a', { href: n.href, class: active === n.key ? 'active' : '' },
+    ...mobileLinks.map((n) => h('a', { 
+      href: n.href, 
+      class: active === n.key ? 'active' : '',
+      style: n.key === 'admin' ? { color: '#fbbf24', fontWeight: '700' } : {}
+    },
       h('span', { class: 'em' }, n.em),
       n.key === 'cart' && cartCount ? h('span', { class: 'cart-count' }, String(cartCount)) : null,
       h('span', {}, n.label))));

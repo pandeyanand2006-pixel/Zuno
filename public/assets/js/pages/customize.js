@@ -12,8 +12,10 @@ const COLORS = [
   { key: 'beige', label: 'Beige', bg: '#e8e6e1', border: '#e8e6e1' },
   { key: 'olive', label: 'Olive', bg: '#556b2f', border: '#556b2f' },
   { key: 'red', label: 'Red', bg: '#dc2626', border: '#dc2626' },
+  { key: 'maroon', label: 'Maroon', bg: '#7f1d1d', border: '#7f1d1d' },
   { key: 'forest', label: 'Forest', bg: '#14532d', border: '#14532d' },
   { key: 'sage', label: 'Sage', bg: '#9caf88', border: '#9caf88' },
+  { key: 'mustard', label: 'Mustard', bg: '#ca8a04', border: '#ca8a04' },
 ];
 const SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'];
 const FITS = [
@@ -78,21 +80,35 @@ export async function Customize() {
 
   // ── Preview ───────────────────────────────────────────────────
   const previewWrap = h('div', { class: 'custom-preview-wrap' });
+  
+  // Enhanced header with better instructions
+  const previewHeader = h('div', { class: 'custom-preview-header' },
+    h('div', { style: { background: '#f0f9ff', padding: '12px 16px', borderRadius: '8px', marginBottom: '12px', border: '1px solid #bae6fd' } },
+      h('div', { class: 'fw-600', style: { color: '#0369a1', marginBottom: '4px' } }, '✨ Live T-Shirt Preview'),
+      h('div', { class: 'text-sm muted' }, 'See your design in real-time! Switch between front and back views.')),
+    h('div', { class: 'row between', style: { marginTop: '12px' } },
+      h('div', { class: 'row gap-2' },
+        h('button', { class: 'btn ' + (side === 'front' ? 'btn-primary' : 'btn-ghost'), type: 'button', onclick: () => { side = 'front'; selectedId = null; renderPreview(); renderControls(); } }, '👕 FRONT'),
+        h('button', { class: 'btn ' + (side === 'back' ? 'btn-primary' : 'btn-ghost'), type: 'button', onclick: () => { side = 'back'; selectedId = null; renderPreview(); renderControls(); } }, '👕 BACK')),
+      h('div', { class: 'row gap-2' },
+        h('button', { class: 'btn btn-ghost btn-sm', type: 'button', onclick: () => resetView() }, 'Reset'),
+        h('button', { class: 'btn btn-ghost btn-sm', type: 'button', onclick: () => zoom(1.15) }, '🔍+'),
+        h('button', { class: 'btn btn-ghost btn-sm', type: 'button', onclick: () => zoom(0.87) }, '🔍−'))));
+  
   const tshirt = h('div', { class: 'custom-tshirt' });
   const printArea = h('div', { class: 'custom-print-area' },
     h('span', { class: 'print-guide' }, 'PRINT AREA'));
   tshirt.append(printArea);
-  previewWrap.append(
-    h('div', { class: 'custom-preview-header row between' },
-      h('div', { class: 'row gap-2' },
-        h('button', { class: 'btn ' + (side === 'front' ? 'btn-primary' : 'btn-ghost'), type: 'button', onclick: () => { side = 'front'; selectedId = null; renderPreview(); renderControls(); } }, 'FRONT'),
-        h('button', { class: 'btn ' + (side === 'back' ? 'btn-primary' : 'btn-ghost'), type: 'button', onclick: () => { side = 'back'; selectedId = null; renderPreview(); renderControls(); } }, 'BACK')),
-      h('div', { class: 'row gap-2' },
-        h('button', { class: 'btn btn-ghost btn-sm', type: 'button', onclick: () => resetView() }, 'Reset view'),
-        h('button', { class: 'btn btn-ghost btn-sm', type: 'button', onclick: () => zoom(1.15) }, 'Zoom +'),
-        h('button', { class: 'btn btn-ghost btn-sm', type: 'button', onclick: () => zoom(0.87) }, 'Zoom −'))),
-    tshirt,
-    h('p', { class: 'muted text-xs center', style: { marginTop: '10px' } }, 'Drag to move · use handles to resize/rotate · designs stay inside the print area'));
+  
+  const previewHint = h('div', { style: { marginTop: '12px', padding: '10px', background: '#fef3c7', borderRadius: '8px', border: '1px solid #fde68a' } },
+    h('div', { class: 'text-xs fw-600', style: { color: '#92400e', marginBottom: '4px' } }, '💡 How to customize:'),
+    h('ul', { class: 'text-xs', style: { color: '#78350f', margin: '4px 0 0 16px', listStyle: 'disc' } },
+      h('li', {}, 'Click on any element to select it'),
+      h('li', {}, 'Drag to move · Use +/- buttons to resize'),
+      h('li', {}, 'All designs stay inside the print area'),
+      h('li', {}, 'Upload photos or add custom text')));
+  
+  previewWrap.append(previewHeader, tshirt, previewHint);
 
   let zoomLevel = 1;
   function zoom(f) { zoomLevel = Math.max(0.6, Math.min(1.6, zoomLevel * f)); tshirt.style.transform = `scale(${zoomLevel})`; }
@@ -247,22 +263,35 @@ export async function Customize() {
     renderSummary();
   });
 
-  // Color
+  // Color selector with labels
   const colorRow = h('div', { class: 'row gap-2 wrap', style: { marginTop: '8px' } },
     ...COLORS.map(c => {
       const btn = h('button', {
         type: 'button',
         class: 'color-swatch' + (c.key === color ? ' active' : ''),
         title: c.label,
-        style: { background: c.bg, borderColor: c.border },
+        style: { 
+          background: c.bg, 
+          borderColor: c.border,
+          position: 'relative',
+          boxShadow: c.key === color ? '0 0 0 3px rgba(99, 102, 241, 0.3)' : 'none'
+        },
         onclick: () => {
           color = c.key;
-          colorRow.querySelectorAll('.color-swatch').forEach(b => b.classList.remove('active'));
+          colorRow.querySelectorAll('.color-swatch').forEach(b => {
+            b.classList.remove('active');
+            b.style.boxShadow = 'none';
+          });
           btn.classList.add('active');
+          btn.style.boxShadow = '0 0 0 3px rgba(99, 102, 241, 0.3)';
           renderPreview();
+          toast(`Selected ${c.label} color`, 'success');
         }
       });
-      return btn;
+      // Add label below swatch
+      return h('div', { style: { textAlign: 'center' } },
+        btn,
+        h('div', { class: 'text-xs muted', style: { marginTop: '4px' } }, c.label));
     }));
 
   // Size
@@ -370,31 +399,52 @@ export async function Customize() {
   function renderControls() {
     controls.innerHTML = '';
     controls.append(
-      h('div', { class: 'card card-pad' },
-        h('h3', {}, 'Product'),
-        h('div', { class: 'field', style: { marginTop: '10px' } }, h('label', {}, 'T-Shirt'), productSel),
-        h('div', { class: 'field', style: { marginTop: '12px' } }, h('label', {}, 'Color'), colorRow),
+      // Product Selection Card
+      h('div', { class: 'card card-pad', style: { background: 'linear-gradient(to bottom, #fafafa, white)', border: '2px solid var(--ink-200)' } },
+        h('h3', { style: { marginBottom: '4px' } }, '👕 Choose Your T-Shirt'),
+        h('p', { class: 'muted text-xs', style: { marginBottom: '12px' } }, 'Select product, color, size, and fit'),
+        h('div', { class: 'field', style: { marginTop: '10px' } }, h('label', {}, 'T-Shirt Style'), productSel),
+        h('div', { class: 'field', style: { marginTop: '12px' } }, 
+          h('label', {}, 'Color'), 
+          h('div', { class: 'text-xs muted', style: { marginTop: '4px', marginBottom: '6px' } }, 'Click to select t-shirt color'),
+          colorRow),
         h('div', { class: 'field', style: { marginTop: '12px' } }, h('label', {}, 'Size'), sizeRow),
         h('div', { class: 'field', style: { marginTop: '12px' } }, h('label', {}, 'Fit'), fitRow)),
-      h('div', { class: 'card card-pad', style: { marginTop: '16px' } },
-        h('h3', {}, 'Add Text'),
+      
+      // Text Design Card
+      h('div', { class: 'card card-pad', style: { marginTop: '16px', background: 'linear-gradient(to bottom, #fffbeb, white)', border: '2px solid #fbbf24' } },
+        h('h3', { style: { marginBottom: '4px' } }, '✏️ Add Custom Text'),
+        h('p', { class: 'muted text-xs', style: { marginBottom: '12px' } }, 'Add your own words, slogans, or messages'),
         textInput,
-        h('div', { class: 'row gap-2', style: { marginTop: '8px', alignItems: 'center' } }, fontSel, textColor),
+        h('div', { class: 'row gap-2', style: { marginTop: '8px', alignItems: 'center' } }, 
+          fontSel, 
+          h('div', { style: { display: 'flex', alignItems: 'center', gap: '6px' } },
+            h('span', { class: 'text-xs muted' }, 'Text Color:'),
+            textColor)),
         h('div', { class: 'row gap-2', style: { marginTop: '8px', alignItems: 'center' } },
           h('span', { class: 'muted text-xs', style: { minWidth: '40px' } }, 'Size'),
           fontSize, boldBtn, italicBtn),
         addTextBtn),
-      h('div', { class: 'card card-pad', style: { marginTop: '16px' } },
-        h('h3', {}, 'Upload Image'),
-        uploadBtn, fileInput, uploadHint),
+      
+      // Image Upload Card
+      h('div', { class: 'card card-pad', style: { marginTop: '16px', background: 'linear-gradient(to bottom, #f0fdf4, white)', border: '2px solid #22c55e' } },
+        h('h3', { style: { marginBottom: '4px' } }, '🖼️ Upload Your Design'),
+        h('p', { class: 'muted text-xs', style: { marginBottom: '12px' } }, 'Add photos, logos, or custom artwork'),
+        uploadBtn, fileInput, uploadHint,
+        h('div', { style: { marginTop: '10px', padding: '8px', background: '#fef3c7', borderRadius: '6px', border: '1px solid #fde68a' } },
+          h('div', { class: 'text-xs fw-600', style: { color: '#92400e' } }, '💡 Tip: Transparent PNG works best!'))),
+      
+      // Selected Element Controls
       selectedId ? (() => {
         const active = getActive(); const el = active.find(e => e.id === selectedId);
         if (!el) return h('div', {});
-        const delBtn = h('button', { class: 'btn btn-ghost btn-sm', type: 'button', style: { color: 'var(--ZUNO-danger)' }, onclick: () => { removeElement(el.id); } }, 'Delete selected');
-        return h('div', { class: 'card card-pad', style: { marginTop: '16px', borderColor: 'var(--ZUNO-primary)' } },
-          h('h3', {}, 'Selected'),
+        const delBtn = h('button', { class: 'btn btn-ghost btn-sm', type: 'button', style: { color: 'var(--ZUNO-danger)' }, onclick: () => { removeElement(el.id); } }, '🗑️ Delete');
+        return h('div', { class: 'card card-pad', style: { marginTop: '16px', borderColor: 'var(--ZUNO-primary)', background: '#f0f9ff', border: '2px solid #3b82f6' } },
+          h('h3', { style: { marginBottom: '4px' } }, '🎯 Selected Element'),
           h('p', { class: 'muted text-sm' }, el.type === 'text' ? `Text: "${el.value}"` : 'Image'),
-          h('div', { class: 'row gap-2', style: { marginTop: '10px' } }, delBtn, h('button', { class: 'btn btn-outline btn-sm', type: 'button', onclick: () => duplicateElement(el.id) }, 'Duplicate')));
+          h('div', { class: 'row gap-2', style: { marginTop: '10px' } }, 
+            delBtn, 
+            h('button', { class: 'btn btn-outline btn-sm', type: 'button', onclick: () => duplicateElement(el.id) }, '⧉ Duplicate')));
       })() : h('div', {})
     );
   }

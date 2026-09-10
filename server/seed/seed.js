@@ -26,7 +26,7 @@ function seed() {
   const sellerRole = roleId('SELLER');
   const adminHash = bcryptHash('Admin@1234');
   db.prepare('INSERT OR IGNORE INTO users (name, email, mobile, password_hash, role_id, email_verified) VALUES (?, ?, ?, ?, ?, 1)')
-    .run('ZUNO Admin', 'admin@ZUNO.app', '9999999999', adminHash, adminRole);
+    .run('ZUNO Admin', 'admin@zuno.app', '9999999999', adminHash, adminRole);
 
   const mkUser = (name, email, mobile, pass, role) =>
     db.prepare('INSERT INTO users (name, email, mobile, password_hash, role_id) VALUES (?, ?, ?, ?, ?)')

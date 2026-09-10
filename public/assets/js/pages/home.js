@@ -5,141 +5,89 @@ import { ProductCard } from '../components.js';
 export async function Home() {
   const main = h('div', {});
 
-  // ── HERO ──────────────────────────────────────────────────────────
-  const hero = h('section', { class: 'hero-fashion' },
-    h('div', { class: 'hero-fashion-inner container' },
-      h('div', { class: 'hero-copy' },
-        h('p', { class: 'hero-eyebrow' }, 'ZUNO — Est. 2024 · Made in India'),
-        h('h1', { class: 'hero-title' }, 'WEAR', h('br'), 'YOUR', h('br'), h('span', { class: 'hero-accent' }, 'ATTITUDE.')),
-        h('p', { class: 'hero-sub' }, 'Premium T-shirts designed for everyday confidence. Heavyweight cotton, perfect fit, made for you.'),
-        h('div', { class: 'hero-cta' },
-          h('a', { class: 'btn btn-primary btn-lg', href: '#/shop' }, 'SHOP T-SHIRTS'),
-          h('a', { class: 'btn btn-outline btn-lg', href: '#/customize' }, 'CREATE YOUR T-SHIRT'))),
-      h('div', { class: 'hero-visual' },
-        h('div', { class: 'hero-card hero-card-1' },
-          h('div', { class: 'hero-card-label' }, 'Essential Heavyweight Tee · Black'),
-          h('div', { class: 'hero-card-price' }, '₹1,299')),
-        h('div', { class: 'hero-card hero-card-2' },
-          h('div', { class: 'hero-card-label' }, 'Oversized Core Tee · White'),
-          h('div', { class: 'hero-card-price' }, '₹1,499')))));
+  // ── CAROUSEL BANNER (Denim) ────────────────────────────────────
+  const hero = h('section', { class: 'hero-carousel', style: { position: 'relative', height: 'clamp(420px, 60vh, 640px)', overflow: 'hidden', background: 'var(--light-indigo)' } },
+    h('img', { src: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=1400&h=640&fit=crop', alt: 'Denim lifestyle', style: { width: '100%', height: '100%', objectFit: 'cover' }, loading: 'eager' }),
+    h('div', { style: { position: 'absolute', inset: 0, background: 'linear-gradient(90deg, rgba(28,37,65,0.55) 0%, transparent 60%)' } }),
+    h('div', { style: { position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: 'clamp(20px, 6vw, 80px)', color: 'var(--pure-white)' } },
+      h('p', { style: { fontSize: '12px', letterSpacing: '0.16em', fontWeight: '700', opacity: '0.9', marginBottom: '12px' } }, 'ZUNO DENIM — NEW SEASON'),
+      h('h1', { style: { fontFamily: 'var(--font-display)', fontSize: 'clamp(32px, 6vw, 56px)', lineHeight: '0.9', letterSpacing: '-0.03em', fontWeight: '800' } }, 'WEAR YOUR', h('br'), 'ATTITUDE.'),
+      h('p', { style: { marginTop: '12px', maxWidth: '42ch', opacity: '0.85' } }, 'Heavyweight cotton, perfect fit — made for everyday confidence.'),
+      h('div', { style: { marginTop: '24px', display: 'flex', gap: '12px', flexWrap: 'wrap' } },
+        h('a', { href: '#/shop', style: { background: 'var(--primary-denim)', color: 'var(--pure-white)', padding: '14px 28px', borderRadius: '999px', fontWeight: '700', letterSpacing: '0.04em', textDecoration: 'none', transition: 'background 0.2s ease-in' }, onmouseenter: (e) => e.target.style.background = 'var(--secondary-wash)', onmouseleave: (e) => e.target.style.background = 'var(--primary-denim)' }, 'SHOP T-SHIRTS'),
+        h('a', { href: '#/customize', style: { background: 'transparent', color: 'var(--pure-white)', border: '1px solid rgba(255,255,255,0.8)', padding: '14px 28px', borderRadius: '999px', fontWeight: '700', textDecoration: 'none' } }, 'CREATE YOUR T-SHIRT'))),
+    // Dots
+    h('div', { style: { position: 'absolute', bottom: '20px', left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: '8px' } },
+      h('span', { style: { width: '24px', height: '4px', borderRadius: '999px', background: 'var(--pure-white)' } }),
+      h('span', { style: { width: '8px', height: '8px', borderRadius: '50%', background: 'rgba(255,255,255,0.5)' } }),
+      h('span', { style: { width: '8px', height: '8px', borderRadius: '50%', background: 'rgba(255,255,255,0.5)' } })));
 
-  // ── FEATURED COLLECTION ──────────────────────────────────────────
-  const featured = h('section', { class: 'section container' },
-    h('div', { class: 'section-title fashion' },
-      h('h2', {}, 'Featured Collection'),
-      h('a', { href: '#/shop', class: 'link-arrow' }, 'Shop all →')));
-  const featuredGrid = h('div', { class: 'grid grid-products' });
-  featured.append(skeletonGrid(8));
-  featured.append(featuredGrid);
+  // ── CATEGORY CIRCLES ───────────────────────────────────────────
+  const categories = [
+    { label: 'Oversized Tees', img: 'https://images.unsplash.com/photo-1576566588028-4147f3842f27?w=200&h=200&fit=crop' },
+    { label: 'Cargos', img: 'https://images.unsplash.com/photo-1542272604-787c3835535d?w=200&h=200&fit=crop' },
+    { label: 'Sneakers', img: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=200&h=200&fit=crop' },
+    { label: 'Shirts', img: 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=200&h=200&fit=crop' },
+    { label: 'Hoodies', img: 'https://images.unsplash.com/photo-1556821840-3a63f95609a7?w=200&h=200&fit=crop' },
+    { label: 'Accessories', img: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=200&h=200&fit=crop' },
+  ];
+  const catRow = h('div', { style: { display: 'flex', gap: '20px', overflowX: 'auto', padding: '24px 20px', scrollbarWidth: 'none', scrollSnapType: 'x mandatory' }, onwheel: (e) => { if (Math.abs(e.deltaX) < Math.abs(e.deltaY)) { e.currentTarget.scrollLeft += e.deltaY; e.preventDefault(); } } },
+    ...categories.map(c => h('a', { href: '#/shop?category=' + encodeURIComponent(c.label.toLowerCase()), style: { flex: '0 0 88px', textAlign: 'center', textDecoration: 'none', scrollSnapAlign: 'start' } },
+      h('div', { style: { width: '88px', height: '88px', borderRadius: '50%', overflow: 'hidden', border: '2px solid var(--light-indigo)', transition: 'transform 0.2s ease-in, border-color 0.2s ease-in', background: 'var(--light-indigo)' }, onmouseenter: (e) => { e.currentTarget.style.transform = 'scale(1.06)'; e.currentTarget.style.borderColor = 'var(--secondary-wash)'; }, onmouseleave: (e) => { e.currentTarget.style.transform = ''; e.currentTarget.style.borderColor = 'var(--light-indigo)'; } },
+        h('img', { src: c.img, alt: c.label, style: { width: '100%', height: '100%', objectFit: 'cover' }, loading: 'lazy' })),
+      h('span', { style: { display: 'block', marginTop: '8px', fontSize: '13px', fontWeight: '600', color: 'var(--dark-charcoal)' } }, c.label))));
 
-  // ── NEW DROPS ────────────────────────────────────────────────────
-  const newDrops = h('section', { class: 'section container' },
-    h('div', { class: 'section-title fashion' },
-      h('h2', {}, 'New Drops'),
-      h('a', { href: '#/shop?sort=newest', class: 'link-arrow' }, 'View all →')));
-  const newGrid = h('div', { class: 'grid grid-products' });
-  newDrops.append(skeletonGrid(4));
-  newDrops.append(newGrid);
+  // ── PRODUCT FEED GRID ──────────────────────────────────────────
+  const feedSection = h('section', { style: { maxWidth: '1320px', margin: '0 auto', padding: '24px 20px' } },
+    h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '16px' } },
+      h('h2', { style: { fontFamily: 'var(--font-display)', fontSize: '20px', letterSpacing: '-0.02em' } }, 'New Drops'),
+      h('a', { href: '#/shop?sort=newest', style: { fontSize: '13px', fontWeight: '700', color: 'var(--primary-denim)', textDecoration: 'none' } }, 'View all →')));
+  const productGrid = h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '20px' } });
+  // Responsive via CSS
+  const style = h('style', {}, `
+    @media (max-width: 1024px) { .product-grid-denim { grid-template-columns: repeat(3, 1fr) !important; } }
+    @media (max-width: 640px) { .product-grid-denim { grid-template-columns: repeat(2, 1fr) !important; gap: 12px !important; } }
+    .cat-row::-webkit-scrollbar { display: none; }
+  `);
+  productGrid.classList.add('product-grid-denim');
+  productGrid.style.cssText = 'display:grid; grid-template-columns:repeat(4, 1fr); gap:20px;';
+  // Inject responsive style
+  document.head.appendChild(style);
+  feedSection.append(productGrid);
+  productGrid.append(skeletonGrid(8));
 
-  // ── BEST SELLERS ─────────────────────────────────────────────────
-  const bestSellers = h('section', { class: 'section container' },
-    h('div', { class: 'section-title fashion' },
-      h('h2', {}, 'Best Sellers'),
-      h('a', { href: '#/shop?sort=popular', class: 'link-arrow' }, 'View all →')));
-  const bestGrid = h('div', { class: 'grid grid-products' });
-  bestSellers.append(skeletonGrid(4));
-  bestSellers.append(bestGrid);
+  // ── CUSTOM STUDIO TEASER ───────────────────────────────────────
+  const studio = h('section', { style: { background: 'var(--dark-charcoal)', color: 'var(--pure-white)', padding: '48px 20px', margin: '32px 0' } },
+    h('div', { style: { maxWidth: '1320px', margin: '0 auto', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px', alignItems: 'center' } },
+      h('div', {},
+        h('p', { style: { fontSize: '12px', letterSpacing: '0.16em', opacity: '0.7', fontWeight: '700' } }, 'ZUNO CUSTOM STUDIO'),
+        h('h2', { style: { fontFamily: 'var(--font-display)', fontSize: 'clamp(28px, 4vw, 42px)', lineHeight: '0.9', marginTop: '8px' } }, 'MAKE IT', h('br'), 'YOURS.'),
+        h('p', { style: { opacity: '0.7', marginTop: '12px', maxWidth: '36ch' } }, 'Create a T-shirt that is completely yours. Add text, upload artwork — see it live.'),
+        h('a', { href: '#/customize', style: { display: 'inline-block', marginTop: '20px', background: 'var(--pure-white)', color: 'var(--dark-charcoal)', padding: '14px 28px', borderRadius: '999px', fontWeight: '700', textDecoration: 'none' } }, 'START DESIGNING →')),
+      h('div', { style: { display: 'flex', justifyContent: 'center' } },
+        h('div', { style: { width: '280px', height: '360px', background: 'var(--pure-white)', borderRadius: '12px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--dark-charcoal)' } },
+          h('div', { style: { fontSize: '12px', letterSpacing: '0.12em', opacity: '0.5', border: '1px dashed #c9d2e3', padding: '6px 12px', borderRadius: '999px' } }, 'YOUR DESIGN HERE'),
+          h('div', { style: { fontSize: '48px', marginTop: '12px' } }, '✦')))));
 
-  // ── CATEGORIES (T-shirts only) ───────────────────────────────────
-  const categories = h('section', { class: 'section container' },
-    h('div', { class: 'section-title fashion' }, h('h2', {}, 'Shop by Fit')),
-    h('div', { class: 'cat-grid', style: { gridTemplateColumns: 'repeat(3, 1fr)' } },
-      h('a', { class: 'cat-card cat-tshirts', href: '#/shop?category=oversized', style: { height: '240px' } },
-        h('div', { class: 'cat-card-inner' }, h('h3', {}, 'Oversized'), h('p', {}, 'Relaxed drape, street-ready'), h('span', { class: 'cat-cta' }, 'Shop →'))),
-      h('a', { class: 'cat-card', href: '#/shop?category=regular-fit', style: { height: '240px', background: '#fff', border: '1px solid var(--ink-100)' } },
-        h('div', { class: 'cat-card-inner' }, h('h3', {}, 'Regular Fit'), h('p', {}, 'Classic, everyday'), h('span', { class: 'cat-cta' }, 'Shop →'))),
-      h('a', { class: 'cat-card', href: '#/shop?category=graphic', style: { height: '240px', background: '#0a0a0a', color: '#fff' } },
-        h('div', { class: 'cat-card-inner', style: { color: '#fff' } }, h('h3', { style: { color: '#fff' } }, 'Graphic'), h('p', { style: { color: 'rgba(255,255,255,0.7)' } }, 'Bold prints, minimal'), h('span', { class: 'cat-cta', style: { color: '#fff', borderColor: '#fff' } }, 'Shop →')))));
+  // ── TRUST ──────────────────────────────────────────────────────
+  const trust = h('section', { style: { maxWidth: '1320px', margin: '32px auto', padding: '0 20px', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', textAlign: 'center' } },
+    h('div', {}, h('div', {}, '✓'), h('div', { style: { fontWeight: '700', fontSize: '13px', marginTop: '8px' } }, 'Premium fabric'), h('div', { style: { fontSize: '12px', color: 'var(--text-muted)' } }, '240 GSM heavyweight')),
+    h('div', {}, h('div', {}, '↺'), h('div', { style: { fontWeight: '700', fontSize: '13px', marginTop: '8px' } }, 'Easy returns'), h('div', { style: { fontSize: '12px', color: 'var(--text-muted)' } }, '7-day hassle-free')),
+    h('div', {}, h('div', {}, '◧'), h('div', { style: { fontWeight: '700', fontSize: '13px', marginTop: '8px' } }, 'Secure payments'), h('div', { style: { fontSize: '12px', color: 'var(--text-muted)' } }, 'Razorpay protected')),
+    h('div', {}, h('div', {}, '◐'), h('div', { style: { fontWeight: '700', fontSize: '13px', marginTop: '8px' } }, 'Made in India'), h('div', { style: { fontSize: '12px', color: 'var(--text-muted)' } }, 'Designed with care')));
 
-  // ── CUSTOM STUDIO TEASER ─────────────────────────────────────────
-  const studio = h('section', { class: 'studio-teaser' },
-    h('div', { class: 'container' },
-      h('div', { class: 'studio-teaser-inner' },
-        h('div', {},
-          h('p', { class: 'hero-eyebrow', style: { color: '#fff', opacity: '0.7' } }, 'ZUNO CUSTOM STUDIO'),
-          h('h2', {}, 'MAKE IT', h('br'), 'YOURS.'),
-          h('p', { style: { color: 'rgba(255,255,255,0.7)', marginTop: '12px', maxWidth: '36ch', lineHeight: '1.6' } }, 'Create a T-shirt that is completely yours. Add text, upload artwork, choose colors — and see it live. Premium printing, made to order.'),
-          h('a', { class: 'btn btn-primary btn-lg', href: '#/customize', style: { marginTop: '20px', background: '#fff', color: '#0a0a0a', borderColor: '#fff' } }, 'START DESIGNING →')),
-        h('div', { class: 'studio-preview' },
-          h('div', { class: 'studio-shirt' },
-            h('div', { class: 'studio-shirt-label' }, 'YOUR DESIGN HERE'),
-            h('div', { style: { fontSize: '48px', marginTop: '12px' } }, '✦'))))));
+  main.append(hero, catRow, feedSection, studio, trust);
 
-  // ── WHY ZUNO ─────────────────────────────────────────────────────
-  const why = h('section', { class: 'section container' },
-    h('div', { class: 'section-title fashion' }, h('h2', {}, 'Why ZUNO')),
-    h('div', { class: 'trust-grid' },
-      h('div', { class: 'trust-item' }, h('div', { class: 'trust-icon' }, '◧'), h('h4', {}, 'Premium fabric'), h('p', { class: 'muted text-sm' }, '240 GSM heavyweight cotton')),
-      h('div', { class: 'trust-item' }, h('div', { class: 'trust-icon' }, '✦'), h('h4', {}, 'High-quality printing'), h('p', { class: 'muted text-sm' }, 'HD screen & puff print')),
-      h('div', { class: 'trust-item' }, h('div', { class: 'trust-icon' }, '◐'), h('h4', {}, 'Made in India'), h('p', { class: 'muted text-sm' }, 'Designed and made with care')),
-      h('div', { class: 'trust-item' }, h('div', { class: 'trust-icon' }, '✓'), h('h4', {}, 'Secure payments'), h('p', { class: 'muted text-sm' }, 'Razorpay protected'))),
-    h('div', { class: 'trust-grid', style: { marginTop: '16px', borderTop: '1px solid var(--ink-100)', paddingTop: '24px' } },
-      h('div', { class: 'trust-item' }, h('div', { class: 'trust-icon' }, '↺'), h('h4', {}, 'Easy returns'), h('p', { class: 'muted text-sm' }, '7-day hassle-free')),
-      h('div', { class: 'trust-item' }, h('div', { class: 'trust-icon' }, '◧'), h('h4', {}, 'Fast delivery'), h('p', { class: 'muted text-sm' }, '2-4 days across India')),
-      h('div', { class: 'trust-item' }, h('div', { class: 'trust-icon' }, '♡'), h('h4', {}, 'Customer love'), h('p', { class: 'muted text-sm' }, '4.7/5 from 2k+ reviews')),
-      h('div', { class: 'trust-item' }, h('div', { class: 'trust-icon' }, '✦'), h('h4', {}, 'Custom made'), h('p', { class: 'muted text-sm' }, 'Your design, printed to order'))));
-
-  // ── REVIEWS ──────────────────────────────────────────────────────
-  const reviews = h('section', { class: 'section container' },
-    h('div', { class: 'section-title fashion' }, h('h2', {}, 'What our customers say')),
-    h('div', { class: 'review-grid', style: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' } },
-      h('div', { class: 'card card-pad' }, h('div', {}, '★★★★★'), h('p', { class: 'fw-600', style: { marginTop: '8px' } }, 'Perfect fit and the print quality is amazing.'), h('p', { class: 'muted text-sm' }, '— Rohan, Mumbai')),
-      h('div', { class: 'card card-pad' }, h('div', {}, '★★★★★'), h('p', { class: 'fw-600', style: { marginTop: '8px' } }, 'The heavyweight tee is now my everyday go-to.'), h('p', { class: 'muted text-sm' }, '— Ananya, Delhi')),
-      h('div', { class: 'card card-pad' }, h('div', {}, '★★★★★'), h('p', { class: 'fw-600', style: { marginTop: '8px' } }, 'Custom Studio is addictive — made 3 already!'), h('p', { class: 'muted text-sm' }, '— Arjun, Bangalore'))));
-
-  // ── INSTAGRAM GALLERY ────────────────────────────────────────────
-  const gallery = h('section', { class: 'section container' },
-    h('div', { class: 'section-title fashion' }, h('h2', {}, 'Worn by you'), h('a', { href: '#', class: 'link-arrow' }, 'Follow @ZUNO →')),
-    h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '8px', aspectRatio: '6/1' } },
-      ...Array.from({ length: 6 }, (_, i) => h('div', { style: { background: i % 2 === 0 ? '#f5f5f3' : '#0a0a0a', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: i % 2 === 0 ? '#0a0a0a' : '#fff', fontSize: '24px' } }, '◐'))));
-
-  // ── NEWSLETTER ───────────────────────────────────────────────────
-  const newsletter = h('section', { class: 'section', style: { background: '#0a0a0a', color: '#fff', padding: '48px 0', margin: '48px 0 0' } },
-    h('div', { class: 'container', style: { textAlign: 'center', maxWidth: '640px', margin: '0 auto' } },
-      h('h2', { style: { fontFamily: 'var(--font-display)', color: '#fff', letterSpacing: '-0.02em' } }, 'Join the ZUNO community'),
-      h('p', { class: 'muted', style: { color: 'rgba(255,255,255,0.6)', marginTop: '8px' } }, 'Get early access to drops, custom studio tips and member-only offers.'),
-      h('div', { class: 'row gap-3', style: { marginTop: '20px', justifyContent: 'center', maxWidth: '480px', margin: '20px auto 0' } },
-        h('input', { class: 'input', placeholder: 'Enter your email', style: { flex: '1', background: '#fff', color: '#0a0a0a' } }),
-        h('button', { class: 'btn btn-primary', style: { background: '#fff', color: '#0a0a0a', borderColor: '#fff', whiteSpace: 'nowrap' }, onclick: (e) => { e.preventDefault(); toast('Welcome to ZUNO — coming soon!', 'success'); } }, 'Join'))));
-
-  main.append(hero, featured, newDrops, bestSellers, categories, studio, why, reviews, gallery, newsletter);
-
-  // ── DATA ─────────────────────────────────────────────────────────
+  // ── DATA ───────────────────────────────────────────────────────
   (async () => {
     try {
-      const [feat, newest, popular] = await Promise.all([
-        api.get('/products', { module: 'shop', limit: 8, sort: 'popular' }),
-        api.get('/products', { module: 'shop', limit: 4, sort: 'newest' }),
-        api.get('/products', { module: 'shop', limit: 4, sort: 'popular' }),
-      ]);
-      // Featured
-      const fg = featured.querySelector('.skeleton'); if (fg) fg.closest('.grid')?.remove();
-      featured.querySelectorAll('.skeleton').forEach(el => el.remove());
-      if (feat.items.length) {
-        if (!featured.contains(featuredGrid)) featured.append(featuredGrid);
-        featuredGrid.append(...feat.items.slice(0, 8).map(ProductCard));
-      }
-      // New Drops
-      newDrops.querySelectorAll('.skeleton').forEach(el => el.remove());
-      if (newest.items.length) newGrid.append(...newest.items.map(ProductCard));
-      // Best Sellers
-      bestSellers.querySelectorAll('.skeleton').forEach(el => el.remove());
-      if (popular.items.length) bestGrid.append(...popular.items.map(ProductCard));
-    } catch (err) {
-      [featured, newDrops, bestSellers].forEach(w => {
-        w.querySelectorAll('.skeleton').forEach(el => el.remove());
-        w.append(errorState(err.message, () => location.reload()));
-      });
+      const { items } = await api.get('/products', { module: 'shop', limit: 8, sort: 'newest' });
+      productGrid.innerHTML = '';
+      if (items.length) productGrid.append(...items.map(ProductCard));
+      else productGrid.append(emptyState({ title: 'New drops coming soon' }));
+    } catch (e) {
+      productGrid.innerHTML = '';
+      productGrid.append(errorState(e.message, () => location.reload()));
     }
   })();
 
