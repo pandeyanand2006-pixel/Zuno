@@ -49,19 +49,40 @@
 .page-enter { animation: pageIn var(--dur) var(--ease); }
 @keyframes pageIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 
-/* Responsive nav */
+/* Responsive nav — Denim */
+@media (max-width: 1100px) {
+  .nav-links { gap: 4px; }
+  .nav-links a { padding: 8px 10px; font-size: 13px; }
+  .searchbar { max-width: 360px; }
+}
 @media (max-width: 960px) {
   .nav-links { display: none; }
+  .hamburger { display: grid !important; }
+  .category-bar { display: block !important; }
 }
 @media (max-width: 720px) {
-  .topbar-inner { gap: var(--sp-3); padding: 0 var(--sp-4); }
+  .topbar-inner { gap: var(--sp-3); padding: 0 var(--sp-4); height: 60px; }
   .searchbar { display: none; }
   .bottom-nav { display: flex; }
   #main { padding-bottom: calc(var(--bottom-nav-h) + var(--sp-4)); }
-  .hero { padding: var(--sp-7) var(--sp-5); border-radius: var(--r-xl); }
-  .hero h1 { font-size: var(--fs-2xl); }
+  .hero-fashion-inner { grid-template-columns: 1fr !important; min-height: auto !important; padding: 32px 20px !important; }
+  .hero-visual { height: 320px !important; }
+  .cat-grid { grid-template-columns: 1fr !important; }
+  .collection-grid { grid-template-columns: 1fr !important; }
+  .custom-layout { grid-template-columns: 1fr !important; }
   .desktop-only { display: none !important; }
 }
+@media (max-width: 480px) {
+  .topbar-inner { padding: 0 12px; }
+  .brand { font-size: 18px !important; }
+  .hero-title { font-size: clamp(2rem, 10vw, 2.8rem) !important; }
+  .category-bar div { gap: 16px !important; padding: 10px 12px !important; }
+}
+/* Product grid responsive — 4-col → 2-col */
+.grid-products { grid-template-columns: repeat(4, 1fr); }
+@media (max-width: 1100px) { .grid-products { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 640px) { .grid-products { grid-template-columns: repeat(2, 1fr); gap: 12px; } }
+@media (max-width: 360px) { .grid-products { grid-template-columns: repeat(2, 1fr); gap: 8px; } }
 
 /* Layout split (checkout / profile) */
 .split { display: grid; grid-template-columns: 1fr 360px; gap: var(--sp-6); align-items: start; }

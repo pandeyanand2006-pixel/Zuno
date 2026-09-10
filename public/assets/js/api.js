@@ -1,6 +1,6 @@
 import { Store } from './store.js';
 
-const API = (location.origin.includes('localhost') ? 'http://localhost:4001' : '') + '/api';
+const API = '/api';
 
 async function request(method, path, { body, auth = true, query } = {}) {
   let url = API + path;
