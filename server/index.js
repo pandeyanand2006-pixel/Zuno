@@ -26,7 +26,23 @@ if (roleCount === 0) {
   };
   const ins = db.prepare('INSERT INTO roles (name, description) VALUES (?, ?)');
   roles.forEach((r) => ins.run(r, descriptions[r]));
-  logger.info('Seeded roles');
+  logger.info('Seeded roles (SQLite)');
+}
+// Seed Mongo roles if Atlas connected (so auth register/login works with Mongo)
+if (isMongoConnected()) {
+  try {
+    const { Role } = await import('./models/index.js');
+    const mongoRoleCount = await Role.countDocuments();
+    if (mongoRoleCount === 0) {
+      const roles = ['USER', 'ADMIN', 'SELLER', 'RESTAURANT', 'SERVICE_PROVIDER', 'DELIVERY_PARTNER'];
+      const descriptions = {
+        USER: 'Customer', ADMIN: 'Platform administrator', SELLER: 'Marketplace seller',
+        RESTAURANT: 'Restaurant partner', SERVICE_PROVIDER: 'Service partner', DELIVERY_PARTNER: 'Delivery partner',
+      };
+      await Role.insertMany(roles.map(r => ({ name: r, description: descriptions[r] })));
+      logger.info('Seeded roles (Mongo Atlas)');
+    }
+  } catch (e) { logger.error('mongo role seed failed', e.message); }
 }
 try {
   const prodCount = db.prepare('SELECT COUNT(*) c FROM products').get().c;

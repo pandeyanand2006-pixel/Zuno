@@ -1,20 +1,11 @@
 import { authService } from '../services/auth.service.js';
 import { ok, fail, unauthorized, serverError } from '../utils/response.js';
-import { signToken } from '../utils/jwt.js';
-import { generateId } from '../utils/id.js';
-import { db } from '../config/db.js';
 import { logger } from '../utils/logger.js';
-
-function tokenFor(user) {
-  const role = db.prepare('SELECT id FROM roles WHERE name = ?').get(user.role) ||
-    db.prepare('SELECT id FROM roles WHERE name = ?').get('USER');
-  return signToken({ sub: user.id, role: role.id, jti: generateId() });
-}
 
 export async function register(req, res) {
   try {
     const user = await authService.register(req.validated);
-    const token = tokenFor(user);
+    const { token } = await authService.issueTokenForUser(user);
     return ok(res, { user, token }, 'Account created successfully', 201);
   } catch (err) {
     if (err.message === 'MOBILE_EXISTS') return fail(res, 'This mobile number is already registered', 409, 'MOBILE_EXISTS');
@@ -35,9 +26,9 @@ export async function login(req, res) {
   }
 }
 
-export function me(req, res) {
+export async function me(req, res) {
   try {
-    const user = authService.me(req.user.id);
+    const user = await authService.me(req.user.id);
     return ok(res, { user });
   } catch (err) {
     return unauthorized(res, 'Session invalid');
@@ -60,7 +51,7 @@ export async function requestOtp(req, res) {
 
 export async function verifyOtp(req, res) {
   try {
-    const { token, user } = authService.verifyOtp(req.validated);
+    const { token, user } = await authService.verifyOtp(req.validated);
     return ok(res, { token, user }, 'Logged in via OTP');
   } catch (err) {
     if (err.message === 'NO_OTP') return fail(res, 'No OTP requested for this number', 400, 'NO_OTP');
