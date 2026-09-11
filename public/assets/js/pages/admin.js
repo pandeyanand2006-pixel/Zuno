@@ -241,10 +241,22 @@ async function loadOrders(queryParams) {
   const limit = 20;
 
   const container = h('div', { style:{display:'flex', flexDirection:'column', gap:'16px'} });
+  // helper to get full address from new backend fields
+  function getAddr(o){
+    if (o.addr_full) return o.addr_full;
+    const parts = [o.addr_house_no, o.addr_line1, o.addr_line2, o.addr_landmark, o.addr_area, [o.addr_city, o.addr_state, o.addr_pincode].filter(Boolean).join(', ')].filter(Boolean);
+    return parts.join(', ') || (o.addr_line1 ? o.addr_line1 + (o.addr_city? ', '+o.addr_city:'') : '');
+  }
+
+  const searchInput = h('input', { class:'admin-input', placeholder:'Search order #, customer, mobile…', value:q, style:{width:'100%', paddingLeft:'32px'} });
+  searchInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ const v=e.target.value.trim(); const u=new URLSearchParams(location.hash.split('?')[1]||''); if(v) u.set('q',v); else u.delete('q'); u.delete('page'); location.hash='#/admin/orders'+(u.toString()?'?'+u.toString():''); } });
+  let searchDebounce = null;
+  searchInput.addEventListener('input', ()=>{ clearTimeout(searchDebounce); searchDebounce=setTimeout(()=>{ const v=searchInput.value.trim(); const u=new URLSearchParams(location.hash.split('?')[1]||''); if(v) u.set('q',v); else u.delete('q'); u.delete('page'); const target='#/admin/orders'+(u.toString()?'?'+u.toString():''); if(location.hash!==target) location.hash=target; }, 450); });
+
   const controls = h('div', { class:'admin-search-row' },
     h('div', { style:{position:'relative', flex:'1', maxWidth:'320px'} },
       h('span', { style:{position:'absolute', left:'10px', top:'50%', transform:'translateY(-50%)', color:'#94a3b8'} }, '⌕'),
-      h('input', { class:'admin-input', placeholder:'Search order #, customer, mobile…', value:q, style:{width:'100%', paddingLeft:'32px'}, onkeydown:(e)=>{ if(e.key==='Enter'){ const v=e.target.value.trim(); const u=new URLSearchParams(location.hash.split('?')[1]||''); if(v) u.set('q',v); else u.delete('q'); u.delete('page'); location.hash='#/admin/orders'+(u.toString()?'?'+u.toString():''); } } })
+      searchInput
     ),
     h('select', { class:'admin-select', value:status, onchange:(e)=>{ const u=new URLSearchParams(location.hash.split('?')[1]||''); if(e.target.value) u.set('status',e.target.value); else u.delete('status'); u.delete('page'); location.hash='#/admin/orders'+(u.toString()?'?'+u.toString():''); } },
       h('option',{value:''},'All statuses'),
@@ -267,6 +279,7 @@ async function loadOrders(queryParams) {
       const params = { page, limit, sort };
       if(q) params.q=q;
       if(status) params.status=status;
+      const start = performance.now();
       const { orders, total } = await api.get('/admin/orders', params);
       listWrap.innerHTML='';
       if(!orders.length){
@@ -275,12 +288,18 @@ async function loadOrders(queryParams) {
       }
       const table = h('table', { class:'admin-table' },
         h('thead',{}, h('tr',{}, h('th',{},'Order / Customer'), h('th',{},'Total'), h('th',{},'Status'), h('th',{},'Date'), h('th',{},'Action'))),
-        ...orders.map(o=> h('tr', {},
+        ...orders.map(o=> {
+          const fullAddr = getAddr(o);
+          const shortAddr = fullAddr.length>60 ? fullAddr.slice(0,60)+'…' : fullAddr;
+          return h('tr', {},
           h('td',{},
             h('div', { style:{fontWeight:'700', color:'#0f172a'} }, o.order_number),
             h('div', { style:{fontSize:'12px', color:'#0f172a', fontWeight:'600'} }, o.customer_name||'Guest'),
             h('div', { style:{fontSize:'11px', color:'#64748b'} }, o.customer_mobile? '📱 '+o.customer_mobile : (o.customer_email||'')),
-            o.addr_line1? h('div', { style:{fontSize:'11px', color:'#334155', marginTop:'4px'} }, '📍 '+o.addr_line1+ (o.addr_city? ', '+o.addr_city:'') ) : null
+            fullAddr ? h('div', { style:{fontSize:'11px', color:'#334155', marginTop:'4px', lineHeight:'1.4', maxWidth:'280px', wordBreak:'break-word'}, title:fullAddr },
+              '📍 '+shortAddr,
+              h('button', { class:'admin-btn admin-btn-ghost', style:{padding:'2px 6px', fontSize:'10px', marginLeft:'6px'}, onclick:(e)=>{ e.stopPropagation(); const txt = `${o.customer_name||''} | ${o.customer_mobile||o.customer_email||''} | ${fullAddr}`; navigator.clipboard?.writeText(txt).then(()=>toast('Address copied','success')).catch(()=>toast(fullAddr,'info')); } }, 'copy')
+            ) : h('div', { style:{fontSize:'11px', color:'#94a3b8', marginTop:'4px'} }, 'No address')
           ),
           h('td', {},
             h('div', { style:{fontWeight:'700'} }, money(o.total)),
@@ -290,25 +309,29 @@ async function loadOrders(queryParams) {
           h('td', {}, h('div', { style:{fontSize:'12px'} }, formatDate(o.created_at))),
           h('td', {},
             h('div', { style:{display:'flex', gap:'6px', alignItems:'center'} },
-              h('button', { class:'admin-btn admin-btn-primary', style:{padding:'6px 12px', fontSize:'12px', background:'#1e40af', color:'#fff'}, onclick:()=> { location.hash = '#/admin/orders/' + o.id; } }, 'View'),
-              h('button', { class:'admin-btn admin-btn-ghost', style:{padding:'6px 8px', fontSize:'11px'}, onclick:()=> openOrderDetail(o.id), title:'Quick view' }, '👁️'),
+              h('button', { class:'admin-btn admin-btn-primary', style:{padding:'6px 12px', fontSize:'12px', background:'#1e40af', color:'#fff'}, onclick:(e)=>{ e.currentTarget.textContent='…'; e.currentTarget.disabled=true; location.hash = '#/admin/orders/' + o.id; } }, 'View'),
+              h('button', { class:'admin-btn admin-btn-ghost', style:{padding:'6px 8px', fontSize:'11px'}, onclick:(ev)=>{ const btn=ev.currentTarget; const old=btn.textContent; btn.textContent='…'; btn.disabled=true; openOrderDetail(o.id).finally(()=>{ btn.textContent=old; btn.disabled=false; }); }, title:'Quick view' }, '👁️'),
               h('select', { class:'admin-select', style:{padding:'6px 8px', minWidth:'130px'}, value:o.status, onchange: async (e)=>{
                 const ns=e.target.value;
                 if(ns===o.status) return;
-                const prev = e.target.value;
+                const prevStatus = o.status;
                 e.target.disabled = true;
-                try{ await api.post('/admin/orders/'+o.id+'/status', {status:ns}); toast('Status → '+ns,'success'); o.status = ns; // optimistic
-                  // update badge in row without full reload
-                  const row = e.target.closest('tr');
-                  if(row){ const badgeCell = row.querySelector('td:nth-child(3)'); if(badgeCell) { badgeCell.innerHTML=''; badgeCell.append(statusBadge(ns)); } }
-                }catch(err){ toast(err.message,'error'); e.target.value=o.status; }
+                const row = e.target.closest('tr');
+                const badgeCell = row ? row.querySelector('td:nth-child(3)') : null;
+                const origBadge = badgeCell ? badgeCell.innerHTML : '';
+                // optimistic UI
+                if(badgeCell){ badgeCell.innerHTML=''; badgeCell.append(statusBadge(ns)); }
+                try{ await api.post('/admin/orders/'+o.id+'/status', {status:ns}); toast('Status → '+ns,'success'); o.status = ns; e.target.value = ns; // reflect selected
+                  // force option selected attributes to reflect only this value
+                  [...e.target.options].forEach(opt=> opt.selected = (opt.value===ns));
+                }catch(err){ toast(err.message,'error'); e.target.value=prevStatus; if(badgeCell) badgeCell.innerHTML=origBadge; [...e.target.options].forEach(opt=> opt.selected = (opt.value===prevStatus)); }
                 e.target.disabled = false;
               } },
                 ...['PAYMENT_PENDING','PAID','CONFIRMED','PRINTING','QUALITY_CHECK','PACKED','SHIPPED','OUT_FOR_DELIVERY','DELIVERED','CANCELLED'].map(s=> h('option',{value:s, selected:s===o.status}, s.replace(/_/g,' ')))
               )
             )
           )
-        ))
+        )})
       );
       const totalPages = Math.max(1, Math.ceil(total/limit));
       const pagination = h('div', { class:'admin-pagination' },
@@ -335,39 +358,50 @@ async function openOrderDetail(orderId){
     const address = order.address||{};
     const payment = order.payment||null;
     const history = order.history||[];
-    // Build full address display
+    // Build full address display — covers all fields
     const addrLines = [];
-    if (address.house_no) addrLines.push(`House: ${address.house_no}`);
+    if (address.house_no) addrLines.push(`House/Building: ${address.house_no}`);
     if (address.line1) addrLines.push(address.line1);
     if (address.street) addrLines.push(address.street);
-    if (address.area) addrLines.push(address.area);
-    if (address.landmark) addrLines.push(`Landmark: ${address.landmark}`);
     if (address.line2) addrLines.push(address.line2);
+    if (address.area) addrLines.push(`Area: ${address.area}`);
+    if (address.landmark) addrLines.push(`Landmark: ${address.landmark}`);
     const cityLine = [address.city, address.state, address.pincode].filter(Boolean).join(', ');
     if (cityLine) addrLines.push(cityLine);
-    if (address.latitude && address.longitude) addrLines.push(`📍 ${Number(address.latitude).toFixed(4)}, ${Number(address.longitude).toFixed(4)}`);
+    if (address.latitude && address.longitude) addrLines.push(`📍 ${Number(address.latitude).toFixed(5)}, ${Number(address.longitude).toFixed(5)}`);
+    const fullAddrText = addrLines.join(', ');
 
+    let modalCtrl = null;
+    const curBadgeWrap = h('span', { id:'quickStatusBadge' }, statusBadge(order.status));
+    const quickSelect = h('select', { class:'admin-select', id:'statusSel' },
+      ...['PAYMENT_PENDING','PAID','CONFIRMED','PRINTING','QUALITY_CHECK','PACKED','SHIPPED','OUT_FOR_DELIVERY','DELIVERED','CANCELLED'].map(s=> h('option',{value:s, selected:s===order.status}, s.replace(/_/g,' ')))
+    );
     const content = h('div', { style:{maxHeight:'85vh', overflowY:'auto', paddingRight:'8px', color:'#0f172a', background:'#fff', borderRadius:'12px'} },
       h('div', { style:{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'12px'} },
         h('h2', { style:{margin:'0', color:'#0f172a', fontSize:'18px'} }, order.order_number),
-        h('button', { class:'admin-btn admin-btn-ghost', style:{padding:'6px 10px'}, onclick:()=>{ document.querySelector('.overlay')?.remove(); } }, '✕')
+        h('button', { class:'admin-btn admin-btn-ghost', style:{padding:'6px 10px'}, onclick:()=>{ modalCtrl && modalCtrl.close(); } }, '✕')
       ),
-      h('div', { style:{display:'flex', gap:'8px', flexWrap:'wrap'} }, statusBadge(order.status), order.coupon_code? h('span',{class:'admin-badge admin-badge-pending'}, 'Coupon '+order.coupon_code):null, h('span',{class: order.payment_method==='cod'?'admin-badge admin-badge-confirmed':'admin-badge admin-badge-pending'}, order.payment_method==='cod' ? '💵 COD' : (payment? (payment.verified?'✓ Paid':'Payment '+payment.status) : order.payment_status || 'Online')), h('span',{class:'admin-badge', style:{background:'#f1f5f9', color:'#334155'}}, `Total ${money(order.total)}`)),
+      h('div', { style:{display:'flex', gap:'8px', flexWrap:'wrap', alignItems:'center'} }, curBadgeWrap, order.coupon_code? h('span',{class:'admin-badge admin-badge-pending'}, 'Coupon '+order.coupon_code):null, h('span',{class: order.payment_method==='cod'?'admin-badge admin-badge-confirmed':'admin-badge admin-badge-pending'}, order.payment_method==='cod' ? '💵 COD' : (payment? (payment.verified?'✓ Paid':'Payment '+payment.status) : order.payment_status || 'Online')), h('span',{class:'admin-badge', style:{background:'#f1f5f9', color:'#334155'}}, `Total ${money(order.total)}`)),
       h('div', { style:{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'16px', marginTop:'16px'} },
         h('div', { style:{background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:'12px', padding:'14px'} },
           h('div', { style:{fontSize:'11px', fontWeight:'700', letterSpacing:'.06em', color:'#64748b'} }, 'CUSTOMER DETAILS'),
           h('div', { style:{fontWeight:'700', marginTop:'8px', color:'#0f172a'} }, customer.name||'—'),
           h('div', { style:{fontSize:'13px', color:'#0f172a', marginTop:'4px'} }, customer.mobile ? `📱 ${customer.mobile}` : ''),
           h('div', { style:{fontSize:'12px', color:'#334155', marginTop:'2px'} }, customer.email ? `✉️ ${customer.email}` : ''),
-          h('div', { style:{fontSize:'11px', color:'#64748b', marginTop:'8px'} }, `Customer ID: ${customer.id || '—'}`)
+          h('div', { style:{fontSize:'11px', color:'#64748b', marginTop:'8px'} }, `Customer ID: ${customer.id || '—'}`),
+          h('button', { class:'admin-btn admin-btn-ghost', style:{padding:'4px 8px', fontSize:'11px', marginTop:'8px'}, onclick:()=>{ navigator.clipboard?.writeText(`${customer.name||''} ${customer.mobile||''} ${customer.email||''}`); toast('Customer copied','success'); } }, '📋 Copy customer')
         ),
-        h('div', { style:{background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', padding:'14px'} },
-          h('div', { style:{fontSize:'11px', fontWeight:'700', letterSpacing:'.06em', color:'#64748b'} }, 'SHIPPING ADDRESS — FULL'),
-          addrLines.length ? h('div', { style:{marginTop:'8px', lineHeight:'1.6', color:'#0f172a', fontSize:'13px'} },
-            ...addrLines.map(l => h('div', { style:{fontWeight: l.startsWith('House') || l.startsWith('Landmark') ? '600' : '400'} }, l))
+        h('div', { style:{background:'#fff', border:'2px solid #1e40af', borderRadius:'12px', padding:'14px'} },
+          h('div', { style:{fontSize:'11px', fontWeight:'700', letterSpacing:'.06em', color:'#1e40af'} }, 'FULL SHIPPING ADDRESS'),
+          addrLines.length ? h('div', { style:{marginTop:'8px', lineHeight:'1.6', color:'#0f172a', fontSize:'13px', background:'#f8fafc', padding:'10px', borderRadius:'8px', border:'1px solid #e2e8f0'} },
+            ...addrLines.map(l => h('div', { style:{fontWeight: l.startsWith('House') || l.startsWith('Landmark') || l.startsWith('Area') ? '600' : '400'} }, l)),
+            (address.latitude && address.longitude) ? h('a', { href:`https://www.google.com/maps/search/?api=1&query=${address.latitude},${address.longitude}`, target:'_blank', style:{display:'inline-block', marginTop:'6px', fontSize:'11px', color:'#1e40af', fontWeight:'700'} }, '📍 Open in Google Maps') : null
           ) : h('div',{style:{color:'#94a3b8', marginTop:'8px'}},'No address — contact customer'),
           h('div', { style:{marginTop:'12px', padding:'8px', background: order.payment_method==='cod' ? '#fef3c7' : '#dbeafe', borderRadius:'8px', fontSize:'12px', color:'#0f172a'} },
             h('span',{style:{fontWeight:'700'}},'Payment: '), `${order.payment_method==='cod' ? 'Cash on Delivery (COD)' : (payment?.method || order.payment_method || 'Online')} • ${order.payment_status || payment?.status || order.status} • ${money(order.total)}`
+          ),
+          h('div', { style:{marginTop:'10px', display:'flex', gap:'6px', flexWrap:'wrap'} },
+            h('button', { class:'admin-btn admin-btn-primary', style:{padding:'6px 10px', fontSize:'11px'}, onclick:()=>{ navigator.clipboard?.writeText(fullAddrText + ` | ${customer.name||''} ${customer.mobile||''}`); toast('Full address copied','success'); } }, '📋 Copy Full Address')
           )
         )
       ),
@@ -391,18 +425,19 @@ async function openOrderDetail(orderId){
         h('div', { style:{display:'flex', justifyContent:'space-between', paddingTop:'12px', borderTop:'2px solid #f1f5f9', fontWeight:'700'} }, h('span',{style:{color:'#64748b'}}, `Subtotal ${money(order.subtotal)} • Tax ${money(order.tax)}`), h('span',{style:{fontSize:'18px'}}, money(order.total)))
       ),
       h('div', { style:{marginTop:'16px', display:'flex', gap:'8px', flexWrap:'wrap'} },
-        h('button', { class:'admin-btn admin-btn-primary', onclick:()=>{ const txt=`${customer.name} | ${customer.mobile} | ${address.line1||''}, ${address.city||''} ${address.pincode||''} | ${order.order_number}`; navigator.clipboard?.writeText(txt); toast('Copied delivery details','success'); } }, '📋 Copy delivery'),
-        h('button', { class:'admin-btn admin-btn-ghost', onclick:()=>window.print() }, '🖨️ Print')
+        h('button', { class:'admin-btn admin-btn-primary', onclick:()=>{ const txt=`${customer.name} | ${customer.mobile} | ${fullAddrText} | ${order.order_number}`; navigator.clipboard?.writeText(txt); toast('Copied delivery details','success'); } }, '📋 Copy delivery'),
+        h('button', { class:'admin-btn admin-btn-ghost', onclick:()=>window.print() }, '🖨️ Print'),
+        h('button', { class:'admin-btn admin-btn-ghost', onclick:()=>{ location.hash='#/admin/orders/'+order.id; modalCtrl && modalCtrl.close(); } }, '↗ Open full page')
       ),
       h('div', { style:{marginTop:'16px'} },
-        h('div', { style:{fontWeight:'600', marginBottom:'8px'} }, 'Update Status'),
+        h('div', { style:{fontWeight:'600', marginBottom:'8px'} }, 'Update Status (instant)'),
         h('div', { style:{display:'flex', gap:'8px', alignItems:'center'} },
-          h('select', { class:'admin-select', id:'statusSel' },
-            ...['PAYMENT_PENDING','PAID','CONFIRMED','PRINTING','QUALITY_CHECK','PACKED','SHIPPED','OUT_FOR_DELIVERY','DELIVERED','CANCELLED'].map(s=> h('option',{value:s, selected:s===order.status}, s.replace(/_/g,' ')))
-          ),
-          h('button', { class:'admin-btn admin-btn-primary', onclick: async ()=> {
-            const sel=document.getElementById('statusSel');
-            try{ await api.post('/admin/orders/'+order.id+'/status', {status:sel.value}); toast('Status updated to '+sel.value,'success'); order.status=sel.value; }catch(e){ toast(e.message,'error'); }
+          quickSelect,
+          h('button', { class:'admin-btn admin-btn-primary', onclick: async (e)=> {
+            const btn=e.currentTarget; const sel=quickSelect; const ns=sel.value; if(ns===order.status) { toast('Already '+ns,'info'); return; } const prev=order.status; btn.disabled=true; btn.textContent='…'; curBadgeWrap.innerHTML=''; curBadgeWrap.append(statusBadge(ns));
+            try{ await api.post('/admin/orders/'+order.id+'/status', {status:ns}); toast('Status → '+ns,'success'); order.status=ns; // reflect only selected
+            }catch(err){ toast(err.message,'error'); curBadgeWrap.innerHTML=''; curBadgeWrap.append(statusBadge(prev)); sel.value=prev; }
+            btn.disabled=false; btn.textContent='Update';
           } }, 'Update'),
           h('button', { class:'admin-btn admin-btn-ghost', onclick: async ()=>{
             const note=prompt('Add admin note:');
@@ -416,7 +451,7 @@ async function openOrderDetail(orderId){
         ):null
       )
     );
-    modal(content);
+    modalCtrl = modal(content);
   }catch(e){ toast(e.message,'error'); }
 }
 
@@ -435,12 +470,19 @@ export async function AdminOrderDetail(ctx){
     const addrLines = [];
     if (address.house_no) addrLines.push(`House/Building: ${address.house_no}`);
     if (address.line1) addrLines.push(address.line1);
+    if (address.street) addrLines.push(address.street);
+    if (address.line2) addrLines.push(address.line2);
     if (address.area) addrLines.push(`Area: ${address.area}`);
     if (address.landmark) addrLines.push(`Landmark: ${address.landmark}`);
-    if (address.line2) addrLines.push(address.line2);
     const cityLine = [address.city, address.state, address.pincode].filter(Boolean).join(', ');
     if (cityLine) addrLines.push(cityLine);
     if (address.latitude && address.longitude) addrLines.push(`📍 ${Number(address.latitude).toFixed(5)}, ${Number(address.longitude).toFixed(5)}`);
+    const fullAddr = addrLines.join(', ');
+
+    const badgeWrap = h('span', {}, statusBadge(order.status));
+    const detailSelect = h('select', { class:'admin-select', id:'detailStatusSel', style:{minWidth:'180px'} },
+      ...['PAYMENT_PENDING','PAID','CONFIRMED','PRINTING','QUALITY_CHECK','PACKED','SHIPPED','OUT_FOR_DELIVERY','DELIVERED','CANCELLED'].map(s=> h('option',{value:s, selected:s===order.status}, s.replace(/_/g,' ')))
+    );
 
     const content = h('div', { style:{display:'flex', flexDirection:'column', gap:'16px'} },
       h('div', { style:{display:'flex', gap:'12px', alignItems:'center'} },
@@ -451,7 +493,7 @@ export async function AdminOrderDetail(ctx){
         h('div', { style:{display:'flex', justifyContent:'space-between', flexWrap:'wrap', gap:'12px'} },
           h('div', {},
             h('h2', { style:{margin:'0', color:'#0f172a'} }, order.order_number),
-            h('div', { style:{marginTop:'6px', display:'flex', gap:'8px', flexWrap:'wrap'} }, statusBadge(order.status), h('span',{class:'admin-badge', style:{background: order.payment_method==='cod'?'#fef3c7':'#dbeafe', color:'#0f172a'}}, order.payment_method==='cod' ? '💵 COD' : 'Online'), h('span',{style:{fontSize:'12px', color:'#64748b'}}, formatDateTime(order.created_at)))
+            h('div', { style:{marginTop:'6px', display:'flex', gap:'8px', flexWrap:'wrap', alignItems:'center'} }, badgeWrap, h('span',{class:'admin-badge', style:{background: order.payment_method==='cod'?'#fef3c7':'#dbeafe', color:'#0f172a'}}, order.payment_method==='cod' ? '💵 COD' : 'Online'), h('span',{style:{fontSize:'12px', color:'#64748b'}}, formatDateTime(order.created_at)))
           ),
           h('div', { style:{textAlign:'right'} },
             h('div', { style:{fontSize:'22px', fontWeight:'800', color:'#0f172a'} }, money(order.total)),
@@ -460,19 +502,25 @@ export async function AdminOrderDetail(ctx){
         ),
         h('div', { style:{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'16px', marginTop:'16px'} },
           h('div', { style:{background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:'12px', padding:'16px'} },
-            h('div', { style:{fontSize:'11px', fontWeight:'700', letterSpacing:'.06em', color:'#64748b'} }, 'CUSTOMER'),
+            h('div', { style:{fontSize:'11px', fontWeight:'700', letterSpacing:'.06em', color:'#64748b'} }, 'CUSTOMER — FULL DETAILS'),
             h('div', { style:{fontWeight:'700', marginTop:'8px', color:'#0f172a', fontSize:'14px'} }, customer.name||'—'),
             h('div', { style:{fontSize:'13px', color:'#0f172a', marginTop:'6px'} }, customer.mobile?`📱 ${customer.mobile}`:''),
             h('div', { style:{fontSize:'12px', color:'#334155', marginTop:'4px'} }, customer.email?`✉️ ${customer.email}`:''),
-            h('div', { style:{fontSize:'11px', color:'#64748b', marginTop:'8px'} }, `ID: ${customer.id||'—'}`)
+            h('div', { style:{fontSize:'11px', color:'#64748b', marginTop:'8px'} }, `ID: ${customer.id||'—'}`),
+            h('div', { style:{fontSize:'11px', color:'#64748b', marginTop:'4px'} }, `Joined: ${customer.created_at? formatDate(customer.created_at): '—'}`),
+            h('button', { class:'admin-btn admin-btn-ghost', style:{padding:'4px 8px', fontSize:'11px', marginTop:'10px'}, onclick:()=>{ navigator.clipboard?.writeText(`${customer.name||''} | ${customer.mobile||''} | ${customer.email||''} | ID ${customer.id||''}`); toast('Customer copied','success'); } }, '📋 Copy Customer')
           ),
           h('div', { style:{background:'#fff', border:'2px solid #1e40af', borderRadius:'12px', padding:'16px'} },
             h('div', { style:{fontSize:'11px', fontWeight:'700', letterSpacing:'.06em', color:'#1e40af'} }, 'FULL SHIPPING ADDRESS'),
             addrLines.length ? h('div', { style:{marginTop:'10px', lineHeight:'1.7', color:'#0f172a', fontSize:'13px', background:'#f8fafc', padding:'12px', borderRadius:'8px', border:'1px solid #e2e8f0'} },
-              ...addrLines.map(l=> h('div', { style:{fontWeight: l.startsWith('House')||l.startsWith('Landmark') ? '700' : '400', color:'#0f172a'} }, l))
-            ) : h('div',{style:{color:'#94a3b8', marginTop:'8px'}},'No address'),
+              ...addrLines.map(l=> {
+                const isBold = l.startsWith('House')||l.startsWith('Landmark')||l.startsWith('Area');
+                return h('div', { style:{fontWeight: isBold ? '700' : '400', color:'#0f172a'} }, l);
+              }),
+              (address.latitude && address.longitude) ? h('a', { href:`https://www.google.com/maps/search/?api=1&query=${address.latitude},${address.longitude}`, target:'_blank', style:{display:'inline-block', marginTop:'8px', fontSize:'12px', color:'#1e40af', fontWeight:'700'} }, '📍 Open in Google Maps') : null
+            ) : h('div',{style:{color:'#94a3b8', marginTop:'8px'}},'No address — ask customer to add address at checkout'),
             h('div', { style:{marginTop:'12px', display:'flex', gap:'8px', flexWrap:'wrap'} },
-              h('button', { class:'admin-btn admin-btn-primary', style:{padding:'8px 12px', fontSize:'12px'}, onclick:()=>{ const txt = addrLines.join(', ') + ` | ${customer.name||''} ${customer.mobile||''}`; navigator.clipboard?.writeText(txt); toast('Address copied','success'); } }, '📋 Copy Address'),
+              h('button', { class:'admin-btn admin-btn-primary', style:{padding:'8px 12px', fontSize:'12px'}, onclick:()=>{ const txt = fullAddr + ` | ${customer.name||''} ${customer.mobile||''}`; navigator.clipboard?.writeText(txt); toast('Full address copied','success'); } }, '📋 Copy Full Address'),
               h('button', { class:'admin-btn admin-btn-ghost', style:{padding:'8px 12px', fontSize:'12px'}, onclick:()=> window.print() }, '🖨️ Print')
             )
           )
@@ -503,14 +551,14 @@ export async function AdminOrderDetail(ctx){
           )
         ),
         h('div', { style:{marginTop:'16px', padding:'16px', background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px'} },
-          h('div', { style:{fontWeight:'700', color:'#0f172a', marginBottom:'10px'} }, 'Update Status'),
+          h('div', { style:{fontWeight:'700', color:'#0f172a', marginBottom:'10px'} }, 'Update Status — instant reflect'),
           h('div', { style:{display:'flex', gap:'8px', flexWrap:'wrap', alignItems:'center'} },
-            h('select', { class:'admin-select', id:'detailStatusSel', style:{minWidth:'180px'} },
-              ...['PAYMENT_PENDING','PAID','CONFIRMED','PRINTING','QUALITY_CHECK','PACKED','SHIPPED','OUT_FOR_DELIVERY','DELIVERED','CANCELLED'].map(s=> h('option',{value:s, selected:s===order.status}, s.replace(/_/g,' ')))
-            ),
-            h('button', { class:'admin-btn admin-btn-primary', onclick: async ()=>{
-              const sel=document.getElementById('detailStatusSel');
-              try{ await api.post('/admin/orders/'+order.id+'/status', {status:sel.value}); toast('Status → '+sel.value,'success'); setTimeout(()=> location.reload(), 600); }catch(e){ toast(e.message,'error'); }
+            detailSelect,
+            h('button', { class:'admin-btn admin-btn-primary', onclick: async (e)=>{
+              const btn=e.currentTarget; const sel=detailSelect; const ns=sel.value; if(ns===order.status){ toast('Already '+ns,'info'); return; } const prev=order.status; btn.disabled=true; const oldText=btn.textContent; btn.textContent='…'; badgeWrap.innerHTML=''; badgeWrap.append(statusBadge(ns));
+              try{ await api.post('/admin/orders/'+order.id+'/status', {status:ns}); toast('Status → '+ns,'success'); order.status=ns; sel.value=ns; [...sel.options].forEach(o=> o.selected=o.value===ns);
+              }catch(err){ toast(err.message,'error'); badgeWrap.innerHTML=''; badgeWrap.append(statusBadge(prev)); sel.value=prev; [...sel.options].forEach(o=> o.selected=o.value===prev); }
+              btn.disabled=false; btn.textContent=oldText;
             } }, 'Update'),
             h('button', { class:'admin-btn admin-btn-ghost', onclick: async ()=>{
               const note=prompt('Add admin note:');

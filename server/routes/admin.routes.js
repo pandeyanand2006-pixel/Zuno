@@ -596,13 +596,46 @@ router.get('/orders', async (req, res) => {
     const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 50));
     const total = await Order.countDocuments(filter);
     const rows = await Order.find(filter).sort(orderBy).skip((page-1)*limit).limit(limit).lean();
-    const orders = [];
-    for (const o of rows) {
-      const u = o.user_id ? await User.findById(o.user_id).lean() : null;
-      const a = o.address_id ? await Address.findById(o.address_id).lean() : null;
-      const p = await Payment.findOne({ order_id: o._id }).lean();
-      orders.push({ ...o, id: String(o._id), customer_name: u?.name || null, customer_mobile: u?.mobile || null, customer_email: u?.email || null, addr_line1: a?.line1 || null, addr_city: a?.city || null, addr_pincode: a?.pincode || null, payment_status: o.payment_status || p?.status || null, payment_method: o.payment_method || p?.method || null });
-    }
+    if (!rows.length) return ok(res, { orders: [], total, page, limit });
+    // Batch fetch related data for speed (avoid N+1)
+    const userIds = [...new Set(rows.map(r=>r.user_id).filter(Boolean).map(String))];
+    const addrIds = [...new Set(rows.map(r=>r.address_id).filter(Boolean).map(String))];
+    const orderIds = rows.map(r=>r._id);
+    const [users, addrs, payments] = await Promise.all([
+      userIds.length ? User.find({ _id: { $in: userIds } }).lean() : [],
+      addrIds.length ? Address.find({ _id: { $in: addrIds } }).lean() : [],
+      Payment.find({ order_id: { $in: orderIds } }).lean()
+    ]);
+    const userMap = new Map(users.map(u=>[String(u._id), u]));
+    const addrMap = new Map(addrs.map(a=>[String(a._id), a]));
+    const payMap = new Map(payments.map(p=>[String(p.order_id), p]));
+    const orders = rows.map(o=>{
+      const u = o.user_id ? userMap.get(String(o.user_id)) : null;
+      const a = o.address_id ? addrMap.get(String(o.address_id)) : null;
+      const p = payMap.get(String(o._id));
+      const fullAddr = [a?.house_no, a?.line1, a?.line2, a?.landmark, a?.area, [a?.city, a?.state, a?.pincode].filter(Boolean).join(', ')].filter(Boolean).join(', ') || null;
+      return {
+        ...o,
+        id: String(o._id),
+        customer_name: u?.name || null,
+        customer_mobile: u?.mobile || null,
+        customer_email: u?.email || null,
+        // full address fields for fast UI without extra fetch
+        addr_line1: a?.line1 || null,
+        addr_line2: a?.line2 || null,
+        addr_house_no: a?.house_no || null,
+        addr_landmark: a?.landmark || null,
+        addr_area: a?.area || null,
+        addr_city: a?.city || null,
+        addr_state: a?.state || null,
+        addr_pincode: a?.pincode || null,
+        addr_latitude: a?.latitude || null,
+        addr_longitude: a?.longitude || null,
+        addr_full: fullAddr,
+        payment_status: o.payment_status || p?.status || null,
+        payment_method: o.payment_method || p?.method || null
+      };
+    });
     return ok(res, { orders, total, page, limit });
   }
   const clauses = [];
@@ -622,7 +655,10 @@ router.get('/orders', async (req, res) => {
   const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 50));
   const offset = (page - 1) * limit;
   const total = db.prepare(`SELECT COUNT(*) c FROM orders o LEFT JOIN users u ON u.id = o.user_id ${where}`).get(...params).c;
-  const orders = db.prepare(`SELECT o.*, u.name as customer_name, u.mobile as customer_mobile, u.email as customer_email, a.line1 as addr_line1, a.city as addr_city, a.pincode as addr_pincode, COALESCE(o.payment_status, p.status) as payment_status, COALESCE(o.payment_method, p.method) as payment_method FROM orders o LEFT JOIN users u ON u.id = o.user_id LEFT JOIN addresses a ON a.id = o.address_id LEFT JOIN payments p ON p.order_id = o.id ${where} ORDER BY ${orderBy} LIMIT ? OFFSET ?`).all(...params, limit, offset);
+  const orders = db.prepare(`SELECT o.*, u.name as customer_name, u.mobile as customer_mobile, u.email as customer_email, a.line1 as addr_line1, a.line2 as addr_line2, a.house_no as addr_house_no, a.landmark as addr_landmark, a.area as addr_area, a.city as addr_city, a.state as addr_state, a.pincode as addr_pincode, a.latitude as addr_latitude, a.longitude as addr_longitude, COALESCE(o.payment_status, p.status) as payment_status, COALESCE(o.payment_method, p.method) as payment_method FROM orders o LEFT JOIN users u ON u.id = o.user_id LEFT JOIN addresses a ON a.id = o.address_id LEFT JOIN payments p ON p.order_id = o.id ${where} ORDER BY ${orderBy} LIMIT ? OFFSET ?`).all(...params, limit, offset).map(r=>{
+    const full = [r.addr_house_no, r.addr_line1, r.addr_line2, r.addr_landmark, r.addr_area, [r.addr_city, r.addr_state, r.addr_pincode].filter(Boolean).join(', ')].filter(Boolean).join(', ');
+    return { ...r, addr_full: full || null };
+  });
   return ok(res, { orders, total, page, limit });
 });
 
