@@ -27,7 +27,7 @@ services:
       - key: DB_PATH
         value: data/ZUNO.db
       - key: FRONTEND_URL
-        value: https://zuno.onrender.com
+        value: https://zuno-ydl3.onrender.com,https://*.vercel.app
       # Optional — fill in Render dashboard after deploy:
       # RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET, RAZORPAY_WEBHOOK_SECRET, GOOGLE_CLIENT_ID, SMTP_*
     # Disk is only on paid plan — free tier runs with ephemeral SQLite (data resets on deploy)
