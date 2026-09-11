@@ -1,7 +1,7 @@
-/* ---------- Top navigation — Sticky + Denim ---------- */
-.topbar { position: sticky; top: 0; z-index: 100; background: color-mix(in srgb, var(--pure-white) 88%, transparent); backdrop-filter: saturate(160%) blur(12px); border-bottom: 1px solid var(--light-indigo); }
+/* ---------- Top navigation — Reference dark Manrope ---------- */
+.topbar { position: sticky; top: 0; z-index: 100; background: rgba(16,20,29,0.92); backdrop-filter: saturate(160%) blur(12px); border-bottom: 1px solid rgba(245,247,240,0.08); }
 .topbar-inner { max-width: var(--maxw); margin: 0 auto; height: var(--nav-h); display: flex; align-items: center; gap: var(--sp-5); padding: 0 var(--sp-5); }
-.brand { display: flex; align-items: center; gap: var(--sp-2); font-weight: 800; font-size: var(--fs-xl); color: var(--dark-charcoal); letter-spacing: -0.02em; font-family: var(--font-display); }
+.brand { display: flex; align-items: center; gap: var(--sp-2); font-weight: 800; font-size: var(--fs-xl); color: rgb(245,247,240); letter-spacing: -0.02em; font-family: var(--font-display); }
 .brand .logo { width: 34px; height: 34px; border-radius: 9px; background: var(--primary-denim); color: var(--pure-white); display: flex; align-items: center; justify-content: center; font-weight: 800; }
 .brand:hover { text-decoration: none; }
 

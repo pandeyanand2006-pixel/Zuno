@@ -50,6 +50,9 @@
 .product-card:hover .product-img { transform: scale(1.04); }
 .product-card:hover .product-img-hover { opacity: 1; }
 .product-badge { position: absolute; top: 10px; left: 10px; background: var(--primary-denim); color: var(--pure-white); font-size: 10px; font-weight: 700; padding: 4px 8px; border-radius: var(--r-full); letter-spacing: 0.04em; text-transform: uppercase; z-index: 2; }
+.accent-dot { position: absolute; top: 10px; left: 10px; width: 10px; height: 10px; border-radius: 50%; z-index: 2; }
+.accent-dot.lime { background: #a3ff00; } .accent-dot.cyan { background: #00e5ff; } .accent-dot.orange { background: #ff6b00; } .accent-dot.pink { background: #ff2d95; }
+.product-meta small { font-family: "DM Mono", monospace; font-size: 10px; letter-spacing: 0.06em; color: #8a94a8; text-transform: uppercase; }
 
 /* Quick Add Size panel — slides up from bottom on hover */
 .quick-add-panel {
