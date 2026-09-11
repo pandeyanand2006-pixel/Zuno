@@ -20,6 +20,7 @@ const MOBILE_NAV = [
 ];
 
 export function topBar(active) {
+  const user = Store.getUser();
   const search = SearchBar();
   const cartCount = Store.cartCount();
   const wishCount = Store.wishlistCount ? Store.wishlistCount() : (Store._wishlist ? Store._wishlist.size : 0);
