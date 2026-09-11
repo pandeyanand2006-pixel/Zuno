@@ -56,8 +56,8 @@ function renderGoogleButton(container) {
 export async function Login() {
   const root = h('div', { class: 'container-narrow section' });
   const card = h('div', { class: 'card card-pad elevated', style: { maxWidth: '460px', margin: '0 auto' } });
-  const cfg = await api.get('/config').catch(() => ({ googleClientId: '', razorpayTestMode: true }));
-  await loadGoogle(cfg.googleClientId);
+  const cfg = (await api.get('/config').catch(() => ({ googleClientId: '', razorpayTestMode: true }))) || { googleClientId: '', razorpayTestMode: true };
+  await loadGoogle(cfg?.googleClientId || '');
 
   const tabRow = h('div', { class: 'tabs', style: { marginBottom: '18px' } },
     h('button', { class: 'tab active', 'data-t': 'pwd' }, 'Password'),

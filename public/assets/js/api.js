@@ -1,9 +1,11 @@
 import { Store } from './store.js';
 
 // For split deploys (Vercel frontend → Render backend) set window.ZUNO_API_BASE
-// e.g. <script>window.ZUNO_API_BASE="https://zuno.onrender.com"</script> or localStorage
+// e.g. <script>window.ZUNO_API_BASE="https://zuno.onrender.com/api"</script> or localStorage
 // Falls back to same-origin /api (single-service deploy — recommended)
-const API = (typeof window !== 'undefined' && (window.ZUNO_API_BASE || localStorage.getItem('ZUNO_API_BASE'))) || '/api';
+// Normalizes: if base is "https://xxx.onrender.com" without /api, auto-appends /api
+const rawBase = (typeof window !== 'undefined' && (window.ZUNO_API_BASE || localStorage.getItem('ZUNO_API_BASE'))) || '';
+const API = rawBase ? rawBase.replace(/\/$/, '') + (rawBase.replace(/\/$/, '').endsWith('/api') ? '' : '/api') : '/api';
 
 async function request(method, path, { body, auth = true, query } = {}) {
   let url = API + path;
