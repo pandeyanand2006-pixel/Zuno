@@ -127,11 +127,18 @@ html { scrollbar-gutter: stable; }
 .split { display: grid; grid-template-columns: 1fr 360px; gap: var(--sp-6); align-items: start; }
 @media (max-width: 900px) { .split { grid-template-columns: 1fr; } }
 
-/* Sidebar (profile / admin) — top bar on mobile */
-.sidebar { background: var(--pure-white); border: 1px solid var(--light-indigo); border-radius: var(--r-lg); padding: var(--sp-3); position: sticky; top: calc(var(--nav-h) + var(--sp-4)); }
-.sidebar a { display: flex; align-items: center; gap: var(--sp-3); padding: 11px 14px; border-radius: var(--r-md); color: var(--ink-700); font-weight: 600; font-size: var(--fs-sm); white-space: nowrap; text-decoration: none; transition: background 0.2s ease-in, color 0.2s ease-in; }
-.sidebar a:hover { background: var(--light-indigo); text-decoration: none; }
-.sidebar a.active { background: var(--dark-charcoal); color: var(--pure-white); }
+/* Sidebar (profile / admin) — light card on dark page, must have dark text */
+.sidebar { background: rgb(245,247,240); border: 1px solid #dde3ef; border-radius: var(--r-lg); padding: var(--sp-3); position: sticky; top: calc(var(--nav-h) + var(--sp-4)); color: rgb(16,20,29); }
+.sidebar a { display: flex; align-items: center; gap: var(--sp-3); padding: 11px 14px; border-radius: var(--r-md); color: #23395d; font-weight: 600; font-size: var(--fs-sm); white-space: nowrap; text-decoration: none; transition: background 0.2s ease-in, color 0.2s ease-in; }
+.sidebar a:hover { background: #E9EEF5; color: rgb(16,20,29); text-decoration: none; }
+.sidebar a.active { background: rgb(16,20,29); color: rgb(245,247,240); }
+.filter-title { color: rgb(16,20,29) !important; font-weight: 700; font-size: var(--fs-sm); letter-spacing: 0.04em; text-transform: uppercase; margin-bottom: 8px; }
+.filter-link { display: block; padding: 7px 10px; border-radius: var(--r-md); color: #344a6e !important; font-size: var(--fs-sm); text-decoration: none; }
+.filter-link:hover { background: #E9EEF5; color: rgb(16,20,29) !important; }
+.filter-link.active { background: rgb(16,20,29) !important; color: rgb(245,247,240) !important; }
+.filter-link.sub { padding-left: 18px; font-size: 13px; }
+.sidebar .btn { color: #23395d; }
+.sidebar .muted { color: #5a6d8a !important; }
 @media (max-width: 900px) {
   .sidebar { display: flex; overflow-x: auto; gap: 8px; padding: 12px; border-radius: var(--r-lg); position: static; scrollbar-width: none; }
   .sidebar::-webkit-scrollbar { display: none; }
