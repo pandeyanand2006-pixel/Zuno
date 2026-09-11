@@ -51,14 +51,34 @@ export function startRouter({ main, top, bottom }) {
   refreshCart().finally(() => render());
 }
 
+function isAdminPath(p){ return p.startsWith('/admin'); }
 async function render() {
+  // Support direct /admin pathname without hash (requirement: /admin should be protected)
+  if (location.pathname.startsWith('/admin') && !location.hash.startsWith('#/admin')) {
+    location.hash = '#/admin' + location.pathname.slice(6);
+    return;
+  }
   const { path, query } = parseHash();
   const matched = match(path) || match('/__notfound');
   const key = activeKey(path);
 
-  // update shell chrome
-  mount(topEl, topBar(key));
-  mount(botEl, bottomNav(key));
+  const admin = isAdminPath(path);
+  // Hide customer chrome on admin pages; admin pages render their own shell
+  if (admin) {
+    topEl.style.display = 'none';
+    botEl.style.display = 'none';
+    const foot = document.querySelector('.footer');
+    if (foot) foot.style.display = 'none';
+    mainEl.style.paddingBottom = '0';
+  } else {
+    topEl.style.display = '';
+    botEl.style.display = '';
+    const foot = document.querySelector('.footer');
+    if (foot) foot.style.display = '';
+    mainEl.style.paddingBottom = '';
+    mount(topEl, topBar(key));
+    mount(botEl, bottomNav(key));
+  }
 
   if (currentCleanup) { try { currentCleanup(); } catch {} currentCleanup = null; }
 

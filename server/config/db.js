@@ -4,6 +4,10 @@ import path from 'node:path';
 import { env } from './env.js';
 
 function ensureDbDir(p) {
+  if (p === ':memory:') {
+    env.dbPath = ':memory:';
+    return ':memory:';
+  }
   // always work with absolute path for Render (cwd = /opt/render/project/src)
   const abs = path.isAbsolute(p) ? p : path.resolve(p);
   const d = path.dirname(abs);

@@ -31,8 +31,9 @@ export function topBar(active) {
       class: active === n.key ? 'active' : '',
     }, n.label)));
 
-  // Single page — no drawer, bag goes to cart page
+  const isAdmin = user && user.role === 'ADMIN';
   const actions = h('div', { class: 'nav-actions' },
+    isAdmin ? h('a', { class: 'btn btn-ghost btn-sm', href: '#/admin', style:{background:'#0f172a', color:'#fff', fontWeight:'700', letterSpacing:'0.02em'} }, 'Admin') : null,
     h('a', { class: 'icon-btn', href: '#/wishlist', title: 'Wishlist', 'aria-label': 'Wishlist' }, '♡', wishCount ? h('span', { class: 'cart-count', style: { background: 'var(--primary-denim)' } }, String(wishCount)) : null),
     h('a', { class: 'icon-btn', href: '#/cart', title: 'Bag', 'aria-label': 'Bag' },
       '◧', cartCount ? h('span', { class: 'cart-count' }, String(cartCount)) : null),

@@ -1,478 +1,696 @@
-import { h, money, toast, emptyState, modal } from '../ui.js';
-import { statusBadge } from './orders.js';
+import { h, money, toast, emptyState, modal, confirmDialog } from '../ui.js';
 import { api } from '../api.js';
 import { Store } from '../store.js';
 
-export async function Admin() {
-  const root = h('div', { class: 'container section' });
+// ── helpers ──
+function formatDate(s) { try { return new Date(s).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' }); } catch { return s; } }
+function formatDateTime(s) { try { return new Date(s).toLocaleString('en-IN', { dateStyle:'medium', timeStyle:'short' }); } catch { return s; } }
+
+function statusBadge(status) {
+  const m = {
+    PAYMENT_PENDING:'pending', PAID:'paid', CONFIRMED:'confirmed',
+    PROCESSING:'processing', PRINTING:'processing', QUALITY_CHECK:'processing', PACKED:'processing',
+    SHIPPED:'shipped', OUT_FOR_DELIVERY:'shipped', DELIVERED:'delivered', CANCELLED:'cancelled'
+  };
+  const cls = m[status] || 'pending';
+  const label = (status||'').replace(/_/g,' ');
+  return h('span', { class: `admin-badge admin-badge-${cls}` }, label);
+}
+function stockBadge(stock) {
+  if (stock===0) return h('span', { class:'admin-badge admin-badge-out' }, 'Out of stock');
+  if (stock<=10) return h('span', { class:'admin-badge admin-badge-low' }, 'Low • '+stock);
+  return h('span', { class:'admin-badge admin-badge-delivered' }, stock);
+}
+
+async function ensureMe() {
+  if (!Store.isAuthed()) return null;
+  if (Store.getUser()) return Store.getUser();
+  try { await Store.loadMe(); return Store.getUser(); } catch { return null; }
+}
+function isAdmin(user) { return user && user.role === 'ADMIN'; }
+
+function adminShell(activeKey, contentNode) {
   const user = Store.getUser();
-  if (!user || user.role !== 'ADMIN') { root.append(emptyState({ icon: '◐', title: 'Founder Access Only', desc: 'This dashboard is exclusively for the Zuno founder. Please sign in with founder credentials.', action: h('a', { class: 'btn btn-primary', href: '#/login' }, 'Sign in as Founder') })); return root; }
-
-  // Founder Welcome Banner with enhanced styling
-  const founderBanner = h('div', { style: { 
-    background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%)', 
-    color: 'white', 
-    padding: '32px', 
-    borderRadius: '16px', 
-    marginBottom: '32px', 
-    boxShadow: '0 20px 40px rgba(0,0,0,0.3), 0 0 0 1px rgba(255,255,255,0.1)',
-    position: 'relative',
-    overflow: 'hidden'
-  } },
-    // Decorative elements
-    h('div', { style: { 
-      position: 'absolute', 
-      top: '-50px', 
-      right: '-50px', 
-      width: '200px', 
-      height: '200px', 
-      background: 'radial-gradient(circle, rgba(251,191,36,0.15) 0%, transparent 70%)',
-      borderRadius: '50%'
-    } }),
-    h('div', { style: { 
-      position: 'absolute', 
-      bottom: '-30px', 
-      left: '-30px', 
-      width: '150px', 
-      height: '150px', 
-      background: 'radial-gradient(circle, rgba(59,130,246,0.15) 0%, transparent 70%)',
-      borderRadius: '50%'
-    } }),
-    h('div', { class: 'row between', style: { alignItems: 'center', position: 'relative', zIndex: '2' } },
+  const sidebar = h('aside', { class:'admin-sidebar', id:'adminSidebar' },
+    h('div', { class:'admin-sidebar__brand' },
+      h('div', { class:'admin-sidebar__brand-logo' }, 'Z'),
       h('div', {},
-        h('div', { style: { 
-          fontSize: '0.75rem', 
-          fontWeight: '700',
-          letterSpacing: '0.1em',
-          textTransform: 'uppercase',
-          color: '#fbbf24', 
-          marginBottom: '8px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px'
-        } }, 
-          h('span', { style: { fontSize: '20px' } }, '⚡'),
-          'FOUNDER DASHBOARD'),
-        h('h1', { style: { 
-          fontFamily: 'var(--font-display)', 
-          letterSpacing: '-0.02em', 
-          margin: '0', 
-          fontSize: '2.5rem',
-          background: 'linear-gradient(135deg, #ffffff 0%, #e2e8f0 100%)',
-          WebkitBackgroundClip: 'text',
-          WebkitTextFillColor: 'transparent',
-          backgroundClip: 'text'
-        } }, 'ZUNO Admin'),
-        h('div', { style: { marginTop: '12px', opacity: '0.9', fontSize: '1rem', color: '#cbd5e1' } }, 
-          'Welcome back, ' + (user.name || 'Founder') + '! 👋 Manage your orders and business.')),
-      h('div', { style: { 
-        textAlign: 'right',
-        background: 'rgba(255,255,255,0.1)',
-        padding: '16px 20px',
-        borderRadius: '12px',
-        backdropFilter: 'blur(10px)',
-        border: '1px solid rgba(255,255,255,0.2)'
-      } },
-        h('div', { style: { fontSize: '0.7rem', opacity: '0.8', marginBottom: '4px', color: '#94a3b8' } }, 'Logged in as'),
-        h('div', { class: 'fw-700', style: { fontSize: '0.95rem' } }, user.email || user.mobile))));
+        h('div', { style:{fontWeight:'800', fontSize:'15px', letterSpacing:'0.08em'} }, 'ZUNO'),
+        h('div', { style:{fontSize:'11px', opacity:'0.7', letterSpacing:'0.08em'} }, 'ADMIN'))),
+    h('nav', { class:'admin-sidebar__nav' },
+      h('a', { class:'admin-sidebar__link'+(activeKey==='overview'?' active':''), href:'#/admin' }, h('span',{class:'ic'},'◧'), 'Dashboard'),
+      h('a', { class:'admin-sidebar__link'+(activeKey==='orders'?' active':''), href:'#/admin/orders' }, h('span',{class:'ic'},'≡'), 'Orders'),
+      h('a', { class:'admin-sidebar__link'+(activeKey==='products'?' active':''), href:'#/admin/products' }, h('span',{class:'ic'},'▭'), 'Products'),
+      h('a', { class:'admin-sidebar__link'+(activeKey==='inventory'?' active':''), href:'#/admin/inventory' }, h('span',{class:'ic'},'▦'), 'Inventory'),
+      h('a', { class:'admin-sidebar__link'+(activeKey==='customers'?' active':''), href:'#/admin/customers' }, h('span',{class:'ic'},'◐'), 'Customers'),
+      h('div', { style:{flex:'1'}}),
+      h('a', { class:'admin-sidebar__link', href:'#/', style:{color:'#64748b'} }, h('span',{class:'ic'},'←'), 'Back to Store'),
+      h('a', { class:'admin-sidebar__link', href:'#/admin/login', onclick:(e)=>{ e.preventDefault(); Store.setToken(null); Store.setUser(null); location.hash='#/admin/login'; } }, h('span',{class:'ic'},'↪'), 'Logout')
+    ),
+    h('div', { class:'admin-sidebar__footer' },
+      h('div', { style:{fontSize:'12px', fontWeight:'700', color:'#e2e8f0'} }, user ? user.name : 'Admin'),
+      h('div', { style:{fontSize:'11px', color:'#64748b', marginTop:'2px'} }, user ? (user.email||user.mobile) : ''))
+  );
 
-  const tabs = h('div', { class: 'tabs', style: { marginBottom: '20px', overflowX: 'auto' } },
-    h('button', { class: 'tab active', 'data-t': 'overview' }, 'Overview'),
-    h('button', { class: 'tab', 'data-t': 'orders' }, 'All Orders'),
-    h('button', { class: 'tab', 'data-t': 'production' }, 'Production'),
-    h('button', { class: 'tab', 'data-t': 'custom' }, '✦ Custom Orders'),
-    h('button', { class: 'tab', 'data-t': 'products' }, 'Products'),
-    h('button', { class: 'tab', 'data-t': 'users' }, 'Customers'));
-  const panel = h('div', {}, skeletonPanel());
-  root.append(founderBanner, tabs, panel);
+  const overlay = h('div', { class:'admin-overlay', id:'adminOverlay', onclick:()=>{ sidebar.classList.remove('open'); overlay.classList.remove('open'); } });
 
-  tabs.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => { tabs.querySelectorAll('.tab').forEach((x) => x.classList.remove('active')); t.classList.add('active'); load(t.dataset.t); }));
+  const topTitleMap = { overview:'Dashboard', orders:'Orders', products:'Products', inventory:'Inventory', customers:'Customers' };
+  const searchInput = h('input', { placeholder:'Search orders, products…', onkeydown:(e)=>{ if(e.key==='Enter'){ const v=e.target.value.trim(); if(!v) return; if(activeKey==='orders') location.hash='#/admin/orders?q='+encodeURIComponent(v); else if(activeKey==='products') location.hash='#/admin/products?q='+encodeURIComponent(v); else location.hash='#/admin/orders?q='+encodeURIComponent(v); } } });
 
-  async function load(t) {
-    panel.innerHTML = ''; panel.append(skeletonPanel());
-    try {
-      if (t === 'overview') panel.append(await overview());
-      if (t === 'orders') panel.append(await orders());
-      if (t === 'production') panel.append(await productionQueue());
-      if (t === 'custom') panel.append(await customOrders());
-      if (t === 'products') panel.append(await products());
-      if (t === 'users') panel.append(await users());
-    } catch (e) { panel.innerHTML = ''; panel.append(emptyState({ icon: '◐', title: 'Failed', desc: e.message })); }
+  const topbar = h('div', { class:'admin-topbar' },
+    h('button', { class:'admin-mobile-toggle', onclick:()=>{ sidebar.classList.toggle('open'); overlay.classList.toggle('open'); } }, '☰'),
+    h('div', { class:'admin-topbar__title' }, topTitleMap[activeKey]||'Admin'),
+    h('div', { class:'admin-topbar__search' }, h('span',{class:'s-ic'},'⌕'), searchInput),
+    h('div', { style:{marginLeft:'auto', display:'flex', gap:'8px', alignItems:'center'} },
+      h('span', { style:{fontSize:'12px', color:'#64748b'} }, user?user.name:''),
+      h('span', { style:{width:'32px', height:'32px', borderRadius:'50%', background:'#1e40af', color:'#fff', display:'grid', placeItems:'center', fontSize:'12px', fontWeight:'700'} }, (user?.name||'A').slice(0,2).toUpperCase())
+    )
+  );
+
+  return h('div', { class:'admin-shell' }, sidebar, overlay, h('div', { class:'admin-main' }, topbar, h('div', { class:'admin-content' }, contentNode)));
+}
+
+// ── Guard ──
+async function guardOrRedirect() {
+  const u = await ensureMe();
+  if (!u) { location.hash = '#/admin/login'; return null; }
+  if (!isAdmin(u)) {
+    return h('div', { class:'admin-login-wrap' },
+      h('div', { class:'admin-login-card', style:{textAlign:'center'} },
+        h('div', { style:{fontSize:'40px', marginBottom:'12px'} }, '⛔'),
+        h('h2', {}, 'Access Denied'),
+        h('p', { class:'muted', style:{marginTop:'8px'} }, 'This dashboard is for administrators only. Your account does not have permission.'),
+        h('a', { class:'admin-btn admin-btn-primary', href:'#/', style:{marginTop:'16px', display:'inline-flex'} }, 'Back to Store'),
+        h('button', { class:'admin-btn admin-btn-ghost', style:{marginTop:'8px'}, onclick:()=>{ Store.setToken(null); Store.setUser(null); location.hash='#/admin/login'; } }, 'Sign in as Admin')
+      ));
   }
-  load('overview');
+  return u;
+}
+
+// ── Admin Login ──
+export async function AdminLogin() {
+  const u = await ensureMe();
+  if (u && isAdmin(u)) { location.hash = '#/admin'; return h('div', { class:'admin-login-wrap' }, h('div', {}, 'Redirecting…')); }
+
+  const root = h('div', { class:'admin-login-wrap' });
+  const card = h('div', { class:'admin-login-card' });
+
+  const idF = h('input', { class:'admin-input', placeholder:'Admin email or mobile', style:{width:'100%'} });
+  const pwF = h('input', { class:'admin-input', type:'password', placeholder:'Password', style:{width:'100%'} });
+  const err = h('div', { style:{color:'#dc2626', fontSize:'13px', minHeight:'18px'} });
+  const btn = h('button', { class:'admin-btn admin-btn-primary', style:{width:'100%', justifyContent:'center', padding:'12px', fontSize:'14px'} }, 'Sign in to Admin');
+
+  btn.onclick = async () => {
+    err.textContent = '';
+    const identifier = idF.value.trim();
+    const password = pwF.value;
+    if (!identifier || !password) { err.textContent = 'Enter email/mobile and password'; return; }
+    btn.disabled = true; btn.textContent = 'Signing in…';
+    try {
+      const { token, user } = await api.post('/auth/login', { identifier, password }, { auth:false });
+      if (user.role !== 'ADMIN') {
+        err.textContent = 'Not an admin account. Use admin@zuno.app / Admin@1234';
+        btn.disabled=false; btn.textContent='Sign in to Admin';
+        return;
+      }
+      Store.setToken(token); Store.setUser(user);
+      toast('Welcome, Admin','success');
+      location.hash = '#/admin';
+    } catch (e) { err.textContent = e.message; btn.disabled=false; btn.textContent='Sign in to Admin'; }
+  };
+
+  card.append(
+    h('div', { class:'admin-login-brand' }, h('div',{class:'logo'},'Z'), h('div',{style:{fontWeight:'800'}},'ZUNO ADMIN')),
+    h('h2', { style:{textAlign:'center', marginBottom:'4px'} }, 'Admin Sign In'),
+    h('p', { class:'muted', style:{textAlign:'center', fontSize:'13px', marginBottom:'16px'} }, 'Use your administrator credentials to access the dashboard'),
+    h('div', { style:{display:'flex', flexDirection:'column', gap:'12px'} }, 
+      h('div', {}, h('label', { style:{fontSize:'12px', fontWeight:'700', color:'#334155'} }, 'Email or Mobile'), idF),
+      h('div', {}, h('label', { style:{fontSize:'12px', fontWeight:'700', color:'#334155'} }, 'Password'), pwF),
+      err, btn),
+    h('div', { style:{marginTop:'16px', background:'#f8fafc', border:'1px dashed #cbd5e1', borderRadius:'10px', padding:'12px'} },
+      h('div', { style:{fontSize:'12px', fontWeight:'700'} }, 'Demo Admin'),
+      h('div', { style:{fontSize:'12px', color:'#64748b', marginTop:'4px', lineHeight:'1.5'} },
+        'Email: admin@zuno.app', h('br'),
+        'Mobile: 9999999999', h('br'),
+        'Password: Admin@1234'),
+      h('button', { class:'admin-btn admin-btn-ghost', style:{marginTop:'8px', fontSize:'12px'}, onclick:()=>{ idF.value='admin@zuno.app'; pwF.value='Admin@1234'; } }, 'Fill demo →')
+    ),
+    h('div', { style:{textAlign:'center', marginTop:'16px'} }, h('a', { href:'#/', style:{fontSize:'13px', color:'#64748b'} }, '← Back to storefront'))
+  );
+  root.append(card);
+  // auto fill on Enter
+  [idF,pwF].forEach(el=>el.addEventListener('keydown', (e)=>{ if(e.key==='Enter') btn.click(); }));
   return root;
 }
 
-function skeletonPanel() { return h('div', { class: 'row gap-4 wrap' }, ...Array.from({ length: 4 }, () => h('div', { class: 'stat skeleton', style: { width: '180px', height: '88px' } }))); }
+// ── Overview ──
+async function loadOverview() {
+  const guard = await guardOrRedirect();
+  if (!guard || guard.tagName) return guard; // guard returned emptyState element
+  // Actually guardOrRedirect returns user or element; need to handle
+  if (guard && guard.nodeType) return adminShell('overview', guard);
+  try {
+    const d = await api.get('/admin/dashboard');
+    const stats = h('div', { class:'admin-cards' },
+      statCard('₹','Revenue', money(d.revenue), d.todayRevenue? `Today ${money(d.todayRevenue)}` : 'All time'),
+      statCard('≡','Total Orders', String(d.totalOrders), `${d.todayOrders} today`),
+      statCard('●','Pending', String(d.pending), 'Payment pending'),
+      statCard('✓','Confirmed', String(d.confirmed), 'Confirmed by admin'),
+      statCard('→','Shipped', String(d.shipped), 'In transit'),
+      statCard('✔','Delivered', String(d.delivered), d.cancelled? `${d.cancelled} cancelled` : 'Completed'),
+      statCard('▭','Products', String(d.totalProducts), `${d.lowStock} low stock`),
+      statCard('▦','AOV', money(d.averageOrderValue), 'Avg order value'),
+    );
+    const recent = d.recentOrders || [];
+    const recentTable = recent.length ? h('div', { class:'admin-card' },
+      h('div', { class:'admin-card__head' }, h('div',{class:'admin-card__title'},'Recent Orders'), h('a',{href:'#/admin/orders', class:'admin-btn admin-btn-ghost'},'View all')),
+      h('div', { class:'admin-table-wrap' }, h('table', { class:'admin-table' },
+        h('thead', {}, h('tr', {}, h('th',{},'Order'), h('th',{},'Customer'), h('th',{},'Total'), h('th',{},'Status'), h('th',{},'Date'))),
+        ...recent.map(o=> h('tr', {},
+          h('td', {}, h('a',{href:'#/admin/orders', style:{fontWeight:'700', color:'#0f172a'}}, o.order_number)),
+          h('td', {}, o.customer_name||'Guest', h('div',{style:{fontSize:'11px', color:'#94a3b8'}}, o.customer_mobile||o.customer_email||'')),
+          h('td', {}, h('span',{style:{fontWeight:'700'}}, money(o.total))),
+          h('td', {}, statusBadge(o.status)),
+          h('td', {}, formatDate(o.created_at))
+        ))
+      ))
+    ) : h('div', { class:'admin-card', style:{padding:'20px'} }, emptyState({ title:'No orders yet', desc:'Orders will appear here once customers checkout.' }));
 
-async function overview() {
-  const a = await api.get('/admin/analytics');
-  const customCount = await api.get('/admin/custom-orders').then(r => r.orders.length).catch(() => 0);
-  const stats = h('div', { class: 'row gap-4 wrap' },
-    stat(a.revenue ? money(a.revenue) : '₹0', 'Revenue'),
-    stat(String(a.totalOrders), 'Orders'),
-    stat(String(customCount), 'Custom orders'),
-    stat(String(a.users), 'Customers'),
-    stat(String(a.ordersToday), 'Today'),
-    stat(money(a.averageOrderValue), 'AOV'));
-  const byMod = h('div', { class: 'card card-pad', style: { marginTop: '16px' } }, h('h3', {}, 'Revenue'),
-    h('div', { class: 'table-wrap' }, h('table', { class: 'table' }, h('thead', {}, h('tr', {}, h('th', {}, 'Module'), h('th', {}, 'Orders'), h('th', {}, 'Revenue'))),
-      ...a.byModule.map((m) => h('tr', {}, h('td', {}, m.module), h('td', {}, String(m.count)), h('td', {}, money(m.revenue)))))));
-  return h('div', {}, stats, byMod);
+    const low = d.lowStockProducts||[];
+    const lowTable = h('div', { class:'admin-card' },
+      h('div', { class:'admin-card__head' }, h('div',{class:'admin-card__title'}, `Low Stock (${d.lowStock})`), h('a',{href:'#/admin/inventory?filter=low', class:'admin-btn admin-btn-ghost'},'Manage')),
+      low.length ? h('div', { class:'admin-table-wrap' }, h('table', { class:'admin-table' },
+        h('thead',{}, h('tr',{}, h('th',{},'Product'), h('th',{},'Stock'), h('th',{},'Price'))),
+        ...low.map(p=> h('tr', {},
+          h('td', {}, h('span',{style:{fontWeight:'600'}}, p.name)),
+          h('td', {}, stockBadge(p.stock)),
+          h('td', {}, money(p.price))
+        ))
+      )) : h('div', { style:{padding:'20px', textAlign:'center', color:'#64748b'} }, 'No low-stock products 🎉')
+    );
+
+    const weekly = d.weekly||[];
+    const weeklyCard = h('div', { class:'admin-card' },
+      h('div', { class:'admin-card__head' }, h('div',{class:'admin-card__title'},'Last 7 Days')),
+      h('div', { style:{padding:'16px'} },
+        weekly.length ? h('div', { style:{display:'flex', gap:'8px', alignItems:'end', height:'80px'} },
+          ...weekly.map(w=>{
+            const max = Math.max(...weekly.map(x=>x.revenue),1);
+            const hgt = Math.max(8, Math.round((w.revenue/max)*70));
+            return h('div', { style:{flex:'1', display:'flex', flexDirection:'column', alignItems:'center', gap:'6px'} },
+              h('div', { style:{width:'100%', height:hgt+'px', background:'#1e40af', borderRadius:'6px 6px 0 0'} }),
+              h('div', { style:{fontSize:'10px', color:'#64748b'} }, w.day.slice(5)),
+              h('div', { style:{fontSize:'10px', fontWeight:'700'} }, w.orders)
+            );
+          })
+        ) : h('div', { style:{color:'#94a3b8', textAlign:'center'} }, 'No data')
+      )
+    );
+
+    const content = h('div', { style:{display:'flex', flexDirection:'column', gap:'16px'} }, stats, h('div', { style:{display:'grid', gridTemplateColumns:'1fr 360px', gap:'16px'} }, recentTable, h('div', { style:{display:'flex', flexDirection:'column', gap:'16px'} }, lowTable, weeklyCard)));
+    // responsive stacked on mobile handled via CSS grid collapse? force single column via JS if narrow
+    if (window.innerWidth<900) content.querySelector('div').style.gridTemplateColumns='1fr';
+    return adminShell('overview', content);
+  } catch (e) {
+    return adminShell('overview', h('div', { class:'admin-card', style:{padding:'20px'} }, h('h3',{},'Failed to load'), h('p',{class:'muted'}, e.message), h('button',{class:'admin-btn admin-btn-primary', onclick:()=>location.reload()},'Retry')));
+  }
+}
+function statCard(icon, label, value, sub){
+  const bg = { Revenue:'#dcfce7', 'Total Orders':'#dbeafe', Pending:'#fef3c7', Confirmed:'#e0e7ff', Shipped:'#e0f2fe', Delivered:'#dcfce7', Products:'#f3e8ff', AOV:'#f1f5f9'}[label]||'#f1f5f9';
+  return h('div', { class:'admin-stat' },
+    h('div', { style:{display:'flex', justifyContent:'space-between', alignItems:'center'} },
+      h('div', { class:'admin-stat__icon', style:{background:bg} }, icon),
+      h('span', { style:{fontSize:'10px', background:'#f1f5f9', padding:'4px 8px', borderRadius:'999px', fontWeight:'700', color:'#0f172a'} }, 'Live')
+    ),
+    h('div', { class:'admin-stat__value' }, value),
+    h('div', { class:'admin-stat__label' }, label),
+    sub? h('div', { class:'admin-stat__sub' }, sub): null
+  );
 }
 
-async function orders() {
-  const search = h('input', { class: 'input', placeholder: 'Search order #, customer, mobile…', style: { maxWidth: '320px' } });
-  const container = h('div', {});
-  const tableWrap = h('div', { style: { overflowX: 'auto', marginTop: '12px' } });
-  container.append(h('div', { class: 'row gap-3', style: { marginBottom: '12px' } }, search, h('button', { class: 'btn btn-ghost btn-sm', onclick: () => { search.value = ''; load(''); } }, 'Clear')));
-  container.append(tableWrap);
-  async function load(q = '') {
-    tableWrap.innerHTML = 'Loading…';
-    const { orders } = await api.get('/admin/orders' + (q ? '?q=' + encodeURIComponent(q) : ''));
-    if (!orders.length) { tableWrap.innerHTML = ''; tableWrap.append(emptyState({ title: 'No orders' })); return; }
-    const rows = orders.slice(0, 100).map((o) => h('tr', { style: { cursor: 'pointer' }, onclick: () => { showOrderDetail(o.id); } },
-      h('td', {}, 
-        h('a', { href: '#/admin/orders/' + o.id, style: { fontWeight: '700', color: 'var(--ink-900)' }, onclick: (e) => e.stopPropagation() }, o.order_number), 
-        h('div', { class: 'muted text-xs', style: { marginTop: '4px', lineHeight: '1.4' } }, 
-          h('div', { class: 'fw-600', style: { color: 'var(--ink-900)' } }, (o.customer_name || 'Guest')),
-          (o.customer_mobile ? h('div', {}, '📱 ' + o.customer_mobile) : null),
-          (o.customer_email ? h('div', {}, '✉️ ' + o.customer_email) : null),
-          (o.addr_line1 ? h('div', { style: { marginTop: '4px', color: 'var(--ink-700)', borderTop: '1px solid var(--ink-100)', paddingTop: '4px' } }, `📍 ${o.addr_line1}, ${o.addr_city || ''} ${o.addr_pincode || ''}`) : h('div', { class: 'muted text-xs' }, '📍 No address')))),
-      h('td', {}, 
-        h('div', { class: 'fw-700' }, money(o.total)),
-        h('div', { class: 'text-xs muted' }, new Date(o.created_at).toLocaleDateString('en-IN')),
-        o.payment_status ? h('div', { class: 'text-xs', style: { color: o.payment_status==='captured'?'var(--zuno-success)':'var(--ink-500)' } }, o.payment_method ? `${o.payment_method} · ${o.payment_status}` : o.payment_status) : null),
-      h('td', {}, statusBadge(o.status)),
-      h('td', {}, h('select', { class: 'input', style: { padding: '6px 8px', fontSize: 'var(--fs-sm)' }, onclick: (e) => e.stopPropagation(), onchange: async (e) => { 
-        try { 
-          await api.post('/admin/orders/' + o.id + '/status', { status: e.target.value }); 
-          toast('✅ Status updated', 'success');
-          setTimeout(() => load(q), 500);
-        } catch (err) { toast('❌ ' + err.message, 'error'); } 
-      } },
-        ...['PAYMENT_PENDING', 'PAID', 'CONFIRMED', 'PROCESSING', 'PRINTING', 'QUALITY_CHECK', 'PACKED', 'SHIPPED', 'OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED'].map((s) => h('option', { value: s, selected: s === o.status }, s.replace(/_/g, ' '))))),
-      h('td', {}, h('button', { class: 'btn btn-ghost btn-sm', onclick: (e)=> { e.stopPropagation(); showOrderDetail(o.id); } }, 'View →'))));
-    tableWrap.innerHTML = '';
-    tableWrap.append(h('table', { class: 'table' }, h('thead', {}, h('tr', {}, h('th', {}, 'Order / Customer + Address (Delivery)'), h('th', {}, 'Total / Payment'), h('th', {}, 'Status'), h('th', {}, 'Update'), h('th', {}, ''))), ...rows));
-  }
-  
-  async function showOrderDetail(orderId) {
-    const { order } = await api.get('/admin/orders/' + orderId);
-    const customer = order.customer || {};
-    const address = order.address || {};
-    const items = order.items || [];
-    const payment = order.payment || null;
-    
-    const content = h('div', { style: { maxHeight: '80vh', overflowY: 'auto' } },
-      h('h2', {}, '📦 Order: ' + order.order_number),
-      h('div', { class: 'row gap-2 wrap', style: { marginTop: '8px' } }, statusBadge(order.status), order.coupon_code ? h('span', { class: 'badge badge-info' }, 'Coupon: ' + order.coupon_code) : null, payment ? h('span', { class: 'badge ' + (payment.verified ? 'badge-success' : 'badge-warning') }, payment.verified ? '✓ Paid' : 'Payment ' + payment.status) : null),
-      // Customer + Address + Payment —  delivery-critical
-      h('div', { style: { background: '#f0f9ff', padding: '16px', borderRadius: '12px', marginTop: '16px', border: '1px solid #bae6fd' } },
-        h('div', { class: 'fw-700', style: { marginBottom: '12px', fontSize: '1rem', color: '#0369a1' } }, '👤 CUSTOMER & DELIVERY (auto-filled)'),
-        h('div', { class: 'row gap-4 wrap' },
-          h('div', { style: { minWidth: '180px' } },
-            h('div', { class: 'text-xs muted' }, 'NAME'),
-            h('div', { class: 'fw-600' }, customer.name || 'N/A'),
-            h('div', { class: 'text-xs muted', style: { marginTop: '8px' } }, 'PHONE'),
-            h('div', { class: 'fw-600' }, customer.mobile || 'N/A'),
-            h('div', { class: 'text-xs muted', style: { marginTop: '8px' } }, 'EMAIL'),
-            h('div', { class: 'text-sm' }, customer.email || 'N/A')),
-          h('div', { style: { flex: '1', minWidth: '220px' } },
-            h('div', { class: 'text-xs muted' }, 'SHIPPING ADDRESS (for delivery)'),
-            address.line1 ? h('div', { class: 'fw-600', style: { lineHeight: '1.5' } },
-              h('div', {}, address.line1),
-              address.line2 ? h('div', {}, address.line2) : null,
-              h('div', {}, `${address.city || ''}, ${address.state || ''} ${address.pincode || ''}`),
-              address.landmark ? h('div', { class: 'text-sm muted' }, 'Landmark: ' + address.landmark) : null
-            ) : h('div', { class: 'muted' }, 'No address — ask customer')),
-          h('div', { style: { minWidth: '160px' } },
-            h('div', { class: 'text-xs muted' }, 'PAYMENT'),
-            h('div', { class: 'fw-600' }, payment ? `${payment.method || 'Razorpay'} · ${payment.status}${payment.verified ? ' ✓' : ''}` : '—'),
-            payment ? h('div', { class: 'text-xs muted' }, money(payment.amount) + ' · ' + payment.currency) : null,
-            order.customer_notes ? h('div', { style: { marginTop: '10px', background: '#fffbeb', padding: '8px', borderRadius: '6px', border: '1px solid #fde68a' } }, h('div', { class: 'text-xs fw-600' }, 'Customer note'), h('div', { class: 'text-sm' }, order.customer_notes)) : null
-          ))),
-      h('div', { style: { marginTop: '16px' } },
-        h('div', { class: 'fw-700', style: { marginBottom: '12px' } }, '🛍️ ORDER ITEMS — T-Shirt / Size / Qty'),
-        ...items.map(it => {
-          const variant = it.variant || {};
-          const cust = it.customization;
-          const isCustom = !!it.customization_data || !!cust;
-          return h('div', { style: { background: 'var(--ink-50)', padding: '12px', borderRadius: '8px', marginBottom: '8px', borderLeft: isCustom ? '4px solid #f59e0b' : '4px solid var(--primary-denim)' } },
-            h('div', { class: 'fw-700' }, it.name + (isCustom ? ' ✦ Custom' : '')),
-            variant.color || variant.size || variant.fit ? h('div', { class: 'text-sm', style: { marginTop: '4px' } }, `👕 T-Shirt: Color ${variant.color || '—'} · Size ${variant.size || '—'}${variant.fit ? ' · Fit ' + variant.fit : ''}`) : h('div', { class: 'text-sm muted' }, 'No variant (one-size)'),
-            cust ? h('div', { class: 'text-xs', style: { marginTop: '6px', padding: '8px', background: '#fff7ed', borderRadius: '6px' } },
-              h('div', { class: 'fw-600' }, '🎨 Custom Design'),
-              cust.front?.elements?.length ? h('div', {}, `Front: ${cust.front.elements.length} elements`) : null,
-              cust.back?.elements?.length ? h('div', {}, `Back: ${cust.back.elements.length} elements`) : null,
-              ...((cust.front?.elements||[]).slice(0,2).map(e => e.type==='text' ? h('div', { style: { background: '#fff', padding: '4px 6px', borderRadius: '4px', marginTop: '4px' } }, `"${e.value}"`) : null))
-            ) : null,
-            h('div', { class: 'text-sm', style: { marginTop: '6px', display: 'flex', justifyContent: 'space-between' } }, h('span', {}, `Qty ${it.quantity} × ${money(it.price)}`), h('span', { class: 'fw-700' }, money(it.price * it.quantity))));
-        }),
-        h('div', { style: { marginTop: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '12px', borderTop: '2px solid var(--ink-100)' } }, h('span', { class: 'muted' }, `Subtotal ${money(order.subtotal)}${order.discount ? ' · Discount -' + money(order.discount) : ''} · Tax ${money(order.tax)}`), h('span', { class: 'fw-800', style: { fontSize: '1.25rem' } }, `TOTAL ${money(order.total)}`))),
-      h('div', { style: { marginTop: '16px', display: 'flex', gap: '8px', flexWrap: 'wrap' } },
-        h('button', { class: 'btn btn-primary btn-sm', onclick: () => { navigator.clipboard?.writeText(`${customer.name} | ${customer.mobile} | ${address.line1 || ''}, ${address.city || ''} ${address.pincode || ''} | ${order.order_number} | ${items.map(i=>`${i.name} ${i.variant?`(${i.variant.color}/${i.variant.size})`:''} x${i.quantity}`).join(', ')}`); toast('Delivery details copied', 'success'); } }, '📋 Copy delivery details'),
-        h('button', { class: 'btn btn-ghost btn-sm', onclick: () => window.print() }, '🖨️ Print')),
-      h('div', { style: { marginTop: '16px' } },
-        h('div', { class: 'fw-600', style: { marginBottom: '8px' } }, 'Status'),
-        h('div', { class: 'row gap-2 wrap' }, h('select', { class: 'input', style: { maxWidth: '200px' }, onchange: async (e) => { try { await api.post('/admin/orders/' + order.id + '/status', { status: e.target.value }); toast('Status → ' + e.target.value, 'success'); order.status = e.target.value; } catch(err){ toast(err.message,'error'); } } }, ...['PAYMENT_PENDING','PAID','CONFIRMED','PRINTING','QUALITY_CHECK','PACKED','SHIPPED','OUT_FOR_DELIVERY','DELIVERED','CANCELLED'].map(s=> h('option', { value:s, selected: s===order.status }, s.replace(/_/g,' '))))),
-        order.history?.length ? h('div', { class: 'text-sm muted', style: { marginTop: '8px' } },
-          h('div', { class: 'fw-600' }, 'History'),
-          ...order.history.slice(-8).map(h => h('div', {}, `${h.to_status} · ${new Date(h.created_at).toLocaleString()}${h.note ? ' · ' + h.note : ''}`))
-        ) : null));
-    
-    modal(content);
-  }
-  
-  search.addEventListener('keydown', (e) => { if (e.key === 'Enter') load(search.value.trim()); });
-  await load('');
-  return card('All Orders', container);
-}
+// ── Orders ──
+async function loadOrders(queryParams) {
+  const guard = await guardOrRedirect();
+  if (guard && guard.nodeType) return adminShell('orders', guard);
+  if (!guard) return h('div',{},'Redirecting…'); // should have redirected
 
-async function productionQueue() {
-  const { orders } = await api.get('/admin/orders');
-  const statuses = ['PAID', 'CONFIRMED', 'PRINTING', 'QUALITY_CHECK', 'PACKED', 'SHIPPED'];
-  let filter = 'PAID';
-  const wrap = h('div', {});
-  const tabs = h('div', { class: 'row gap-2 wrap', style: { marginBottom: '16px' } },
-    ...statuses.map(s => h('button', {
-      class: 'btn btn-sm ' + (s === filter ? 'btn-primary' : 'btn-ghost'),
-      onclick: () => { filter = s; render(); }
-    }, s.replace(/_/g, ' '))));
-  const list = h('div', { class: 'col gap-3' });
-  wrap.append(h('h3', {}, 'Production Queue'), h('p', { class: 'muted text-sm' }, 'Quickly move orders through production. Custom orders are highlighted.'), tabs, list);
-  async function render() {
-    tabs.querySelectorAll('button').forEach(b => {
-      const isActive = b.textContent.trim() === filter.replace(/_/g, ' ');
-      b.className = 'btn btn-sm ' + (isActive ? 'btn-primary' : 'btn-ghost');
-    });
-    list.innerHTML = '';
-    const filtered = orders.filter(o => o.status === filter);
-    if (!filtered.length) { list.append(emptyState({ title: 'No orders in ' + filter.replace(/_/g, ' ') })); return; }
-    for (const o of filtered.slice(0, 20)) {
-      const row = h('div', { class: 'card card-pad', style: { display: 'flex', gap: '16px', alignItems: 'center' } },
-        h('div', {}, h('div', { class: 'fw-600' }, o.order_number), h('div', { class: 'muted text-sm' }, new Date(o.created_at).toLocaleDateString('en-IN') + ' · ' + money(o.total))),
-        h('div', { class: 'grow muted text-sm' }, o.customer_name || o.customer_email || ''),
-        h('div', {}, statusBadge(o.status)),
-        h('button', { class: 'btn btn-primary btn-sm', onclick: async () => {
-          const nextMap = { PAID: 'CONFIRMED', CONFIRMED: 'PRINTING', PRINTING: 'QUALITY_CHECK', QUALITY_CHECK: 'PACKED', PACKED: 'SHIPPED', SHIPPED: 'OUT_FOR_DELIVERY' };
-          const next = nextMap[o.status];
-          if (!next) return;
-          try { await api.post('/admin/orders/' + o.id + '/status', { status: next }); toast('Moved to ' + next, 'success'); o.status = next; render(); } catch (e) { toast(e.message, 'error'); }
-        } }, '→ ' + ({ PAID: 'Confirm', CONFIRMED: 'Start Printing', PRINTING: 'Quality Check', QUALITY_CHECK: 'Pack', PACKED: 'Ship', SHIPPED: 'Deliver' }[filter] || 'Next')));
-      list.append(row);
+  const q = queryParams.q || '';
+  const status = queryParams.status || '';
+  const sort = queryParams.sort || 'newest';
+  const page = Number(queryParams.page)||1;
+  const limit = 20;
+
+  const container = h('div', { style:{display:'flex', flexDirection:'column', gap:'16px'} });
+  const controls = h('div', { class:'admin-search-row' },
+    h('div', { style:{position:'relative', flex:'1', maxWidth:'320px'} },
+      h('span', { style:{position:'absolute', left:'10px', top:'50%', transform:'translateY(-50%)', color:'#94a3b8'} }, '⌕'),
+      h('input', { class:'admin-input', placeholder:'Search order #, customer, mobile…', value:q, style:{width:'100%', paddingLeft:'32px'}, onkeydown:(e)=>{ if(e.key==='Enter'){ const v=e.target.value.trim(); const u=new URLSearchParams(location.hash.split('?')[1]||''); if(v) u.set('q',v); else u.delete('q'); u.delete('page'); location.hash='#/admin/orders'+(u.toString()?'?'+u.toString():''); } } })
+    ),
+    h('select', { class:'admin-select', value:status, onchange:(e)=>{ const u=new URLSearchParams(location.hash.split('?')[1]||''); if(e.target.value) u.set('status',e.target.value); else u.delete('status'); u.delete('page'); location.hash='#/admin/orders'+(u.toString()?'?'+u.toString():''); } },
+      h('option',{value:''},'All statuses'),
+      ...['PAYMENT_PENDING','PAID','CONFIRMED','PRINTING','QUALITY_CHECK','PACKED','SHIPPED','OUT_FOR_DELIVERY','DELIVERED','CANCELLED'].map(s=> h('option',{value:s, selected:s===status}, s.replace(/_/g,' ')))
+    ),
+    h('select', { class:'admin-select', onchange:(e)=>{ const u=new URLSearchParams(location.hash.split('?')[1]||''); u.set('sort',e.target.value); location.hash='#/admin/orders'+'?'+u.toString(); } },
+      h('option',{value:'newest', selected:sort==='newest'},'Newest'),
+      h('option',{value:'oldest', selected:sort==='oldest'},'Oldest'),
+      h('option',{value:'total_high', selected:sort==='total_high'},'Total high'),
+      h('option',{value:'total_low', selected:sort==='total_low'},'Total low')
+    ),
+    h('button', { class:'admin-btn admin-btn-ghost', onclick:()=>{ location.hash='#/admin/orders'; } }, 'Clear')
+  );
+
+  const listWrap = h('div', { class:'admin-card' });
+  listWrap.append(h('div', { style:{padding:'20px', textAlign:'center', color:'#64748b'} }, 'Loading orders…'));
+
+  async function fetchAndRender(){
+    try{
+      const params = { page, limit, sort };
+      if(q) params.q=q;
+      if(status) params.status=status;
+      const { orders, total } = await api.get('/admin/orders', params);
+      listWrap.innerHTML='';
+      if(!orders.length){
+        listWrap.append(h('div', { class:'admin-empty' }, h('div', {style:{fontSize:'36px'}},'📭'), h('h3',{},'No orders'), h('p',{},'Try adjusting search or filters')));
+        return;
+      }
+      const table = h('table', { class:'admin-table' },
+        h('thead',{}, h('tr',{}, h('th',{},'Order / Customer'), h('th',{},'Total'), h('th',{},'Status'), h('th',{},'Date'), h('th',{},'Action'))),
+        ...orders.map(o=> h('tr', {},
+          h('td',{},
+            h('div', { style:{fontWeight:'700', color:'#0f172a'} }, o.order_number),
+            h('div', { style:{fontSize:'12px', color:'#0f172a', fontWeight:'600'} }, o.customer_name||'Guest'),
+            h('div', { style:{fontSize:'11px', color:'#64748b'} }, o.customer_mobile? '📱 '+o.customer_mobile : (o.customer_email||'')),
+            o.addr_line1? h('div', { style:{fontSize:'11px', color:'#334155', marginTop:'4px'} }, '📍 '+o.addr_line1+ (o.addr_city? ', '+o.addr_city:'') ) : null
+          ),
+          h('td', {},
+            h('div', { style:{fontWeight:'700'} }, money(o.total)),
+            o.payment_status? h('div', { style:{fontSize:'11px', color:o.payment_status==='captured'?'#16a34a':'#64748b'} }, (o.payment_method||'')+' '+o.payment_status) : null
+          ),
+          h('td', {}, statusBadge(o.status)),
+          h('td', {}, h('div', { style:{fontSize:'12px'} }, formatDate(o.created_at))),
+          h('td', {},
+            h('div', { style:{display:'flex', gap:'6px'} },
+              h('button', { class:'admin-btn admin-btn-ghost', style:{padding:'6px 10px'}, onclick:()=> openOrderDetail(o.id) }, 'View'),
+              h('select', { class:'admin-select', style:{padding:'6px 8px'}, value:o.status, onchange: async (e)=>{
+                const ns=e.target.value;
+                if(ns===o.status) return;
+                try{ await api.post('/admin/orders/'+o.id+'/status', {status:ns}); toast('Status → '+ns,'success'); fetchAndRender(); }catch(err){ toast(err.message,'error'); e.target.value=o.status; }
+              } },
+                ...['PAYMENT_PENDING','PAID','CONFIRMED','PRINTING','QUALITY_CHECK','PACKED','SHIPPED','OUT_FOR_DELIVERY','DELIVERED','CANCELLED'].map(s=> h('option',{value:s, selected:s===o.status}, s.replace(/_/g,' ')))
+              )
+            )
+          )
+        ))
+      );
+      const totalPages = Math.max(1, Math.ceil(total/limit));
+      const pagination = h('div', { class:'admin-pagination' },
+        h('button', { class:'admin-btn admin-btn-ghost', disabled:page<=1, onclick:()=>{ const u=new URLSearchParams(location.hash.split('?')[1]||''); u.set('page',String(page-1)); location.hash='#/admin/orders?'+u.toString(); } }, '‹ Prev'),
+        h('span', { style:{fontSize:'13px', color:'#334155'} }, `Page ${page} of ${totalPages} • ${total} orders`),
+        h('button', { class:'admin-btn admin-btn-ghost', disabled:page>=totalPages, onclick:()=>{ const u=new URLSearchParams(location.hash.split('?')[1]||''); u.set('page',String(page+1)); location.hash='#/admin/orders?'+u.toString(); } }, 'Next ›')
+      );
+      listWrap.append(h('div', { class:'admin-table-wrap' }, table), pagination);
+    }catch(e){
+      listWrap.innerHTML='';
+      listWrap.append(h('div', { style:{padding:'20px', color:'#dc2626'} }, 'Failed: '+e.message));
     }
   }
-  render();
-  return wrap;
+  fetchAndRender();
+  container.append(controls, listWrap);
+  return adminShell('orders', container);
 }
 
-async function customOrders() {
-  const { orders } = await api.get('/admin/custom-orders');
-  if (!orders.length) return emptyState({ icon: '✦', title: 'No custom orders', desc: 'Custom T-shirt orders will appear here.' });
-  const wrap = h('div', { class: 'col gap-4' });
-  
-  // Fetch detailed order info for each custom order
-  for (const o of orders) {
-    const { order: fullOrder } = await api.get('/admin/orders/' + o.id).catch(() => ({ order: o }));
-    const items = fullOrder.items || o.items || [];
-    const customer = fullOrder.customer || {};
-    const address = fullOrder.address || {};
-    
-    wrap.append(h('div', { class: 'card', style: { border: '2px solid var(--accent)', background: 'linear-gradient(to bottom, #fffbf0, white)', padding: '20px' } },
-      // Order Header with Status
-      h('div', { class: 'row between', style: { marginBottom: '16px', paddingBottom: '12px', borderBottom: '2px solid var(--ink-100)' } },
-        h('div', {},
-          h('div', { class: 'fw-700', style: { fontSize: '1.1rem' } }, '✦ ' + o.order_number),
-          h('div', { class: 'muted text-sm' }, new Date(o.created_at).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }))),
-        h('div', { style: { textAlign: 'right' } },
-          statusBadge(o.status),
-          h('div', { class: 'fw-700', style: { fontSize: '1.2rem', marginTop: '6px', color: 'var(--accent)' } }, money(o.total)))),
-      
-      // CUSTOMER DETAILS SECTION - Most Important for Founder!
-      h('div', { style: { background: '#f0f9ff', padding: '16px', borderRadius: '12px', marginBottom: '16px', border: '1px solid #bae6fd' } },
-        h('div', { class: 'fw-700', style: { marginBottom: '12px', fontSize: '1rem', color: '#0369a1' } }, '👤 CUSTOMER DETAILS (For Delivery Preparation)'),
-        h('div', { class: 'row gap-4 wrap' },
-          // Customer Name & Contact
-          h('div', { style: { flex: '1', minWidth: '250px' } },
-            h('div', { class: 'text-xs muted', style: { marginBottom: '4px' } }, 'NAME'),
-            h('div', { class: 'fw-600' }, customer.name || 'N/A'),
-            h('div', { class: 'text-xs muted', style: { marginTop: '8px', marginBottom: '4px' } }, 'CONTACT'),
-            h('div', { class: 'fw-600' }, customer.mobile || customer.email || 'N/A')),
-          // Shipping Address
-          h('div', { style: { flex: '2', minWidth: '300px' } },
-            h('div', { class: 'text-xs muted', style: { marginBottom: '4px' } }, 'SHIPPING ADDRESS'),
-            address.line1 ? h('div', { class: 'fw-600' }, 
-              h('div', {}, address.line1),
-              address.line2 ? h('div', {}, address.line2) : null,
-              h('div', {}, `${address.city || ''}, ${address.state || ''} ${address.pincode || ''}`),
-              address.landmark ? h('div', { class: 'text-sm muted' }, 'Landmark: ' + address.landmark) : null
-            ) : h('div', { class: 'muted' }, 'No address provided')))),
-      
-      // T-SHIRT CUSTOMIZATION DETAILS
-      ...items.map((it) => {
-        const variant = it.variant || {};
-        const cust = it.customization;
-        return h('div', { style: { background: 'white', border: '1px solid var(--ink-200)', borderRadius: '12px', padding: '16px', marginBottom: '12px' } },
-          h('div', { class: 'fw-700', style: { marginBottom: '12px', fontSize: '1rem' } }, '👕 T-SHIRT CUSTOMIZATION'),
-          h('div', { class: 'row gap-4', style: { alignItems: 'flex-start' } },
-            // T-shirt Visual Preview
-            h('div', { style: { width: '120px', flexShrink: '0' } },
-              h('div', { style: { 
-                width: '120px', 
-                height: '120px', 
-                background: variant.color || '#f5f5f3', 
-                borderRadius: '12px', 
-                display: 'flex', 
-                alignItems: 'center', 
-                justifyContent: 'center', 
-                fontSize: '48px',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                border: '2px solid var(--ink-200)'
-              } }, '👕'),
-              h('div', { class: 'text-xs text-center fw-600', style: { marginTop: '8px' } }, variant.color || 'Default')),
-            
-            // Customization Details
-            h('div', { class: 'grow' },
-              h('div', { class: 'fw-700', style: { marginBottom: '8px' } }, it.name + (it.isCustom ? ' (Custom Design)' : '')),
-              
-              // Variant Details (Color, Size, Fit)
-              h('div', { style: { background: 'var(--ink-50)', padding: '12px', borderRadius: '8px', marginBottom: '12px' } },
-                h('div', { class: 'text-xs fw-700 muted', style: { marginBottom: '6px' } }, 'SPECIFICATIONS'),
-                h('div', { class: 'row gap-3 wrap' },
-                  variant.color ? h('div', {}, h('span', { class: 'text-xs muted' }, 'Color: '), h('span', { class: 'fw-600' }, variant.color)) : null,
-                  variant.size ? h('div', {}, h('span', { class: 'text-xs muted' }, 'Size: '), h('span', { class: 'fw-600' }, variant.size)) : null,
-                  variant.fit ? h('div', {}, h('span', { class: 'text-xs muted' }, 'Fit: '), h('span', { class: 'fw-600' }, variant.fit)) : null,
-                  h('div', {}, h('span', { class: 'text-xs muted' }, 'Quantity: '), h('span', { class: 'fw-600' }, it.quantity)))),
-              
-              // Custom Design Details
-              cust ? h('div', { style: { background: '#fff7ed', padding: '12px', borderRadius: '8px', border: '1px solid #fed7aa' } },
-                h('div', { class: 'text-xs fw-700', style: { marginBottom: '8px', color: '#c2410c' } }, '🎨 CUSTOM DESIGN DETAILS'),
-                h('div', { class: 'col gap-2' },
-                  cust.front?.elements?.length ? h('div', {},
-                    h('div', { class: 'fw-600 text-sm' }, `FRONT: ${cust.front.elements.length} element(s)`),
-                    h('div', { class: 'col gap-1', style: { marginTop: '6px', paddingLeft: '12px' } },
-                      ...cust.front.elements.map(e => {
-                        if (e.type === 'text') {
-                          return h('div', { style: { fontStyle: e.italic ? 'italic' : 'normal', fontWeight: e.bold ? '700' : '400', color: e.color || '#0a0a0a', background: 'white', padding: '6px 8px', borderRadius: '4px' } }, `📝 Text: "${e.value}"`);
-                        } else if (e.type === 'image') {
-                          return h('div', { style: { background: 'white', padding: '6px 8px', borderRadius: '4px' } }, `🖼️ Image uploaded (${e.width || 100}x${e.height || 100}px)`);
-                        }
-                        return null;
-                      }))) : h('div', { class: 'text-sm muted' }, 'FRONT: No custom design'),
-                  cust.back?.elements?.length ? h('div', { style: { marginTop: '8px' } },
-                    h('div', { class: 'fw-600 text-sm' }, `BACK: ${cust.back.elements.length} element(s)`),
-                    h('div', { class: 'col gap-1', style: { marginTop: '6px', paddingLeft: '12px' } },
-                      ...cust.back.elements.map(e => {
-                        if (e.type === 'text') {
-                          return h('div', { style: { fontStyle: e.italic ? 'italic' : 'normal', fontWeight: e.bold ? '700' : '400', color: e.color || '#0a0a0a', background: 'white', padding: '6px 8px', borderRadius: '4px' } }, `📝 Text: "${e.value}"`);
-                        } else if (e.type === 'image') {
-                          return h('div', { style: { background: 'white', padding: '6px 8px', borderRadius: '4px' } }, `🖼️ Image uploaded`);
-                        }
-                        return null;
-                      }))) : h('div', { class: 'text-sm muted', style: { marginTop: '8px' } }, 'BACK: No custom design')
-                )) : h('div', { class: 'text-sm muted' }, 'No customization'),
-              
-              h('div', { class: 'fw-600', style: { marginTop: '12px', fontSize: '1.1rem' } }, `Price: ${money(it.price)} × ${it.quantity} = ${money(it.price * it.quantity)}`))
-          ));
-      }),
-      
-      // Order Status Update
-      h('div', { style: { marginTop: '16px', paddingTop: '16px', borderTop: '2px solid var(--ink-100)' } },
-        h('div', { class: 'row gap-3', style: { alignItems: 'center' } },
-          h('label', { class: 'fw-600' }, 'Update Order Status:'),
-          h('select', { class: 'input', style: { maxWidth: '220px' }, onchange: async (e) => { 
-            try { 
-              await api.post('/admin/orders/' + o.id + '/status', { status: e.target.value }); 
-              toast('✅ Order status updated to ' + e.target.value, 'success'); 
-              setTimeout(() => location.reload(), 1000);
-            } catch (err) { toast('❌ ' + err.message, 'error'); } 
-          } },
-            ...['PAID', 'CONFIRMED', 'PRINTING', 'QUALITY_CHECK', 'PACKED', 'SHIPPED', 'OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED'].map(s => 
-              h('option', { value: s, selected: s === o.status }, s.replace(/_/g, ' ')))),
-          h('a', { href: `#/admin/orders/${o.id}`, class: 'btn btn-ghost btn-sm' }, 'View Full Details')))));
+async function openOrderDetail(orderId){
+  try{
+    const { order } = await api.get('/admin/orders/'+orderId);
+    const items = order.items||[];
+    const customer = order.customer||{};
+    const address = order.address||{};
+    const payment = order.payment||null;
+    const history = order.history||[];
+    const content = h('div', { style:{maxHeight:'80vh', overflowY:'auto', paddingRight:'4px'} },
+      h('h2', { style:{margin:'0 0 8px'} }, order.order_number),
+      h('div', { style:{display:'flex', gap:'8px', flexWrap:'wrap'} }, statusBadge(order.status), order.coupon_code? h('span',{class:'admin-badge admin-badge-pending'}, 'Coupon '+order.coupon_code):null, payment? h('span',{class: payment.verified?'admin-badge admin-badge-delivered':'admin-badge admin-badge-pending'}, payment.verified?'✓ Paid':'Payment '+payment.status):null),
+      h('div', { style:{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'16px', marginTop:'16px'} },
+        h('div', { style:{background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:'12px', padding:'14px'} },
+          h('div', { style:{fontSize:'11px', fontWeight:'700', letterSpacing:'.06em', color:'#64748b'} }, 'CUSTOMER'),
+          h('div', { style:{fontWeight:'700', marginTop:'6px'} }, customer.name||'—'),
+          h('div', { style:{fontSize:'13px', color:'#334155'} }, customer.mobile||''),
+          h('div', { style:{fontSize:'12px', color:'#64748b'} }, customer.email||'')
+        ),
+        h('div', { style:{background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:'12px', padding:'14px'} },
+          h('div', { style:{fontSize:'11px', fontWeight:'700', letterSpacing:'.06em', color:'#64748b'} }, 'SHIPPING ADDRESS'),
+          address.line1? h('div', {}, h('div',{style:{fontWeight:'600'}}, address.line1), address.line2? h('div',{},address.line2):null, h('div',{}, `${address.city||''} ${address.state||''} ${address.pincode||''}`)) : h('div',{style:{color:'#94a3b8'}},'No address'),
+          payment? h('div', { style:{marginTop:'8px', fontSize:'12px'} }, h('span',{style:{fontWeight:'700'}},'Payment: '), `${payment.method||''} ${payment.status} ${money(payment.amount||order.total)}`) : null
+        )
+      ),
+      h('div', { style:{marginTop:'16px'} },
+        h('div', { style:{fontWeight:'700', marginBottom:'8px'} }, 'Items'),
+        ...items.map(it=>{
+          const variant = it.variant||{};
+          const isCustom = !!it.customization_data;
+          const cust = it.customization||null;
+          return h('div', { style:{background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', padding:'14px', marginBottom:'10px', borderLeft: isCustom?'4px solid #f59e0b':'4px solid #1e40af'} },
+            h('div', { style:{fontWeight:'700'} }, it.name + (isCustom?' ✦ Custom':'')),
+            variant.color||variant.size? h('div', { style:{fontSize:'12px', color:'#334155', marginTop:'4px'} }, `Color ${variant.color||'—'} • Size ${variant.size||'—'}${variant.fit?' • Fit '+variant.fit:''}`) : null,
+            cust? h('div', { style:{background:'#fff7ed', border:'1px solid #fed7aa', borderRadius:'8px', padding:'10px', marginTop:'8px', fontSize:'12px'} },
+              h('div',{style:{fontWeight:'700', color:'#9a3412'}},'🎨 Custom Design'),
+              h('div',{style:{marginTop:'6px'}}, `Front: ${cust.front?.elements?.length||0} elements • Back: ${cust.back?.elements?.length||0} elements`),
+              ...((cust.front?.elements||[]).slice(0,2).map(e=> e.type==='text'? h('div',{style:{background:'#fff', padding:'6px', borderRadius:'6px', marginTop:'4px'}}, `"${e.value}"`):null))
+            ):null,
+            h('div', { style:{display:'flex', justifyContent:'space-between', marginTop:'8px', fontSize:'13px'} }, h('span',{}, `Qty ${it.quantity} × ${money(it.price)}`), h('span',{style:{fontWeight:'800'}}, money(it.price*it.quantity)))
+          );
+        }),
+        h('div', { style:{display:'flex', justifyContent:'space-between', paddingTop:'12px', borderTop:'2px solid #f1f5f9', fontWeight:'700'} }, h('span',{style:{color:'#64748b'}}, `Subtotal ${money(order.subtotal)} • Tax ${money(order.tax)}`), h('span',{style:{fontSize:'18px'}}, money(order.total)))
+      ),
+      h('div', { style:{marginTop:'16px', display:'flex', gap:'8px', flexWrap:'wrap'} },
+        h('button', { class:'admin-btn admin-btn-primary', onclick:()=>{ const txt=`${customer.name} | ${customer.mobile} | ${address.line1||''}, ${address.city||''} ${address.pincode||''} | ${order.order_number}`; navigator.clipboard?.writeText(txt); toast('Copied delivery details','success'); } }, '📋 Copy delivery'),
+        h('button', { class:'admin-btn admin-btn-ghost', onclick:()=>window.print() }, '🖨️ Print')
+      ),
+      h('div', { style:{marginTop:'16px'} },
+        h('div', { style:{fontWeight:'600', marginBottom:'8px'} }, 'Update Status'),
+        h('div', { style:{display:'flex', gap:'8px', alignItems:'center'} },
+          h('select', { class:'admin-select', id:'statusSel' },
+            ...['PAYMENT_PENDING','PAID','CONFIRMED','PRINTING','QUALITY_CHECK','PACKED','SHIPPED','OUT_FOR_DELIVERY','DELIVERED','CANCELLED'].map(s=> h('option',{value:s, selected:s===order.status}, s.replace(/_/g,' ')))
+          ),
+          h('button', { class:'admin-btn admin-btn-primary', onclick: async ()=> {
+            const sel=document.getElementById('statusSel');
+            try{ await api.post('/admin/orders/'+order.id+'/status', {status:sel.value}); toast('Status updated to '+sel.value,'success'); order.status=sel.value; }catch(e){ toast(e.message,'error'); }
+          } }, 'Update'),
+          h('button', { class:'admin-btn admin-btn-ghost', onclick: async ()=>{
+            const note=prompt('Add admin note:');
+            if(!note) return;
+            try{ await api.post('/admin/orders/'+order.id+'/notes', {note}); toast('Note added','success'); }catch(e){ toast(e.message,'error'); }
+          } }, 'Add note')
+        ),
+        history.length? h('div', { style:{marginTop:'12px', background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:'10px', padding:'12px'} },
+          h('div', { style:{fontWeight:'700', fontSize:'13px', marginBottom:'6px'} }, 'History'),
+          ...history.slice(-10).map(h=> h('div', { style:{fontSize:'12px', padding:'6px 0', borderBottom:'1px solid #f1f5f9'} }, `${h.to_status} • ${formatDateTime(h.created_at)}${h.note?' • '+h.note:''}${h.changed_by_name?' — by '+h.changed_by_name:''}`))
+        ):null
+      )
+    );
+    modal(content);
+  }catch(e){ toast(e.message,'error'); }
+}
+
+// ── Products ──
+async function loadProducts(qp){
+  const guard = await guardOrRedirect();
+  if (guard && guard.nodeType) return adminShell('products', guard);
+  if (!guard) return h('div',{},'Redirecting…');
+
+  const q = qp.q||'';
+  const sort = qp.sort||'newest';
+  const page = Number(qp.page)||1;
+  const limit = 20;
+  const container = h('div', { style:{display:'flex', flexDirection:'column', gap:'16px'} });
+  const controls = h('div', { class:'admin-search-row' },
+    h('input', { class:'admin-input', placeholder:'Search products…', value:q, style:{flex:'1', maxWidth:'320px'}, onkeydown:(e)=>{ if(e.key==='Enter'){ const u=new URLSearchParams(location.hash.split('?')[1]||''); const v=e.target.value.trim(); if(v) u.set('q',v); else u.delete('q'); u.delete('page'); location.hash='#/admin/products'+(u.toString()?'?'+u.toString():''); } } }),
+    h('select', { class:'admin-select', onchange:(e)=>{ const u=new URLSearchParams(location.hash.split('?')[1]||''); u.set('sort',e.target.value); location.hash='#/admin/products?'+u.toString(); } },
+      h('option',{value:'newest', selected:sort==='newest'},'Newest'),
+      h('option',{value:'price_low', selected:sort==='price_low'},'Price low'),
+      h('option',{value:'price_high', selected:sort==='price_high'},'Price high'),
+      h('option',{value:'stock_low', selected:sort==='stock_low'},'Stock low'),
+      h('option',{value:'name', selected:sort==='name'},'Name')
+    ),
+    h('button', { class:'admin-btn admin-btn-primary', onclick:()=> showProductModal() }, '+ Add Product')
+  );
+  const listWrap = h('div', { class:'admin-card' }, h('div',{style:{padding:'20px', textAlign:'center', color:'#64748b'}},'Loading…'));
+  async function render(){
+    try{
+      const params={ page, limit, sort };
+      if(q) params.q=q;
+      const { products, total } = await api.get('/admin/products', params);
+      listWrap.innerHTML='';
+      if(!products.length){ listWrap.append(h('div',{class:'admin-empty'}, h('h3',{},'No products'), h('p',{},'Add your first product'))); return; }
+      const table = h('table', { class:'admin-table' },
+        h('thead',{}, h('tr',{}, h('th',{},'Product'), h('th',{},'Category'), h('th',{},'Price'), h('th',{},'Stock'), h('th',{},'Status'), h('th',{},''))),
+        ...products.map(p=> h('tr',{},
+          h('td',{},
+            h('div', { style:{display:'flex', gap:'10px', alignItems:'center'} },
+              h('img', { src:(p.images&&p.images[0])||'', alt:p.name, style:{width:'40px', height:'40px', borderRadius:'8px', objectFit:'cover', background:'#f1f5f9'}, onerror:(e)=>{ e.target.style.display='none'; } }),
+              h('div',{},
+                h('div',{style:{fontWeight:'700', fontSize:'13px'}}, p.name),
+                h('div',{style:{fontSize:'11px', color:'#64748b'}}, (p.collection||'') + (p.colors?.length?' • '+p.colors.join(', '):''))
+              )
+            )
+          ),
+          h('td',{}, p.category_name||'—'),
+          h('td',{}, h('div',{style:{fontWeight:'700'}}, money(p.price)), p.mrp>p.price? h('div',{style:{fontSize:'11px', color:'#64748b', textDecoration:'line-through'}}, money(p.mrp)):''),
+          h('td',{}, stockBadge(p.stock)),
+          h('td',{}, p.active? h('span',{class:'admin-badge admin-badge-delivered'},'Active') : h('span',{class:'admin-badge admin-badge-cancelled'},'Archived')),
+          h('td',{},
+            h('div', { style:{display:'flex', gap:'6px'} },
+              h('button', { class:'admin-btn admin-btn-ghost', style:{padding:'6px 8px', fontSize:'12px'}, onclick:()=> showProductModal(p) }, 'Edit'),
+              p.active? h('button', { class:'admin-btn admin-btn-ghost', style:{padding:'6px 8px', fontSize:'12px', color:'#dc2626'}, onclick: async ()=>{
+                const ok= await confirmDialog({ title:'Archive product', message:`Deactivate ${p.name}?`, confirmText:'Archive', danger:true });
+                if(!ok) return;
+                await api.del('/admin/products/'+p.id); toast('Archived','success'); render();
+              } }, 'Archive') : h('button', { class:'admin-btn admin-btn-ghost', style:{padding:'6px 8px', fontSize:'12px', color:'#16a34a'}, onclick: async ()=>{ await api.post('/admin/products/'+p.id+'/restore'); toast('Restored','success'); render(); } }, 'Restore')
+            )
+          )
+        ))
+      );
+      const totalPages=Math.max(1, Math.ceil(total/limit));
+      const pagination=h('div',{class:'admin-pagination'},
+        h('button',{class:'admin-btn admin-btn-ghost', disabled:page<=1, onclick:()=>{ const u=new URLSearchParams(location.hash.split('?')[1]||''); u.set('page',String(page-1)); location.hash='#/admin/products?'+u.toString(); }},'‹ Prev'),
+        h('span',{style:{fontSize:'13px'}}, `Page ${page} of ${totalPages} • ${total} products`),
+        h('button',{class:'admin-btn admin-btn-ghost', disabled:page>=totalPages, onclick:()=>{ const u=new URLSearchParams(location.hash.split('?')[1]||''); u.set('page',String(page+1)); location.hash='#/admin/products?'+u.toString(); }},'Next ›')
+      );
+      listWrap.append(h('div',{class:'admin-table-wrap'}, table), pagination);
+    }catch(e){ listWrap.innerHTML=''; listWrap.append(h('div',{style:{padding:'20px', color:'#dc2626'}}, e.message)); }
   }
-  
-  return card('Custom Orders - Complete Details for Production', wrap);
-}
+  render();
+  container.append(controls, listWrap);
+  return adminShell('products', container);
 
-async function products() {
-  const { items } = await api.get('/products', { limit: 100 });
-  const head = h('div', { class: 'row between', style: { marginBottom: '16px', alignItems: 'center' } },
-    h('h3', { style: { margin: 0 } }, 'Products'),
-    h('button', { class: 'btn btn-primary btn-sm', onclick: () => showAddProduct() }, '+ Add product'));
-  const rows = items.map((p) => h('tr', {},
-    h('td', {}, h('div', { class: 'fw-600' }, p.name), h('div', { class: 'muted text-xs' }, (p.collection || '') + (p.customizable ? ' · Customizable' : ''))),
-    h('td', {}, (p.colors || []).join(', ') || '—'),
-    h('td', {}, (p.sizes || []).join(', ') || '—'),
-    h('td', {}, money(p.price)),
-    h('td', {}, String(p.stock)),
-    h('td', {}, h('button', { class: 'btn btn-ghost btn-sm', style: { color: 'var(--ZUNO-danger)' }, onclick: async () => { if (confirm('Deactivate ' + p.name + '?')) { await api.del('/admin/products/' + p.id); toast('Deactivated', 'success'); location.reload(); } } }, 'Deactivate'))));
-  const table = h('div', { style: { overflowX: 'auto' } }, h('table', { class: 'table' }, h('thead', {}, h('tr', {}, h('th', {}, 'Product'), h('th', {}, 'Colors'), h('th', {}, 'Sizes'), h('th', {}, 'Price'), h('th', {}, 'Stock'), h('th', {}, ''))), ...rows));
-  return card('', head, table);
-}
-
-function showAddProduct() {
-  const name = h('input', { class: 'input', placeholder: 'Product name — e.g. ZUNO Essential Tee' });
-  const price = h('input', { class: 'input', type: 'number', placeholder: 'Price in paise — e.g. 129900 for ₹1299' });
-  const mrp = h('input', { class: 'input', type: 'number', placeholder: 'MRP in paise' });
-  const stock = h('input', { class: 'input', type: 'number', placeholder: 'Stock' });
-  const colors = h('input', { class: 'input', placeholder: 'Colors comma-separated — e.g. black,white,beige' });
-  const sizes = h('input', { class: 'input', placeholder: 'Sizes — e.g. S,M,L,XL' });
-  const catSel = h('select', { class: 'input' });
-  // Load categories
-  api.get('/categories', { module: 'shop' }).then(({ categories }) => {
-    categories.forEach(c => {
-      if (!c.parent_id) {
-        catSel.append(h('option', { value: c.id }, c.name));
-        (c.children || []).forEach(ch => catSel.append(h('option', { value: ch.id }, '— ' + ch.name)));
-      }
-    });
-  });
-  const content = h('div', {},
-    h('h3', {}, 'Add product'),
-    h('div', { class: 'col gap-3', style: { marginTop: '12px' } },
-      h('div', { class: 'field' }, h('label', {}, 'Name'), name),
-      h('div', { class: 'row gap-3' }, h('div', { class: 'field grow' }, h('label', {}, 'Price (paise)'), price), h('div', { class: 'field grow' }, h('label', {}, 'MRP'), mrp)),
-      h('div', { class: 'field' }, h('label', {}, 'Stock'), stock),
-      h('div', { class: 'field' }, h('label', {}, 'Category'), catSel),
-      h('div', { class: 'field' }, h('label', {}, 'Colors'), colors),
-      h('div', { class: 'field' }, h('label', {}, 'Sizes'), sizes),
-      h('button', { class: 'btn btn-primary btn-block', onclick: async () => {
-        try {
-          await api.post('/admin/products', {
-            name: name.value, categoryId: Number(catSel.value), price: Number(price.value), mrp: Number(mrp.value), stock: Number(stock.value),
-            colors: colors.value.split(',').map(s => s.trim()).filter(Boolean),
-            sizes: sizes.value.split(',').map(s => s.trim()).filter(Boolean),
+  function showProductModal(existing){
+    const isEdit = !!existing;
+    const name = h('input', { class:'admin-input', placeholder:'ZUNO Essential Tee', value:existing?.name||'' });
+    const price = h('input', { class:'admin-input', type:'number', placeholder:'Price in paise (129900 = ₹1299)', value:existing?.price||'' });
+    const mrp = h('input', { class:'admin-input', type:'number', placeholder:'MRP paise', value:existing?.mrp||'' });
+    const stock = h('input', { class:'admin-input', type:'number', placeholder:'Stock', value:existing?.stock??'' });
+    const desc = h('textarea', { class:'admin-input', placeholder:'Description', style:{minHeight:'70px'} }, existing?.description||'');
+    const colors = h('input', { class:'admin-input', placeholder:'Colors comma-separated (black,white,beige)', value:(existing?.colors||[]).join(', ') });
+    const sizes = h('input', { class:'admin-input', placeholder:'Sizes (S,M,L,XL)', value:(existing?.sizes||[]).join(', ') });
+    const images = h('input', { class:'admin-input', placeholder:'Image URLs comma-separated', value:(existing?.images||[]).join(', ') });
+    const catSel = h('select', { class:'admin-select' });
+    const fabric = h('input', { class:'admin-input', placeholder:'Fabric (100% Cotton)', value:existing?.fabric||'' });
+    const collection = h('input', { class:'admin-input', placeholder:'Collection (Essentials)', value:existing?.collection||'' });
+    const fit = h('input', { class:'admin-input', placeholder:'Fit (regular, oversized)', value:existing?.fit||'' });
+    // load categories
+    api.get('/categories', { module:'shop' }).then(({categories})=>{
+      catSel.append(h('option',{value:''},'Select category'));
+      categories.forEach(c=>{
+        if(!c.parent_id){
+          const opt=h('option',{value:c.id}, c.name);
+          if(existing && String(existing.category_id)===String(c.id)) opt.selected=true;
+          catSel.append(opt);
+          (c.children||[]).forEach(ch=>{
+            const o2=h('option',{value:ch.id}, '— '+ch.name);
+            if(existing && String(existing.category_id)===String(ch.id)) o2.selected=true;
+            catSel.append(o2);
           });
-          toast('Product created', 'success'); location.reload();
-        } catch (e) { toast(e.message, 'error'); }
-      } }, 'Create product')));
-  modal(content);
+        }
+      });
+    });
+
+    const saveBtn = h('button', { class:'admin-btn admin-btn-primary', style:{width:'100%', justifyContent:'center', padding:'12px'} }, isEdit?'Update Product':'Create Product');
+    const errEl = h('div', { style:{color:'#dc2626', fontSize:'13px', minHeight:'18px'} });
+
+    const form = h('div', { style:{maxHeight:'80vh', overflowY:'auto'} },
+      h('h3',{}, isEdit?'Edit Product':'Add Product'),
+      h('div', { class:'admin-form-grid', style:{marginTop:'12px'} },
+        h('div', {}, h('label',{style:{fontSize:'11px', fontWeight:'700'}},'Name *'), name),
+        h('div', {}, h('label',{style:{fontSize:'11px', fontWeight:'700'}},'Category *'), catSel),
+        h('div', {}, h('label',{style:{fontSize:'11px', fontWeight:'700'}},'Price (paise) *'), price),
+        h('div', {}, h('label',{style:{fontSize:'11px', fontWeight:'700'}},'MRP (paise) *'), mrp),
+        h('div', {}, h('label',{style:{fontSize:'11px', fontWeight:'700'}},'Stock *'), stock),
+        h('div', {}, h('label',{style:{fontSize:'11px', fontWeight:'700'}},'Fabric'), fabric),
+        h('div', {}, h('label',{style:{fontSize:'11px', fontWeight:'700'}},'Fit'), fit),
+        h('div', {}, h('label',{style:{fontSize:'11px', fontWeight:'700'}},'Collection'), collection)
+      ),
+      h('div', { style:{marginTop:'12px'} }, h('label',{style:{fontSize:'11px', fontWeight:'700'}},'Description'), desc),
+      h('div', { style:{marginTop:'12px'} }, h('label',{style:{fontSize:'11px', fontWeight:'700'}},'Colors'), colors),
+      h('div', { style:{marginTop:'8px'} }, h('label',{style:{fontSize:'11px', fontWeight:'700'}},'Sizes'), sizes),
+      h('div', { style:{marginTop:'8px'} }, h('label',{style:{fontSize:'11px', fontWeight:'700'}},'Images (URLs)'), images),
+      errEl,
+      h('div', { style:{marginTop:'12px'} }, saveBtn)
+    );
+
+    const m = modal(form);
+    saveBtn.onclick = async ()=>{
+      errEl.textContent='';
+      const payload = {};
+      if(!isEdit){
+        if(!name.value.trim()){ errEl.textContent='Name required'; return; }
+        if(!catSel.value){ errEl.textContent='Category required'; return; }
+        payload.name=name.value.trim();
+        payload.categoryId=Number(catSel.value);
+        payload.price=Number(price.value);
+        payload.mrp=Number(mrp.value);
+        payload.stock=Number(stock.value);
+        if(!payload.price||!payload.mrp||payload.stock<0){ errEl.textContent='Check price/mrp/stock'; return; }
+        payload.description=desc.value.trim();
+        payload.colors=colors.value.split(',').map(s=>s.trim()).filter(Boolean);
+        payload.sizes=sizes.value.split(',').map(s=>s.trim()).filter(Boolean);
+        payload.images=images.value.split(',').map(s=>s.trim()).filter(Boolean);
+        payload.fabric=fabric.value.trim()||undefined;
+        payload.collection=collection.value.trim()||undefined;
+        payload.fit=fit.value.trim()||undefined;
+        try{ saveBtn.disabled=true; saveBtn.textContent='Creating…'; await api.post('/admin/products', payload); toast('Product created','success'); m.close(); const u=new URLSearchParams(); location.hash='#/admin/products'; setTimeout(()=> location.reload(),300); }catch(e){ errEl.textContent=e.message; saveBtn.disabled=false; saveBtn.textContent='Create Product'; }
+      } else {
+        payload.name=name.value.trim()||undefined;
+        payload.category_id=catSel.value?Number(catSel.value):undefined;
+        payload.price=price.value?Number(price.value):undefined;
+        payload.mrp=mrp.value?Number(mrp.value):undefined;
+        payload.stock=stock.value!==''?Number(stock.value):undefined;
+        payload.description=desc.value.trim()||undefined;
+        payload.colors=colors.value? colors.value.split(',').map(s=>s.trim()).filter(Boolean):undefined;
+        payload.sizes=sizes.value? sizes.value.split(',').map(s=>s.trim()).filter(Boolean):undefined;
+        payload.images=images.value? images.value.split(',').map(s=>s.trim()).filter(Boolean):undefined;
+        payload.fabric=fabric.value.trim()||undefined;
+        payload.collection=collection.value.trim()||undefined;
+        payload.fit=fit.value.trim()||undefined;
+        // filter undefined
+        Object.keys(payload).forEach(k=> payload[k]===undefined && delete payload[k]);
+        try{ saveBtn.disabled=true; saveBtn.textContent='Saving…'; await api.put('/admin/products/'+existing.id, payload); toast('Updated','success'); m.close(); render(); }catch(e){ errEl.textContent=e.message; saveBtn.disabled=false; saveBtn.textContent='Update Product'; }
+      }
+    };
+  }
 }
 
-async function users() {
-  const { users } = await api.get('/admin/users');
-  const rows = users.map((u) => h('tr', {}, h('td', {}, u.name), h('td', {}, u.email || u.mobile), h('td', {}, u.role_id === 2 ? 'ADMIN' : 'USER'), h('td', {}, statusBadge(u.status))));
-  return card('Customers', h('table', { class: 'table' }, h('thead', {}, h('tr', {}, h('th', {}, 'Name'), h('th', {}, 'Contact'), h('th', {}, 'Role'), h('th', {}, 'Status'))), ...rows));
+// ── Inventory ──
+async function loadInventory(qp){
+  const guard = await guardOrRedirect();
+  if (guard && guard.nodeType) return adminShell('inventory', guard);
+  if (!guard) return h('div',{},'Redirecting…');
+  const q = qp.q||'';
+  const filter = qp.filter||'';
+  const page = Number(qp.page)||1;
+  const limit = 20;
+  const sort = qp.sort||'stock_low';
+
+  const summaryRow = h('div', { class:'admin-cards' });
+  const tableWrap = h('div', { class:'admin-card' }, h('div',{style:{padding:'20px', textAlign:'center', color:'#64748b'}},'Loading…'));
+  const controls = h('div', { class:'admin-search-row' },
+    h('input', { class:'admin-input', placeholder:'Search product…', value:q, style:{flex:'1', maxWidth:'300px'}, onkeydown:(e)=>{ if(e.key==='Enter'){ const u=new URLSearchParams(location.hash.split('?')[1]||''); const v=e.target.value.trim(); if(v) u.set('q',v); else u.delete('q'); u.delete('page'); location.hash='#/admin/inventory'+(u.toString()?'?'+u.toString():''); } } }),
+    h('select', { class:'admin-select', value:filter, onchange:(e)=>{ const u=new URLSearchParams(location.hash.split('?')[1]||''); if(e.target.value) u.set('filter',e.target.value); else u.delete('filter'); u.delete('page'); location.hash='#/admin/inventory'+(u.toString()?'?'+u.toString():''); } },
+      h('option',{value:'', selected:!filter},'All stock'),
+      h('option',{value:'low', selected:filter==='low'},'Low (≤10)'),
+      h('option',{value:'out', selected:filter==='out'},'Out of stock'),
+      h('option',{value:'in', selected:filter==='in'},'In stock')
+    ),
+    h('select', { class:'admin-select', value:sort, onchange:(e)=>{ const u=new URLSearchParams(location.hash.split('?')[1]||''); u.set('sort',e.target.value); location.hash='#/admin/inventory?'+u.toString(); } },
+      h('option',{value:'stock_low', selected:sort==='stock_low'},'Stock low→high'),
+      h('option',{value:'stock_high', selected:sort==='stock_high'},'Stock high→low'),
+      h('option',{value:'name', selected:sort==='name'},'Name')
+    )
+  );
+
+  async function render(){
+    try{
+      const params={ page, limit, sort };
+      if(q) params.q=q;
+      if(filter) params.filter=filter;
+      const { inventory, total, summary } = await api.get('/admin/inventory', params);
+      summaryRow.innerHTML='';
+      summaryRow.append(
+        statCard('▦','In Stock', String(summary.inStock), 'stock >10'),
+        statCard('⚠','Low Stock', String(summary.low), '≤10 items'),
+        statCard('✕','Out of Stock', String(summary.out), 'needs restock'),
+        statCard('▭','Total', String(summary.total), 'active products')
+      );
+      tableWrap.innerHTML='';
+      if(!inventory.length){ tableWrap.append(h('div',{class:'admin-empty'}, h('h3',{},'No products'), h('p',{},'No inventory matches filter'))); return; }
+      const table = h('table', { class:'admin-table' },
+        h('thead',{}, h('tr',{}, h('th',{},'Product'), h('th',{},'Category'), h('th',{},'Price'), h('th',{},'Stock'), h('th',{},'Update'))),
+        ...inventory.map(p=>{
+          const stockInput = h('input', { class:'admin-input', type:'number', value:String(p.stock), style:{width:'90px'} });
+          const saveBtn = h('button', { class:'admin-btn admin-btn-primary', style:{padding:'7px 10px', fontSize:'12px'} }, 'Save');
+          saveBtn.onclick = async ()=>{
+            const v = Number(stockInput.value);
+            if(Number.isNaN(v)||v<0){ toast('Invalid stock','error'); return; }
+            saveBtn.disabled=true; saveBtn.textContent='…';
+            try{ await api.raw('PATCH','/admin/inventory/'+p.id, { body:{stock:v} }); toast('Stock updated','success'); p.stock=v; render(); }catch(e){ toast(e.message,'error'); saveBtn.disabled=false; saveBtn.textContent='Save'; }
+          };
+          return h('tr',{},
+            h('td',{},
+              h('div', { style:{display:'flex', gap:'10px', alignItems:'center'} },
+                h('img', { src:(p.images&&p.images[0])||'', style:{width:'36px', height:'36px', borderRadius:'8px', background:'#f1f5f9', objectFit:'cover'}, onerror:(e)=>e.target.style.display='none'} ),
+                h('div',{}, h('div',{style:{fontWeight:'700', fontSize:'13px'}}, p.name), h('div',{style:{fontSize:'11px', color:'#64748b'}}, (p.colors||[]).slice(0,3).join(', ')||''))
+              )
+            ),
+            h('td',{}, p.category_name||'—'),
+            h('td',{}, money(p.price)),
+            h('td',{}, stockBadge(p.stock)),
+            h('td',{}, h('div', { style:{display:'flex', gap:'6px', alignItems:'center'} }, stockInput, saveBtn))
+          );
+        })
+      );
+      const totalPages=Math.max(1, Math.ceil(total/limit));
+      const pagination=h('div',{class:'admin-pagination'},
+        h('button',{class:'admin-btn admin-btn-ghost', disabled:page<=1, onclick:()=>{ const u=new URLSearchParams(location.hash.split('?')[1]||''); u.set('page',String(page-1)); location.hash='#/admin/inventory?'+u.toString(); }},'‹ Prev'),
+        h('span',{style:{fontSize:'13px'}}, `Page ${page} of ${totalPages} • ${total} items`),
+        h('button',{class:'admin-btn admin-btn-ghost', disabled:page>=totalPages, onclick:()=>{ const u=new URLSearchParams(location.hash.split('?')[1]||''); u.set('page',String(page+1)); location.hash='#/admin/inventory?'+u.toString(); }},'Next ›')
+      );
+      tableWrap.append(h('div',{class:'admin-table-wrap'}, table), pagination);
+    }catch(e){ tableWrap.innerHTML=''; tableWrap.append(h('div',{style:{padding:'20px', color:'#dc2626'}}, e.message)); }
+  }
+  render();
+  return adminShell('inventory', h('div', { style:{display:'flex', flexDirection:'column', gap:'16px'} }, summaryRow, controls, tableWrap));
 }
 
-function stat(v, l) { 
-  const icons = {
-    'Revenue': '💰',
-    'Orders': '📦',
-    'Custom orders': '✨',
-    'Customers': '👥',
-    'Today': '📅',
-    'AOV': '📊'
-  };
-  const icon = icons[l] || '📈';
-  
-  return h('div', { class: 'stat' }, 
-    h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' } },
-      h('span', { style: { fontSize: '32px' } }, icon),
-      h('div', { style: { fontSize: '0.7rem', fontWeight: '700', color: '#10b981', background: '#d1fae5', padding: '4px 8px', borderRadius: '6px' } }, '▲ Live')),
-    h('div', { class: 'v' }, v), 
-    h('div', { class: 'l' }, l)); 
+// ── Customers ──
+async function loadCustomers(){
+  const guard = await guardOrRedirect();
+  if (guard && guard.nodeType) return adminShell('customers', guard);
+  if (!guard) return h('div',{},'Redirecting…');
+  const wrap = h('div', { class:'admin-card' }, h('div',{style:{padding:'20px', textAlign:'center'}},'Loading…'));
+  (async ()=>{
+    try{
+      const { users } = await api.get('/admin/users');
+      wrap.innerHTML='';
+      const table=h('table',{class:'admin-table'},
+        h('thead',{}, h('tr',{}, h('th',{},'Customer'), h('th',{},'Contact'), h('th',{},'Role'), h('th',{},'Status'), h('th',{},'Joined'))),
+        ...users.map(u=> h('tr',{},
+          h('td',{}, h('div',{style:{fontWeight:'700'}}, u.name), h('div',{style:{fontSize:'11px', color:'#64748b'}}, 'ID '+u.id)),
+          h('td',{}, h('div',{}, u.email||'—'), h('div',{style:{fontSize:'11px', color:'#64748b'}}, u.mobile||'')),
+          h('td',{}, u.role_id===2? h('span',{class:'admin-badge admin-badge-confirmed'},'ADMIN'): h('span',{class:'admin-badge admin-badge-paid'},'USER')),
+          h('td',{}, u.status==='active'? h('span',{class:'admin-badge admin-badge-delivered'},'active'): h('span',{class:'admin-badge admin-badge-cancelled'}, u.status)),
+          h('td',{}, formatDate(u.created_at))
+        ))
+      );
+      wrap.append(h('div',{class:'admin-card__head'}, h('div',{class:'admin-card__title'}, `Customers (${users.length})`)), h('div',{class:'admin-table-wrap'}, table));
+    }catch(e){ wrap.innerHTML=''; wrap.append(h('div',{style:{padding:'20px', color:'#dc2626'}}, e.message)); }
+  })();
+  return adminShell('customers', wrap);
 }
-function card(title, ...body) { return h('div', { class: 'card card-pad' }, title ? h('h3', {}, title) : null, ...body); }
+
+// ── Routed entry points ──
+export async function Admin() {
+  // Compatibility: old #/admin without subroute → overview
+  return loadOverview();
+}
+export async function AdminDashboard() { return loadOverview(); }
+export async function AdminOrders(ctx) {
+  // if ctx.params.id present -> detail? but we use modal, keep list
+  const qp = ctx ? ctx.query : {};
+  // parse hash query manually if needed
+  const hashQ = location.hash.split('?')[1]||'';
+  const parsed={};
+  new URLSearchParams(hashQ).forEach((v,k)=> parsed[k]=v);
+  return loadOrders(parsed);
+}
+export async function AdminProducts(ctx){
+  const hashQ = location.hash.split('?')[1]||'';
+  const parsed={};
+  new URLSearchParams(hashQ).forEach((v,k)=> parsed[k]=v);
+  return loadProducts(parsed);
+}
+export async function AdminInventory(ctx){
+  const hashQ = location.hash.split('?')[1]||'';
+  const parsed={};
+  new URLSearchParams(hashQ).forEach((v,k)=> parsed[k]=v);
+  return loadInventory(parsed);
+}
+export async function AdminCustomers(){ return loadCustomers(); }

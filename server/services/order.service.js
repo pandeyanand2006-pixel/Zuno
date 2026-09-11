@@ -209,14 +209,50 @@ export const orderService = {
     return db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
   },
 
+  // Production order-status workflow with strict transition validation
+  _validTransitions: {
+    PAYMENT_PENDING: ['PAID', 'CANCELLED'],
+    PAID: ['CONFIRMED', 'CANCELLED'],
+    CONFIRMED: ['PROCESSING', 'PRINTING', 'CANCELLED'],
+    PROCESSING: ['PRINTING', 'CANCELLED'],
+    PRINTING: ['QUALITY_CHECK', 'CANCELLED'],
+    QUALITY_CHECK: ['PACKED', 'CANCELLED'],
+    PACKED: ['SHIPPED', 'CANCELLED'],
+    SHIPPED: ['OUT_FOR_DELIVERY'],
+    OUT_FOR_DELIVERY: ['DELIVERED'],
+    DELIVERED: [],
+    CANCELLED: [],
+    // legacy aliases
+    CREATED: ['PAYMENT_PENDING', 'PAID', 'CANCELLED'],
+  },
+  isValidTransition(from, to) {
+    if (!from) return true; // new order creation
+    if (from === to) return false;
+    const allowed = this._validTransitions[from] || [];
+    return allowed.includes(to);
+  },
+
   updateStatus(orderId, status, changedBy = null, note = null) {
     const prev = db.prepare('SELECT status, user_id, order_number FROM orders WHERE id = ?').get(orderId);
+    if (!prev) throw new Error('NOT_FOUND');
+    if (!this.isValidTransition(prev.status, status)) {
+      throw new Error(`INVALID_TRANSITION: cannot move from ${prev.status} to ${status}`);
+    }
     db.prepare("UPDATE orders SET status = ?, updated_at = datetime('now') WHERE id = ?").run(status, orderId);
     db.prepare('INSERT INTO order_status_history (order_id, from_status, to_status, changed_by, note) VALUES (?, ?, ?, ?, ?)').run(orderId, prev ? prev.status : null, status, changedBy, note);
     // Notify customer
     if (prev) {
-      const titles = { CONFIRMED: 'Order confirmed', PRINTING: 'Your design is being printed', QUALITY_CHECK: 'Quality check', PACKED: 'Order packed', SHIPPED: 'Order shipped', OUT_FOR_DELIVERY: 'Out for delivery', DELIVERED: 'Delivered' };
+      const titles = { CONFIRMED: 'Order confirmed', PRINTING: 'Your design is being printed', QUALITY_CHECK: 'Quality check', PACKED: 'Order packed', SHIPPED: 'Order shipped', OUT_FOR_DELIVERY: 'Out for delivery', DELIVERED: 'Delivered', CANCELLED: 'Order cancelled' };
       if (titles[status]) try { db.prepare("INSERT INTO notifications (user_id, type, title, body) VALUES (?, 'order', ?, ?)").run(prev.user_id, titles[status], `Order ${prev.order_number} — ${titles[status].toLowerCase()}`); } catch {}
+    }
+    // Restock on cancellation
+    if (status === 'CANCELLED' && prev.status !== 'CANCELLED') {
+      try {
+        const items = db.prepare('SELECT product_id, quantity FROM order_items WHERE order_id = ? AND product_id IS NOT NULL').all(orderId);
+        for (const it of items) {
+          db.prepare('UPDATE products SET stock = stock + ? WHERE id = ?').run(it.quantity, it.product_id);
+        }
+      } catch {}
     }
     return db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
   },

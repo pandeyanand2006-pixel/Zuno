@@ -19,6 +19,7 @@ import { Search } from './pages/search.js';
 import { SellerDashboard, RestaurantDashboard, ProviderDashboard } from './pages/partner.js';
 import { Customize } from './pages/customize.js';
 import { About } from './pages/about.js';
+import { Admin, AdminLogin, AdminDashboard, AdminOrders, AdminProducts, AdminInventory, AdminCustomers } from './pages/admin.js';
 
 // Register routes
 route('/', Home);
@@ -46,6 +47,14 @@ route('/about', About);
 route('/seller', SellerDashboard);
 route('/restaurant-admin', RestaurantDashboard);
 route('/provider-admin', ProviderDashboard);
+// ── Admin Dashboard (protected) ──
+route('/admin', AdminDashboard);
+route('/admin/login', AdminLogin);
+route('/admin/orders', AdminOrders);
+route('/admin/products', AdminProducts);
+route('/admin/inventory', AdminInventory);
+route('/admin/customers', AdminCustomers);
+route('/admin/dashboard', AdminDashboard);
 // Legacy super-app routes → redirect to shop
 route('/grocery', () => { location.hash = '#/shop'; return h('div', { class: 'container section' }, 'Redirecting to shop…'); });
 route('/food', () => { location.hash = '#/shop'; return h('div', { class: 'container section' }, 'Redirecting to shop…'); });
