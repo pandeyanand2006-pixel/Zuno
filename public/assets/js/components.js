@@ -20,35 +20,14 @@ const MOBILE_NAV = [
 ];
 
 export function topBar(active) {
-  const user = Store.getUser();
   const search = SearchBar();
   const cartCount = Store.cartCount();
   const wishCount = Store.wishlistCount ? Store.wishlistCount() : (Store._wishlist ? Store._wishlist.size : 0);
 
-  // Build navigation links - add Founder Dashboard if user is ADMIN
-  const navLinks = [...NAV];
-  if (user && user.role === 'ADMIN') {
-    navLinks.push({ 
-      label: '⚡ Founder Dashboard', 
-      href: '#/admin', 
-      key: 'admin',
-      accent: false,
-      isAdmin: true 
-    });
-  }
-
   const nav = h('nav', { class: 'nav-links', 'aria-label': 'Primary' },
-    ...navLinks.map((n) => h('a', { 
+    ...NAV.map((n) => h('a', { 
       href: n.href, 
-      class: (active === n.key ? 'active' : '') + (n.accent ? ' accent-link' : '') + (n.isAdmin ? ' admin-link' : ''),
-      style: n.isAdmin ? { 
-        background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)', 
-        color: '#fbbf24', 
-        padding: '8px 16px', 
-        borderRadius: '6px',
-        fontWeight: '700',
-        border: '2px solid #fbbf24'
-      } : {}
+      class: active === n.key ? 'active' : '',
     }, n.label)));
 
   // Cart drawer — right-side slide-over (Denim spec: 0.2s ease-in CTA)
@@ -137,24 +116,10 @@ export function topBar(active) {
 
 export function bottomNav(active) {
   const cartCount = Store.cartCount();
-  const user = Store.getUser();
-  
-  // Add admin link to mobile nav if user is ADMIN
-  const mobileLinks = [...MOBILE_NAV];
-  if (user && user.role === 'ADMIN') {
-    mobileLinks.push({ 
-      label: 'Founder', 
-      href: '#/admin', 
-      key: 'admin', 
-      em: '⚡' 
-    });
-  }
-  
   return h('nav', { class: 'bottom-nav', 'aria-label': 'Mobile' },
-    ...mobileLinks.map((n) => h('a', { 
+    ...MOBILE_NAV.map((n) => h('a', { 
       href: n.href, 
       class: active === n.key ? 'active' : '',
-      style: n.key === 'admin' ? { color: '#fbbf24', fontWeight: '700' } : {}
     },
       h('span', { class: 'em' }, n.em),
       n.key === 'cart' && cartCount ? h('span', { class: 'cart-count' }, String(cartCount)) : null,

@@ -10,11 +10,8 @@ function field({ label, type = 'text', name, placeholder, value = '', note, inpu
 }
 
 function redirectAfterLogin(user) {
-  if (user.role === 'ADMIN') location.hash = '#/admin';
-  else if (user.role === 'SELLER') location.hash = '#/seller';
-  else if (user.role === 'RESTAURANT') location.hash = '#/restaurant-admin';
-  else if (user.role === 'SERVICE_PROVIDER') location.hash = '#/provider-admin';
-  else location.hash = '#/';
+  // Main website only — founder/admin stays on storefront
+  location.hash = '#/';
 }
 
 function finalize({ token, user }) {
@@ -97,9 +94,8 @@ export async function Login() {
   const demoBox = h('div', { class: 'card', style: { marginTop: '16px', background: 'var(--ink-50)', border: '1px dashed var(--ink-200)', padding: '12px' } },
     h('div', { class: 'fw-600 text-sm', style: { marginBottom: '6px' } }, 'Demo accounts (try without registering)'),
     h('div', { class: 'muted text-xs', style: { lineHeight: '1.6' } },
-      h('div', {}, h('strong', {}, 'Customer:'), ' demo@ZUNO.app / Demo@1234  (or 9876543210)'),
-      h('div', {}, h('strong', {}, 'Admin:'), ' admin@ZUNO.app / Admin@1234')),
-    h('button', { class: 'btn btn-ghost btn-sm', style: { marginTop: '8px' }, type: 'button', onclick: () => { idF.input.value = 'demo@ZUNO.app'; pwF.input.value = 'Demo@1234'; toast('Demo credentials filled — click Sign in', 'info'); } }, 'Fill demo customer →'));
+      h('div', {}, h('strong', {}, 'Customer:'), ' demo@zuno.app / Demo@1234  (or 9876543210)')),
+    h('button', { class: 'btn btn-ghost btn-sm', style: { marginTop: '8px' }, type: 'button', onclick: () => { idF.input.value = 'demo@zuno.app'; pwF.input.value = 'Demo@1234'; toast('Demo credentials filled — click Sign in', 'info'); } }, 'Fill demo customer →'));
 
   card.append(
     h('div', { class: 'center', style: { marginBottom: '20px' } }, h('div', { class: 'brand', style: { justifyContent: 'center', fontFamily: 'var(--font-display)', letterSpacing: '0.12em' } }, 'ZUNO')),

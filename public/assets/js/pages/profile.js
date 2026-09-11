@@ -23,27 +23,6 @@ export async function Profile({ params }) {
   
   const content = h('div', { class: 'card card-pad elevated', style: { minHeight: '300px' } });
   
-  // Add prominent Founder Dashboard link if user is ADMIN
-  if (user.role === 'ADMIN') {
-    side.append(
-      h('div', { style: { marginTop: '20px', padding: '16px', background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)', borderRadius: '8px', border: '2px solid #fbbf24' } },
-        h('div', { class: 'fw-700', style: { color: '#fbbf24', fontSize: 'var(--fs-sm)', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' } }, 
-          h('span', {}, '⚡'),
-          h('span', {}, 'FOUNDER ACCESS')),
-        h('div', { class: 'text-xs', style: { color: '#cbd5e1', marginBottom: '12px' } }, 'Manage orders & business'),
-        h('a', { 
-          class: 'btn btn-block', 
-          href: '#/admin', 
-          style: { 
-            background: '#fbbf24', 
-            color: '#0f172a', 
-            fontWeight: '700',
-            border: 'none',
-            fontSize: 'var(--fs-sm)'
-          } 
-        }, 'Open Dashboard →')));
-  }
-  
   root.append(h('h1', {}, 'Account'), h('div', { class: 'split', style: { gridTemplateColumns: '240px 1fr' } }, side, content));
 
   if (tab === 'designs') return renderDesigns(root, content);
