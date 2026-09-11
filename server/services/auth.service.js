@@ -4,15 +4,34 @@ import { signToken } from '../utils/jwt.js';
 import { generateId } from '../utils/id.js';
 import { env } from '../config/env.js';
 import { logger } from '../utils/logger.js';
+import { isMongoConnected } from '../config/mongo.js';
+import { User, Role, OtpCode } from '../models/index.js';
 
-function publicUser(user) {
-  const role = db.prepare('SELECT name FROM roles WHERE id = ?').get(user.role_id);
+function useMongo() { return !!env.mongoUri && isMongoConnected(); }
+
+async function getRoleDoc(name = 'USER') {
+  if (useMongo()) return await Role.findOne({ name });
+  return db.prepare('SELECT id FROM roles WHERE name = ?').get(name);
+}
+async function getRoleName(roleId) {
+  if (!roleId) return 'USER';
+  if (useMongo()) {
+    try { const r = await Role.findById(roleId).lean(); return r ? r.name : 'USER'; } catch { return 'USER'; }
+  }
+  const role = db.prepare('SELECT name FROM roles WHERE id = ?').get(roleId);
+  return role ? role.name : 'USER';
+}
+async function toPublicUser(user) {
+  if (!user) return null;
+  const roleName = user.role_name || await getRoleName(user.role_id);
+  const id = String(user._id || user.id);
   return {
-    id: user.id,
+    id,
     name: user.name,
     email: user.email,
     mobile: user.mobile,
-    role: role ? role.name : 'USER',
+    role: roleName,
+    role_id: user.role_id,
     status: user.status,
     email_verified: !!user.email_verified,
     mobile_verified: !!user.mobile_verified,
@@ -22,88 +41,129 @@ function publicUser(user) {
 
 export const authService = {
   async register({ name, email, mobile, password }) {
-    const existing = db
-      .prepare('SELECT id FROM users WHERE email = ? OR mobile = ?')
-      .get(email || 'x', mobile);
+    if (useMongo()) {
+      const existing = await User.findOne({ $or: [{ email: email || '__none' }, { mobile }] });
+      if (existing) {
+        const conflictMobile = await User.findOne({ mobile });
+        throw new Error(conflictMobile ? 'MOBILE_EXISTS' : 'EMAIL_EXISTS');
+      }
+      const role = await Role.findOne({ name: 'USER' });
+      const password_hash = await hashPassword(password);
+      const user = await User.create({ name, email: email || null, mobile, password_hash, role_id: role._id, role_name: 'USER' });
+      logger.audit('user.register', { id: String(user._id), mobile });
+      return toPublicUser(user.toObject());
+    }
+    const existing = db.prepare('SELECT id FROM users WHERE email = ? OR mobile = ?').get(email || 'x', mobile);
     if (existing) {
       const conflictMobile = db.prepare('SELECT id FROM users WHERE mobile = ?').get(mobile);
       throw new Error(conflictMobile ? 'MOBILE_EXISTS' : 'EMAIL_EXISTS');
     }
-
     const userRole = db.prepare("SELECT id FROM roles WHERE name = 'USER'").get();
     const password_hash = await hashPassword(password);
-    const info = db
-      .prepare(
-        `INSERT INTO users (name, email, mobile, password_hash, role_id) VALUES (?, ?, ?, ?, ?)`
-      )
-      .run(name, email || null, mobile, password_hash, userRole.id);
-
+    const info = db.prepare('INSERT INTO users (name, email, mobile, password_hash, role_id) VALUES (?, ?, ?, ?, ?)').run(name, email || null, mobile, password_hash, userRole.id);
     const user = db.prepare('SELECT * FROM users WHERE id = ?').get(info.lastInsertRowid);
     logger.audit('user.register', { id: user.id, mobile });
-    return publicUser(user);
+    return toPublicUser(user);
   },
 
   async login(identifier, password) {
-    const user = db
-      .prepare('SELECT * FROM users WHERE email = ? OR mobile = ?')
-      .get(identifier, identifier);
+    if (useMongo()) {
+      const user = await User.findOne({ $or: [{ email: identifier }, { mobile: identifier }] });
+      if (!user) throw new Error('INVALID_CREDENTIALS');
+      const okPass = await comparePassword(password, user.password_hash);
+      if (!okPass) throw new Error('INVALID_CREDENTIALS');
+      const pub = await toPublicUser(user.toObject());
+      const token = signToken({ sub: pub.id, role: pub.role_id, jti: generateId() });
+      return { token, user: pub };
+    }
+    const user = db.prepare('SELECT * FROM users WHERE email = ? OR mobile = ?').get(identifier, identifier);
     if (!user) throw new Error('INVALID_CREDENTIALS');
     const okPass = await comparePassword(password, user.password_hash);
     if (!okPass) throw new Error('INVALID_CREDENTIALS');
-
-    const token = signToken({ sub: user.id, role: user.role_id, jti: generateId() });
-    return { token, user: publicUser(user) };
+    const pub = await toPublicUser(user);
+    const token = signToken({ sub: pub.id, role: pub.role_id, jti: generateId() });
+    return { token, user: pub };
   },
 
-  me(userId) {
+  async me(userId) {
+    if (useMongo()) {
+      const user = await User.findById(userId);
+      if (!user) throw new Error('NOT_FOUND');
+      return toPublicUser(user.toObject());
+    }
     const user = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
     if (!user) throw new Error('NOT_FOUND');
-    return publicUser(user);
+    return toPublicUser(user);
   },
 
-  issueTokenForUser(user) {
-    const token = signToken({ sub: user.id, role: user.role_id, jti: generateId() });
-    return { token, user: publicUser(user) };
+  async issueTokenForUser(user) {
+    const pub = await toPublicUser(user._id ? user.toObject ? user.toObject() : user : user);
+    const token = signToken({ sub: pub.id, role: pub.role_id, jti: generateId() });
+    return { token, user: pub };
   },
 
-  findOrCreateByMobile(mobile, name) {
+  async findOrCreateByMobile(mobile, name) {
+    if (useMongo()) {
+      let user = await User.findOne({ mobile });
+      if (user) return user;
+      const role = await Role.findOne({ name: 'USER' });
+      user = await User.create({ name: name || 'ZUNO User', mobile, role_id: role._id, role_name: 'USER', mobile_verified: true });
+      return user;
+    }
     let user = db.prepare('SELECT * FROM users WHERE mobile = ?').get(mobile);
     if (user) return user;
     const role = db.prepare("SELECT id FROM roles WHERE name = 'USER'").get();
-    const info = db
-      .prepare('INSERT INTO users (name, mobile, role_id, mobile_verified) VALUES (?, ?, ?, 1)')
-      .run(name || 'ZUNO User', mobile, role.id);
+    const info = db.prepare('INSERT INTO users (name, mobile, role_id, mobile_verified) VALUES (?, ?, ?, 1)').run(name || 'ZUNO User', mobile, role.id);
     return db.prepare('SELECT * FROM users WHERE id = ?').get(info.lastInsertRowid);
   },
 
-  findOrCreateByEmail(email, name) {
+  async findOrCreateByEmail(email, name) {
+    if (useMongo()) {
+      let user = await User.findOne({ email });
+      if (user) return user;
+      const role = await Role.findOne({ name: 'USER' });
+      user = await User.create({ name: name || 'ZUNO User', email, role_id: role._id, role_name: 'USER', email_verified: true });
+      return user;
+    }
     let user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
     if (user) return user;
     const role = db.prepare("SELECT id FROM roles WHERE name = 'USER'").get();
-    const info = db
-      .prepare('INSERT INTO users (name, email, role_id, email_verified) VALUES (?, ?, ?, 1)')
-      .run(name || 'ZUNO User', email, role.id);
+    const info = db.prepare('INSERT INTO users (name, email, role_id, email_verified) VALUES (?, ?, ?, 1)').run(name || 'ZUNO User', email, role.id);
     return db.prepare('SELECT * FROM users WHERE id = ?').get(info.lastInsertRowid);
   },
 
   async requestOtp({ mobile }) {
     const code = String(Math.floor(100000 + Math.random() * 900000));
-    const expires = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+    const expires = new Date(Date.now() + 10 * 60 * 1000);
+    if (useMongo()) {
+      await OtpCode.deleteMany({ mobile, purpose: 'login' });
+      await OtpCode.create({ mobile, code, purpose: 'login', expires_at: expires });
+      logger.info(`OTP requested for ${mobile}`);
+      return { devOtp: env.isProduction ? undefined : code };
+    }
+    const expiresIso = expires.toISOString();
     db.prepare('DELETE FROM otp_codes WHERE mobile = ? AND purpose = ?').run(mobile, 'login');
-    db.prepare('INSERT INTO otp_codes (mobile, code, purpose, expires_at) VALUES (?, ?, ?, ?)')
-      .run(mobile, code, 'login', expires);
+    db.prepare('INSERT INTO otp_codes (mobile, code, purpose, expires_at) VALUES (?, ?, ?, ?)').run(mobile, code, 'login', expiresIso);
     logger.info(`OTP requested for ${mobile}`);
-    // In production, send via SMS gateway. Dev fallback: return the code so the UI can autofill.
     return { devOtp: env.isProduction ? undefined : code };
   },
 
-  verifyOtp({ mobile, code, name }) {
+  async verifyOtp({ mobile, code, name }) {
+    if (useMongo()) {
+      const row = await OtpCode.findOne({ mobile, purpose: 'login' }).sort({ _id: -1 });
+      if (!row) throw new Error('NO_OTP');
+      if (new Date(row.expires_at).getTime() < Date.now()) throw new Error('OTP_EXPIRED');
+      if (row.code !== String(code)) throw new Error('OTP_INVALID');
+      await OtpCode.deleteMany({ mobile, purpose: 'login' });
+      const user = await this.findOrCreateByMobile(mobile, name);
+      return this.issueTokenForUser(user);
+    }
     const row = db.prepare('SELECT * FROM otp_codes WHERE mobile = ? AND purpose = ? ORDER BY id DESC LIMIT 1').get(mobile, 'login');
     if (!row) throw new Error('NO_OTP');
     if (new Date(row.expires_at).getTime() < Date.now()) throw new Error('OTP_EXPIRED');
     if (row.code !== String(code)) throw new Error('OTP_INVALID');
     db.prepare('DELETE FROM otp_codes WHERE mobile = ? AND purpose = ?').run(mobile, 'login');
-    const user = this.findOrCreateByMobile(mobile, name);
+    const user = await this.findOrCreateByMobile(mobile, name);
     return this.issueTokenForUser(user);
   },
 
@@ -122,8 +182,7 @@ export const authService = {
     if (!['accounts.google.com', 'https://accounts.google.com'].includes(payload.iss)) throw new Error('GOOGLE_ISS_INVALID');
     if (Number(payload.exp) * 1000 < Date.now()) throw new Error('GOOGLE_EXPIRED');
     if (!payload.email) throw new Error('GOOGLE_NO_EMAIL');
-
-    const user = this.findOrCreateByEmail(payload.email, payload.name || payload.email.split('@')[0]);
+    const user = await this.findOrCreateByEmail(payload.email, payload.name || payload.email.split('@')[0]);
     return this.issueTokenForUser(user);
   },
 };

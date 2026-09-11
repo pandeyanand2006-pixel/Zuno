@@ -1,9 +1,9 @@
 import { productService } from '../services/product.service.js';
 import { ok, notFound } from '../utils/response.js';
 
-export function listProducts(req, res) {
+export async function listProducts(req, res) {
   const q = req.query;
-  const result = productService.list({
+  const result = await productService.list({
     module: q.module || 'shop',
     category: q.category,
     search: q.search,
@@ -13,16 +13,22 @@ export function listProducts(req, res) {
     minPrice: q.minPrice,
     maxPrice: q.maxPrice,
     brand: q.brand,
+    color: q.color,
+    size: q.size,
+    fit: q.fit,
+    collection: q.collection,
+    featured: q.featured,
+    newArrival: q.newArrival,
   });
   return ok(res, result);
 }
 
-export function getProduct(req, res) {
-  const product = productService.getBySlug(req.params.slug);
+export async function getProduct(req, res) {
+  const product = await productService.getBySlug(req.params.slug);
   if (!product) return notFound(res, 'Product not found');
   return ok(res, { product });
 }
 
-export function searchSuggestions(req, res) {
-  return ok(res, { suggestions: productService.searchSuggestions(req.query.q, Number(req.query.limit) || 8) });
+export async function searchSuggestions(req, res) {
+  return ok(res, { suggestions: await productService.searchSuggestions(req.query.q, Number(req.query.limit) || 8) });
 }
