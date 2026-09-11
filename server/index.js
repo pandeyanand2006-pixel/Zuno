@@ -1,11 +1,19 @@
 import app from './app.js';
+import { connectMongo, isMongoConnected } from './config/mongo.js';
 import { initializeSchema } from './config/db.js';
 import { env } from './config/env.js';
 import { logger } from './utils/logger.js';
 
+// Try Atlas first — if MONGODB_URI set and reachable, use it; else fallback to SQLite
+if (env.mongoUri) {
+  await connectMongo().catch(e => logger.error('mongo connect error', e));
+  if (isMongoConnected()) logger.info('Using MongoDB Atlas');
+  else logger.warn('Mongo connect failed — falling back to SQLite');
+}
+
 initializeSchema();
 logger.info('Database schema initialized');
-logger.info(`DB_PATH=${env.dbPath}`);
+logger.info(`DB_PATH=${env.dbPath} ${isMongoConnected() ? '(Mongo active — SQLite fallback for unmigrated tables)' : ''}`);
 
 // Seed roles + auto-seed catalogue if empty (critical for Render ephemeral free tier)
 import { db } from './config/db.js';
