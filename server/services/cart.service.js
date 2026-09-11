@@ -4,8 +4,21 @@ import { serializeProduct } from '../services/product.service.js';
 function getOrCreateCart(userId, module) {
   let cart = db.prepare('SELECT * FROM carts WHERE user_id = ? AND module = ?').get(userId, module);
   if (!cart) {
-    const info = db.prepare('INSERT INTO carts (user_id, module) VALUES (?, ?)').run(userId, module);
-    cart = db.prepare('SELECT * FROM carts WHERE id = ?').get(info.lastInsertRowid);
+    try {
+      const info = db.prepare('INSERT INTO carts (user_id, module) VALUES (?, ?)').run(userId, module);
+      cart = db.prepare('SELECT * FROM carts WHERE id = ?').get(info.lastInsertRowid);
+    } catch (e) {
+      if (e.message?.includes('FOREIGN KEY')) {
+        // Mongo users (ObjectId string) have no SQLite users row — bypass FK (carts is app-local, not relational)
+        db.exec('PRAGMA foreign_keys = OFF');
+        try {
+          const info = db.prepare('INSERT INTO carts (user_id, module) VALUES (?, ?)').run(userId, module);
+          cart = db.prepare('SELECT * FROM carts WHERE id = ?').get(info.lastInsertRowid);
+        } finally {
+          db.exec('PRAGMA foreign_keys = ON');
+        }
+      } else throw e;
+    }
   }
   return cart;
 }

@@ -5,7 +5,8 @@ import { Product, ProductVariant, Category, Review } from '../models/index.js';
 function useMongo() { return !!env.mongoUri && isMongoConnected(); }
 
 function serializeProduct(p) {
-  if (useMongo()) {
+  const isMongoDoc = !!(p && (p._id || p._doc || (typeof p.id === 'string' && /^[0-9a-fA-F]{24}$/.test(p.id))));
+  if (isMongoDoc) {
     // p is mongoose doc/object already lean
     const doc = p._doc ? p._doc : p;
     const id = String(doc._id || doc.id);
@@ -73,9 +74,13 @@ function serializeProduct(p) {
   };
 }
 
+async function mongoHasProducts() {
+  try { return (await Product.countDocuments({})) > 0; } catch { return false; }
+}
+
 export const productService = {
   async list({ module = 'shop', category, search, page = 1, limit = 24, sort = 'popular', minPrice, maxPrice, brand, color, size, fit, collection, featured, newArrival }) {
-    if (useMongo()) {
+    if (useMongo() && await mongoHasProducts()) {
       const filter = { active: true, module };
       if (category) {
         let catId = null;
@@ -156,7 +161,7 @@ export const productService = {
   },
 
   async getBySlug(slug) {
-    if (useMongo()) {
+    if (useMongo() && await mongoHasProducts()) {
       const p = await Product.findOne({ slug, active: true }).lean();
       if (!p) return null;
       const variants = await ProductVariant.find({ product_id: p._id }).lean();
@@ -176,7 +181,7 @@ export const productService = {
   },
 
   async getById(id) {
-    if (useMongo()) {
+    if (useMongo() && await mongoHasProducts()) {
       try {
         const p = await Product.findById(id).lean();
         if (!p) return null;
@@ -190,7 +195,7 @@ export const productService = {
   },
 
   async searchSuggestions(q, limit = 8) {
-    if (useMongo()) {
+    if (useMongo() && await mongoHasProducts()) {
       if (!q) return [];
       const rows = await Product.find({ active: true, name: { $regex: q, $options: 'i' } }).limit(Number(limit)).lean();
       return rows.map((r) => ({ label: r.name, slug: r.slug, module: r.module, type: 'product' }));
