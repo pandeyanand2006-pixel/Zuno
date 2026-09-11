@@ -440,7 +440,7 @@ router.get('/orders', async (req, res) => {
       const u = o.user_id ? await User.findById(o.user_id).lean() : null;
       const a = o.address_id ? await Address.findById(o.address_id).lean() : null;
       const p = await Payment.findOne({ order_id: o._id }).lean();
-      orders.push({ ...o, id: String(o._id), customer_name: u?.name || null, customer_mobile: u?.mobile || null, customer_email: u?.email || null, addr_line1: a?.line1 || null, addr_city: a?.city || null, addr_pincode: a?.pincode || null, payment_status: p?.status || null, payment_method: p?.method || null });
+      orders.push({ ...o, id: String(o._id), customer_name: u?.name || null, customer_mobile: u?.mobile || null, customer_email: u?.email || null, addr_line1: a?.line1 || null, addr_city: a?.city || null, addr_pincode: a?.pincode || null, payment_status: o.payment_status || p?.status || null, payment_method: o.payment_method || p?.method || null });
     }
     return ok(res, { orders, total, page, limit });
   }
@@ -461,7 +461,7 @@ router.get('/orders', async (req, res) => {
   const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 50));
   const offset = (page - 1) * limit;
   const total = db.prepare(`SELECT COUNT(*) c FROM orders o LEFT JOIN users u ON u.id = o.user_id ${where}`).get(...params).c;
-  const orders = db.prepare(`SELECT o.*, u.name as customer_name, u.mobile as customer_mobile, u.email as customer_email, a.line1 as addr_line1, a.city as addr_city, a.pincode as addr_pincode, p.status as payment_status, p.method as payment_method FROM orders o LEFT JOIN users u ON u.id = o.user_id LEFT JOIN addresses a ON a.id = o.address_id LEFT JOIN payments p ON p.order_id = o.id ${where} ORDER BY ${orderBy} LIMIT ? OFFSET ?`).all(...params, limit, offset);
+  const orders = db.prepare(`SELECT o.*, u.name as customer_name, u.mobile as customer_mobile, u.email as customer_email, a.line1 as addr_line1, a.city as addr_city, a.pincode as addr_pincode, COALESCE(o.payment_status, p.status) as payment_status, COALESCE(o.payment_method, p.method) as payment_method FROM orders o LEFT JOIN users u ON u.id = o.user_id LEFT JOIN addresses a ON a.id = o.address_id LEFT JOIN payments p ON p.order_id = o.id ${where} ORDER BY ${orderBy} LIMIT ? OFFSET ?`).all(...params, limit, offset);
   return ok(res, { orders, total, page, limit });
 });
 

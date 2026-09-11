@@ -449,6 +449,11 @@ export function initializeSchema() {
   addColumn('order_items', 'custom_price', 'INTEGER');
   addColumn('orders', 'customer_notes', 'TEXT');
   addColumn('orders', 'admin_notes', 'TEXT');
+  addColumn('orders', 'payment_method', 'TEXT');
+  addColumn('orders', 'payment_status', 'TEXT');
+  addColumn('addresses', 'house_no', 'TEXT');
+  addColumn('addresses', 'landmark', 'TEXT');
+  addColumn('addresses', 'area', 'TEXT');
 }
 
 export default db;

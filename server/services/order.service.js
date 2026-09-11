@@ -59,11 +59,14 @@ export const orderService = {
     try { db.prepare('INSERT INTO order_status_history (order_id, from_status, to_status, changed_by, note) VALUES (?, ?, ?, ?, ?)').run(orderId, from, to, changedBy, note); } catch {}
   },
 
-  async createFromCart({ userId, module, addressId, couponCode, items, customerNotes = null }) {
+  async createFromCart({ userId, module, addressId, couponCode, items, customerNotes = null, paymentMethod = 'online' }) {
     if (!items || items.length === 0) throw new Error('EMPTY_CART');
     const subtotal = items.reduce((a, b) => a + b.lineTotal, 0);
     const totals = await this.computeTotals({ module, subtotal, couponCode, userId });
     if (couponCode && !totals.couponValid) throw new Error('INVALID_COUPON');
+    const isCod = String(paymentMethod).toLowerCase() === 'cod';
+    const initialStatus = isCod ? 'CONFIRMED' : 'PAYMENT_PENDING';
+    const paymentStatus = isCod ? 'cod_pending' : 'pending';
 
     if (useMongo()) {
       const { Address, Order, OrderItem, Product, Coupon, OrderStatusHistory, Notification } = await import('../models/index.js');
@@ -71,9 +74,10 @@ export const orderService = {
       if (!address) throw new Error('ADDRESS_REQUIRED');
       const orderNumber = 'ZNO-' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '-' + String(Date.now()).slice(-6);
       const order = await Order.create({
-        order_number: orderNumber, user_id: userId, module, status: 'PAYMENT_PENDING',
+        order_number: orderNumber, user_id: userId, module, status: initialStatus,
         subtotal: totals.subtotal, discount: totals.discount, delivery_fee: totals.deliveryFee, service_fee: totals.serviceFee, tax: totals.tax, total: totals.total,
-        address_id: addressId, coupon_code: couponCode || null, customer_notes: customerNotes || null
+        address_id: addressId, coupon_code: couponCode || null, customer_notes: customerNotes || null,
+        payment_method: isCod ? 'cod' : 'online', payment_status: paymentStatus
       });
       for (const it of items) {
         await OrderItem.create({
@@ -84,10 +88,10 @@ export const orderService = {
         });
         await Product.updateOne({ _id: it.productId }, { $inc: { stock: -it.quantity } });
       }
-      await OrderStatusHistory.create({ order_id: order._id, from_status: null, to_status: 'PAYMENT_PENDING', changed_by: userId, note: 'Order placed' });
+      await OrderStatusHistory.create({ order_id: order._id, from_status: null, to_status: initialStatus, changed_by: userId, note: isCod ? 'Order placed — COD' : 'Order placed' });
       if (couponCode && totals.couponValid) await Coupon.updateOne({ code: couponCode }, { $inc: { used_count: 1 } });
-      try { await Notification.create({ user_id: userId, type: 'order', title: 'Order placed', body: `Order ${orderNumber} placed` }); } catch {}
-      return { orderId: String(order._id), orderNumber, total: totals.total, totals };
+      try { await Notification.create({ user_id: userId, type: 'order', title: isCod ? 'Order confirmed — COD' : 'Order placed', body: isCod ? `Order ${orderNumber} confirmed — Cash on Delivery` : `Order ${orderNumber} placed` }); } catch {}
+      return { orderId: String(order._id), orderNumber, total: totals.total, totals, paymentMethod: isCod ? 'cod' : 'online', status: initialStatus };
     }
 
     const address = db.prepare('SELECT * FROM addresses WHERE id = ? AND user_id = ?').get(addressId, userId);
@@ -98,21 +102,21 @@ export const orderService = {
       try {
         const info = db
           .prepare(
-            `INSERT INTO orders (order_number, user_id, module, status, subtotal, discount, delivery_fee, service_fee, tax, total, address_id, coupon_code, restaurant_id, customer_notes)
-             VALUES (?, ?, ?, 'PAYMENT_PENDING', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+            `INSERT INTO orders (order_number, user_id, module, status, subtotal, discount, delivery_fee, service_fee, tax, total, address_id, coupon_code, restaurant_id, customer_notes, payment_method, payment_status)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
           )
-          .run(orderNumber, userId, module, totals.subtotal, totals.discount, totals.deliveryFee, totals.serviceFee, totals.tax, totals.total, addressId, couponCode || null, null, customerNotes || null);
+          .run(orderNumber, userId, module, initialStatus, totals.subtotal, totals.discount, totals.deliveryFee, totals.serviceFee, totals.tax, totals.total, addressId, couponCode || null, null, customerNotes || null, isCod ? 'cod' : 'online', paymentStatus);
         const orderId = info.lastInsertRowid;
         for (const it of items) {
           db.prepare('INSERT INTO order_items (order_id, product_id, name, price, quantity, customization_data, variant_data, custom_price) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
             .run(orderId, it.productId, it.name, it.price, it.quantity, it.customization ? JSON.stringify(it.customization) : null, it.variant ? JSON.stringify(it.variant) : null, it.isCustom ? it.price : null);
           db.prepare('UPDATE products SET stock = stock - ? WHERE id = ? AND stock >= ?').run(it.quantity, it.productId, it.quantity);
         }
-        db.prepare('INSERT INTO order_status_history (order_id, from_status, to_status, changed_by, note) VALUES (?, ?, ?, ?, ?)').run(orderId, null, 'PAYMENT_PENDING', userId, 'Order placed');
+        db.prepare('INSERT INTO order_status_history (order_id, from_status, to_status, changed_by, note) VALUES (?, ?, ?, ?, ?)').run(orderId, null, initialStatus, userId, isCod ? 'Order placed — COD' : 'Order placed');
         if (couponCode && totals.couponValid) {
           db.prepare('UPDATE coupons SET used_count = used_count + 1 WHERE code = ?').run(couponCode);
         }
-        try { db.prepare("INSERT INTO notifications (user_id, type, title, body) VALUES (?, 'order', 'Order placed', ?)").run(userId, `Order ${orderNumber} placed`); } catch {}
+        try { db.prepare("INSERT INTO notifications (user_id, type, title, body) VALUES (?, 'order', ?, ?)").run(userId, isCod ? 'Order confirmed — COD' : 'Order placed', isCod ? `Order ${orderNumber} confirmed — Cash on Delivery` : `Order ${orderNumber} placed`); } catch {}
         db.exec('COMMIT');
         return orderId;
       } catch (e) {
@@ -121,7 +125,7 @@ export const orderService = {
       }
     };
     const orderId = tx();
-    return { orderId, orderNumber, total: totals.total, totals };
+    return { orderId, orderNumber, total: totals.total, totals, paymentMethod: isCod ? 'cod' : 'online', status: initialStatus };
   },
 
   async markPaid(orderId, paymentId) {

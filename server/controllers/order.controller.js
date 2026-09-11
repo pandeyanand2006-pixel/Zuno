@@ -16,17 +16,17 @@ const createSchema = z.object({
 
 export async function createOrder(req, res) {
   try {
-    const { module, addressId, couponCode, customerNotes } = req.validated;
+    const { module, addressId, couponCode, customerNotes, paymentMethod } = req.validated;
     const cart = await cartService.view(req.user.id, module);
     if (!cart.items.length) return fail(res, 'Your cart is empty', 400, 'EMPTY_CART');
 
     const created = await orderService.createFromCart({
-      userId: req.user.id, module, addressId, couponCode, customerNotes,
+      userId: req.user.id, module, addressId, couponCode, customerNotes, paymentMethod,
       items: cart.items.map((i) => ({ productId: i.productId, name: i.name, price: i.price, quantity: i.quantity, lineTotal: i.lineTotal, customization: i.customization, variant: i.variant, isCustom: i.isCustom })),
     });
     // Clear cart after order creation
     await cartService.clear(req.user.id, module);
-    return ok(res, created, 'Order created', 201);
+    return ok(res, created, created.paymentMethod === 'cod' ? 'Order placed — Cash on Delivery' : 'Order created', 201);
   } catch (err) {
     if (err.message === 'EMPTY_CART') return fail(res, 'Your cart is empty', 400, 'EMPTY_CART');
     if (err.message === 'ADDRESS_REQUIRED') return fail(res, 'Please select a delivery address', 400, 'ADDRESS_REQUIRED');

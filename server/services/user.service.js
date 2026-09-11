@@ -48,6 +48,9 @@ export const userService = {
         label: data.label || null,
         line1: data.line1,
         line2: data.line2 || null,
+        house_no: data.house_no || null,
+        landmark: data.landmark || null,
+        area: data.area || null,
         city: data.city,
         state: data.state || null,
         pincode: data.pincode,
@@ -62,14 +65,17 @@ export const userService = {
     }
     const info = db
       .prepare(
-        `INSERT INTO addresses (user_id, label, line1, line2, city, state, pincode, latitude, longitude, is_default)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO addresses (user_id, label, line1, line2, house_no, landmark, area, city, state, pincode, latitude, longitude, is_default)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         userId,
         data.label || null,
         data.line1,
         data.line2 || null,
+        data.house_no || null,
+        data.landmark || null,
+        data.area || null,
         data.city,
         data.state || null,
         data.pincode,

@@ -14,7 +14,7 @@ orderRouter.get('/:id/history', async (req, res) => {
   const history = await orderService.getHistory(req.params.id);
   return ok(res, { history });
 });
-orderRouter.post('/', validate(z.object({ module: z.enum(['shop','grocery','food']).default('shop'), addressId: idSchema, couponCode: z.string().optional(), customerNotes: z.string().max(500).optional() })), orderCtrl.createOrder);
+orderRouter.post('/', validate(z.object({ module: z.enum(['shop','grocery','food']).default('shop'), addressId: idSchema, couponCode: z.string().optional(), customerNotes: z.string().max(500).optional(), paymentMethod: z.enum(['cod','online']).default('online') })), orderCtrl.createOrder);
 orderRouter.get('/', orderCtrl.listOrders);
 orderRouter.get('/:id', orderCtrl.getOrder);
 orderRouter.post('/:id/cancel', orderCtrl.cancelOrder);
@@ -22,8 +22,8 @@ orderRouter.post('/custom', validate(z.object({ module: z.enum(['shop','grocery'
 
 const paymentRouter = Router();
 paymentRouter.use(authMiddleware);
-paymentRouter.post('/create', validate(z.object({ orderId: z.number().int().positive() })), paymentCtrl.createPayment);
-paymentRouter.post('/verify', validate(z.object({ orderId: z.number().int().positive(), razorpayOrderId: z.string().min(1), razorpayPaymentId: z.string().min(1), razorpaySignature: z.string().min(1) })), paymentCtrl.verifyPayment);
-paymentRouter.post('/refund', validate(z.object({ paymentId: z.number().int().positive(), amount: z.number().int().positive(), orderId: z.number().int().positive() })), paymentCtrl.refund);
+paymentRouter.post('/create', validate(z.object({ orderId: idSchema })), paymentCtrl.createPayment);
+paymentRouter.post('/verify', validate(z.object({ orderId: idSchema, razorpayOrderId: z.string().min(1), razorpayPaymentId: z.string().min(1), razorpaySignature: z.string().min(1) })), paymentCtrl.verifyPayment);
+paymentRouter.post('/refund', validate(z.object({ paymentId: idSchema, amount: z.number().int().positive(), orderId: idSchema })), paymentCtrl.refund);
 
 export { orderRouter, paymentRouter };

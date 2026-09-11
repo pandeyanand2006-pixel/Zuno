@@ -2,10 +2,13 @@ import crypto from 'node:crypto';
 import { orderService } from '../services/order.service.js';
 import { createRazorpayOrder, verifyPaymentSignature, refundPayment, isTestMode } from '../integrations/razorpay/index.js';
 import { db } from '../config/db.js';
+import { env } from '../config/env.js';
+import { isMongoConnected } from '../config/mongo.js';
 import { ok, fail } from '../utils/response.js';
 import { z } from 'zod';
 import { validate } from '../middleware/validate.js';
 import { logger } from '../utils/logger.js';
+function useMongo(){ return !!env.mongoUri && isMongoConnected(); }
 
 const verifySchema = z.object({
   orderId: z.number().int().positive(),
@@ -17,7 +20,34 @@ const verifySchema = z.object({
 // Step A: create a Razorpay order for an existing pending order
 export async function createPayment(req, res) {
   try {
-    const order = db.prepare('SELECT * FROM orders WHERE id = ? AND user_id = ?').get(req.body.orderId, req.user.id);
+    let order;
+    if (useMongo()) {
+      const { Order, Payment } = await import('../models/index.js');
+      order = await Order.findOne({ _id: req.body.orderId, user_id: req.user.id });
+      if (!order) return fail(res, 'Order not found', 404);
+      if (order.status !== 'PAYMENT_PENDING' && order.status !== 'CREATED') return fail(res, 'Order is not awaiting payment', 409);
+      const rzp = await createRazorpayOrder({ amountPaise: order.total, currency: 'INR', receipt: order.order_number });
+      let payment = await Payment.findOne({ order_id: order._id, status: 'created' });
+      if (!payment) {
+        payment = await Payment.create({ order_id: order._id, user_id: req.user.id, razorpay_order_id: rzp.id, amount: order.total, currency: 'INR', status: 'created' });
+      } else {
+        payment.razorpay_order_id = rzp.id; payment.amount = order.total; await payment.save();
+      }
+      return ok(res, {
+        razorpay: {
+          key: env.razorpay.keyId || (isTestMode ? 'rzp_test_demo' : ''),
+          orderId: rzp.id,
+          paymentId: rzp.paymentId,
+          signature: rzp.signature,
+          amount: rzp.amount,
+          currency: rzp.currency,
+          testMode: rzp.testMode,
+        },
+        paymentId: String(payment._id),
+        testMode: rzp.testMode,
+      });
+    }
+    order = db.prepare('SELECT * FROM orders WHERE id = ? AND user_id = ?').get(req.body.orderId, req.user.id);
     if (!order) return fail(res, 'Order not found', 404);
     if (order.status !== 'PAYMENT_PENDING' && order.status !== 'CREATED') return fail(res, 'Order is not awaiting payment', 409);
 
@@ -35,7 +65,7 @@ export async function createPayment(req, res) {
 
     return ok(res, {
       razorpay: {
-        key: process.env.RAZORPAY_KEY_ID || (isTestMode ? 'rzp_test_demo' : ''),
+        key: env.razorpay.keyId || (isTestMode ? 'rzp_test_demo' : ''),
         orderId: rzp.id,
         paymentId: rzp.paymentId,
         signature: rzp.signature,
@@ -56,7 +86,29 @@ export async function createPayment(req, res) {
 export async function verifyPayment(req, res) {
   try {
     const { orderId, razorpayOrderId, razorpayPaymentId, razorpaySignature } = req.validated;
-    const payment = db.prepare('SELECT * FROM payments WHERE order_id = ? AND razorpay_order_id = ?').get(orderId, razorpayOrderId);
+    let payment;
+    if (useMongo()) {
+      const { Payment } = await import('../models/index.js');
+      payment = await Payment.findOne({ order_id: orderId, razorpay_order_id: razorpayOrderId });
+      if (!payment) return fail(res, 'Payment record not found', 404);
+      if (payment.verified) {
+        const { Order } = await import('../models/index.js');
+        const order = await Order.findById(orderId);
+        return ok(res, { order, alreadyVerified: true }, 'Payment already verified');
+      }
+      const valid = verifyPaymentSignature({ razorpayOrderId, razorpayPaymentId, razorpaySignature });
+      if (!valid) {
+        payment.status = 'failed'; await payment.save();
+        logger.warn('payment.verify.failed', { orderId, razorpayOrderId });
+        return fail(res, 'Payment verification failed', 400, 'SIGNATURE_MISMATCH');
+      }
+      const order = await orderService.markPaid(orderId, payment._id);
+      const { Cart, CartItem } = await import('../models/index.js');
+      const cart = await Cart.findOne({ user_id: req.user.id, module: order.module });
+      if (cart) await CartItem.deleteMany({ cart_id: cart._id });
+      return ok(res, { order, verified: true }, 'Payment successful');
+    }
+    payment = db.prepare('SELECT * FROM payments WHERE order_id = ? AND razorpay_order_id = ?').get(orderId, razorpayOrderId);
     if (!payment) return fail(res, 'Payment record not found', 404);
 
     // Idempotency: already verified
@@ -72,7 +124,7 @@ export async function verifyPayment(req, res) {
       return fail(res, 'Payment verification failed', 400, 'SIGNATURE_MISMATCH');
     }
 
-    const order = orderService.markPaid(orderId, payment.id);
+    const order = await orderService.markPaid(orderId, payment.id);
     // clear cart for this module
     const module = order.module;
     const cart = db.prepare('SELECT id FROM carts WHERE user_id = ? AND module = ?').get(req.user.id, module);

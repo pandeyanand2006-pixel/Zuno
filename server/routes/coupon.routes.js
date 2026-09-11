@@ -13,10 +13,10 @@ router.get('/', (req, res) => {
   return ok(res, { coupons });
 });
 
-router.post('/validate', authMiddleware, validate(z.object({ code: z.string(), module: z.string(), subtotal: z.number().int().positive() })), (req, res) => {
-  const result = couponService.validate(req.validated.code, req.validated.module, req.validated.subtotal, req.user.id);
+router.post('/validate', authMiddleware, validate(z.object({ code: z.string(), module: z.string(), subtotal: z.number().int().positive() })), async (req, res) => {
+  const result = await couponService.validate(req.validated.code, req.validated.module, req.validated.subtotal, req.user.id);
   if (!result.valid) return ok(res, { valid: false, message: result.message });
-  return ok(res, { valid: true, discount: result.discount });
+  return ok(res, { valid: true, discount: result.discount, code: req.validated.code });
 });
 
 export default router;
