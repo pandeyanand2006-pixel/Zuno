@@ -35,13 +35,14 @@ const allowedOrigins = env.frontendUrl ? env.frontendUrl.split(',').map(s => s.t
 app.use(cors({
   origin: env.isProduction
     ? (origin, cb) => {
-        if (!origin) return cb(null, true);
+        if (!origin) return cb(null, true); // same-origin / health checks / curl
         if (allowedOrigins.includes(origin)) return cb(null, true);
-        // Allow Vercel preview deploys (*.vercel.app) when frontendUrl is set
+        // Allow Vercel preview deploys (*.vercel.app) only if wildcard is configured
+        if (allowedOrigins.some(o => o.includes('*.vercel.app')) && origin.endsWith('.vercel.app')) return cb(null, true);
         if (allowedOrigins.some(o => o.includes('vercel.app')) && origin.endsWith('.vercel.app')) return cb(null, true);
-        // If frontendUrl not restrictive, allow all in prod (single-service same-origin)
-        if (allowedOrigins.length === 0) return cb(null, true);
-        return cb(null, true); // permissive — tighten by setting FRONTEND_URL exactly
+        if (allowedOrigins.length === 0) return cb(null, true); // single-service same-origin fallback
+        // Block arbitrary origins in production
+        return cb(new Error('Not allowed by CORS'), false);
       }
     : true,
   credentials: true

@@ -6,7 +6,8 @@ import { z } from 'zod';
 
 const router = Router();
 router.use(authMiddleware);
-const addSchema = z.object({ productId: z.number().int().positive(), quantity: z.number().int().min(1).max(20).optional(), variant: z.object({ color: z.string().optional(), size: z.string().optional() }).optional() });
+const idSchema = z.union([z.number().int().positive(), z.string().min(1)]);
+const addSchema = z.object({ productId: idSchema, quantity: z.number().int().min(1).max(20).optional(), variant: z.object({ color: z.string().optional(), size: z.string().optional() }).optional() });
 const qtySchema = z.object({ quantity: z.number().int().min(0).max(20) });
 const elementSchema = z.object({
   id: z.string().min(1),
@@ -18,7 +19,7 @@ const elementSchema = z.object({
   url: z.string().optional(), width: z.number().optional(), height: z.number().optional(),
 });
 const customCartSchema = z.object({
-  productId: z.number().int().positive(),
+  productId: idSchema,
   color: z.string().min(1).max(30),
   size: z.enum(['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL']),
   fit: z.enum(['regular', 'oversized', 'relaxed']).optional(),

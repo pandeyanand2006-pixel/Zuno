@@ -11,10 +11,15 @@ function publicUser(u) {
   };
 }
 
-export function updateProfile(req, res) {
+export async function updateProfile(req, res) {
   try {
-    const updated = userService.updateProfile(req.user.id, req.validated);
+    const updated = await userService.updateProfile(req.user.id, req.validated);
     if (!updated) return fail(res, 'Update failed', 400);
+    // publicUser helper needs to handle Mongo ObjectId case
+    const isMongoDoc = updated._id || updated.role_name;
+    if (isMongoDoc) {
+      return ok(res, { user: { id: String(updated._id || updated.id), name: updated.name, email: updated.email, mobile: updated.mobile, role: updated.role_name || 'USER', status: updated.status } }, 'Profile updated');
+    }
     return ok(res, { user: publicUser(updated) }, 'Profile updated');
   } catch (err) {
     if (err.message === 'CONFLICT') return fail(res, 'Email or mobile already in use', 409, 'CONFLICT');
@@ -22,17 +27,18 @@ export function updateProfile(req, res) {
   }
 }
 
-export function listAddresses(req, res) {
-  return ok(res, userService.listAddresses(req.user.id));
+export async function listAddresses(req, res) {
+  const list = await userService.listAddresses(req.user.id);
+  return ok(res, list);
 }
 
-export function addAddress(req, res) {
-  const addr = userService.addAddress(req.user.id, req.validated);
+export async function addAddress(req, res) {
+  const addr = await userService.addAddress(req.user.id, req.validated);
   return ok(res, { address: addr }, 'Address added', 201);
 }
 
-export function deleteAddress(req, res) {
-  const removed = userService.deleteAddress(req.user.id, Number(req.params.id));
+export async function deleteAddress(req, res) {
+  const removed = await userService.deleteAddress(req.user.id, req.params.id);
   if (!removed) return notFound(res, 'Address not found');
   return ok(res, null, 'Address removed');
 }

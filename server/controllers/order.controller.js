@@ -14,18 +14,18 @@ const createSchema = z.object({
   customerNotes: z.string().max(500).optional(),
 });
 
-export function createOrder(req, res) {
+export async function createOrder(req, res) {
   try {
     const { module, addressId, couponCode, customerNotes } = req.validated;
-    const cart = cartService.view(req.user.id, module);
+    const cart = await cartService.view(req.user.id, module);
     if (!cart.items.length) return fail(res, 'Your cart is empty', 400, 'EMPTY_CART');
 
-    const created = orderService.createFromCart({
+    const created = await orderService.createFromCart({
       userId: req.user.id, module, addressId, couponCode, customerNotes,
       items: cart.items.map((i) => ({ productId: i.productId, name: i.name, price: i.price, quantity: i.quantity, lineTotal: i.lineTotal, customization: i.customization, variant: i.variant, isCustom: i.isCustom })),
     });
     // Clear cart after order creation
-    cartService.clear(req.user.id, module);
+    await cartService.clear(req.user.id, module);
     return ok(res, created, 'Order created', 201);
   } catch (err) {
     if (err.message === 'EMPTY_CART') return fail(res, 'Your cart is empty', 400, 'EMPTY_CART');
@@ -35,20 +35,20 @@ export function createOrder(req, res) {
   }
 }
 
-export function listOrders(req, res) {
-  const orders = orderService.getForUser(req.user.id, { status: req.query.status, module: req.query.module });
+export async function listOrders(req, res) {
+  const orders = await orderService.getForUser(req.user.id, { status: req.query.status, module: req.query.module });
   return ok(res, { orders });
 }
 
-export function getOrder(req, res) {
-  const order = orderService.getDetail(req.user.id, Number(req.params.id));
+export async function getOrder(req, res) {
+  const order = await orderService.getDetail(req.user.id, req.params.id);
   if (!order) return notFound(res, 'Order not found');
   return ok(res, { order });
 }
 
-export function cancelOrder(req, res) {
+export async function cancelOrder(req, res) {
   try {
-    const order = orderService.cancel(req.user.id, Number(req.params.id));
+    const order = await orderService.cancel(req.user.id, req.params.id);
     return ok(res, { order }, 'Order cancelled');
   } catch (err) {
     if (err.message === 'NOT_FOUND') return notFound(res, 'Order not found');
@@ -64,9 +64,9 @@ const customSchema = z.object({
   items: z.array(z.object({ type: z.enum(['product', 'menu']), id: z.number().int().positive(), quantity: z.number().int().min(1).max(20) })).min(1),
 });
 
-export function createCustomOrder(req, res) {
+export async function createCustomOrder(req, res) {
   try {
-    const created = orderService.createCustom({ userId: req.user.id, ...req.validated });
+    const created = await orderService.createCustom({ userId: req.user.id, ...req.validated });
     return ok(res, created, 'Order created', 201);
   } catch (err) {
     if (err.message === 'EMPTY_CART') return fail(res, 'No items', 400, 'EMPTY_CART');

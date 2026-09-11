@@ -1,7 +1,11 @@
 import { db } from '../config/db.js';
+import { env } from '../config/env.js';
+import { isMongoConnected } from '../config/mongo.js';
 import { serializeProduct } from '../services/product.service.js';
 
-function getOrCreateCart(userId, module) {
+function useMongo() { return !!env.mongoUri && isMongoConnected(); }
+
+function getOrCreateCartSQLite(userId, module) {
   let cart = db.prepare('SELECT * FROM carts WHERE user_id = ? AND module = ?').get(userId, module);
   if (!cart) {
     try {
@@ -9,7 +13,6 @@ function getOrCreateCart(userId, module) {
       cart = db.prepare('SELECT * FROM carts WHERE id = ?').get(info.lastInsertRowid);
     } catch (e) {
       if (e.message?.includes('FOREIGN KEY')) {
-        // Mongo users (ObjectId string) have no SQLite users row — bypass FK (carts is app-local, not relational)
         db.exec('PRAGMA foreign_keys = OFF');
         try {
           const info = db.prepare('INSERT INTO carts (user_id, module) VALUES (?, ?)').run(userId, module);
@@ -23,9 +26,44 @@ function getOrCreateCart(userId, module) {
   return cart;
 }
 
+async function getOrCreateCartMongo(userId, module) {
+  const { Cart } = await import('../models/index.js');
+  let cart = await Cart.findOne({ user_id: userId, module });
+  if (!cart) {
+    cart = await Cart.create({ user_id: userId, module });
+  }
+  return cart;
+}
+
 export const cartService = {
-  view(userId, module = 'shop') {
-    const cart = getOrCreateCart(userId, module);
+  async view(userId, module = 'shop') {
+    if (useMongo()) {
+      const { Cart, CartItem, Product } = await import('../models/index.js');
+      const cart = await getOrCreateCartMongo(userId, module);
+      const items = await CartItem.find({ cart_id: cart._id }).lean();
+      let subtotal = 0;
+      const detailed = [];
+      for (const ci of items) {
+        let prod = null;
+        try { prod = await Product.findById(ci.product_id).lean(); } catch { prod = null; }
+        if (!prod) continue;
+        const customization = ci.customization_data ? JSON.parse(ci.customization_data) : null;
+        const variant = ci.variant_data ? JSON.parse(ci.variant_data) : null;
+        const customPrice = ci.custom_price || null;
+        const unitPrice = customPrice || prod.price;
+        const lineTotal = unitPrice * ci.quantity;
+        subtotal += lineTotal;
+        const images = Array.isArray(prod.images) ? prod.images : [];
+        detailed.push({
+          id: String(ci._id), productId: String(ci.product_id), name: prod.name, slug: prod.slug,
+          price: unitPrice, basePrice: prod.price, mrp: prod.mrp, quantity: ci.quantity, lineTotal,
+          image: images[0] || null, stock: prod.stock, available: prod.stock > 0,
+          customization, variant, isCustom: !!customization,
+        });
+      }
+      return { module, items: detailed, subtotal, count: detailed.reduce((a, b) => a + b.quantity, 0) };
+    }
+    const cart = getOrCreateCartSQLite(userId, module);
     const items = db
       .prepare(
         `SELECT ci.*, p.name, p.slug, p.price, p.mrp, p.stock, p.images, p.module
@@ -52,7 +90,25 @@ export const cartService = {
     return { module, items: detailed, subtotal, count: detailed.reduce((a, b) => a + b.quantity, 0) };
   },
 
-  addCustom(userId, module, productId, quantity = 1, customizationData, variantData, customPrice = null) {
+  async addCustom(userId, module, productId, quantity = 1, customizationData, variantData, customPrice = null) {
+    if (useMongo()) {
+      const { Product, Cart, CartItem } = await import('../models/index.js');
+      const product = await Product.findById(productId);
+      if (!product || !product.active) throw new Error('NOT_FOUND');
+      if (!customPrice) {
+        try {
+          const data = JSON.parse(customizationData);
+          let extra = 0;
+          if (data.front?.elements?.length) extra += 10000;
+          if (data.back?.elements?.length) extra += 10000;
+          customPrice = product.price + extra;
+        } catch { customPrice = product.price; }
+      }
+      const cart = await getOrCreateCartMongo(userId, module);
+      await CartItem.create({ cart_id: cart._id, product_id: productId, quantity, customization_data: customizationData, variant_data: variantData, custom_price: customPrice });
+      await Cart.updateOne({ _id: cart._id }, { updatedAt: new Date() });
+      return this.view(userId, module);
+    }
     const product = db.prepare('SELECT * FROM products WHERE id = ? AND active = 1').get(productId);
     if (!product) throw new Error('NOT_FOUND');
     if (!customPrice) {
@@ -64,17 +120,54 @@ export const cartService = {
         customPrice = product.price + extra;
       } catch { customPrice = product.price; }
     }
-    const cart = getOrCreateCart(userId, module);
+    const cart = getOrCreateCartSQLite(userId, module);
     db.prepare('INSERT INTO cart_items (cart_id, product_id, quantity, customization_data, variant_data, custom_price) VALUES (?, ?, ?, ?, ?, ?)')
       .run(cart.id, productId, quantity, customizationData, variantData, customPrice);
     db.prepare("UPDATE carts SET updated_at = datetime('now') WHERE id = ?").run(cart.id);
     return this.view(userId, module);
   },
 
-  add(userId, module, productId, quantity = 1, variant = null) {
+  async add(userId, module, productId, quantity = 1, variant = null) {
+    if (useMongo()) {
+      const { Product, ProductVariant, Cart, CartItem } = await import('../models/index.js');
+      const product = await Product.findById(productId);
+      if (!product || !product.active) throw new Error('NOT_FOUND');
+      let variantData = null;
+      let variantRow = null;
+      if (variant && (variant.color || variant.size)) {
+        const color = variant.color || null;
+        const size = variant.size || null;
+        if (color && size) {
+          variantRow = await ProductVariant.findOne({ product_id: productId, color, size });
+          if (!variantRow) throw new Error('VARIANT_NOT_FOUND');
+          if (variantRow.stock < quantity) throw new Error('OUT_OF_STOCK');
+        } else if (color) {
+          variantRow = await ProductVariant.findOne({ product_id: productId, color });
+        } else if (size) {
+          variantRow = await ProductVariant.findOne({ product_id: productId, size });
+        }
+        variantData = JSON.stringify({ color: color || null, size: size || null, sku: variantRow ? variantRow.sku : null });
+      } else {
+        if (product.stock < quantity) throw new Error('OUT_OF_STOCK');
+      }
+      const cart = await getOrCreateCartMongo(userId, module);
+      let existing = null;
+      if (variantData) {
+        existing = await CartItem.findOne({ cart_id: cart._id, product_id: productId, variant_data: variantData });
+      } else {
+        existing = await CartItem.findOne({ cart_id: cart._id, product_id: productId, variant_data: { $in: [null, ''] } });
+        if (!existing) existing = await CartItem.findOne({ cart_id: cart._id, product_id: productId, variant_data: null });
+      }
+      if (existing) {
+        existing.quantity += quantity;
+        await existing.save();
+      } else {
+        await CartItem.create({ cart_id: cart._id, product_id: productId, quantity, variant_data: variantData });
+      }
+      return this.view(userId, module);
+    }
     const product = db.prepare('SELECT * FROM products WHERE id = ? AND active = 1').get(productId);
     if (!product) throw new Error('NOT_FOUND');
-    // Variant handling for clothing
     let variantData = null;
     let variantRow = null;
     if (variant && (variant.color || variant.size)) {
@@ -93,8 +186,7 @@ export const cartService = {
     } else {
       if (product.stock < quantity) throw new Error('OUT_OF_STOCK');
     }
-    const cart = getOrCreateCart(userId, module);
-    // Don't merge variant items with different variants
+    const cart = getOrCreateCartSQLite(userId, module);
     let existing = null;
     if (variantData) {
       existing = db.prepare('SELECT * FROM cart_items WHERE cart_id = ? AND product_id = ? AND variant_data = ?').get(cart.id, productId, variantData);
@@ -110,8 +202,18 @@ export const cartService = {
     return this.view(userId, module);
   },
 
-  updateQty(userId, module, productId, quantity) {
-    const cart = getOrCreateCart(userId, module);
+  async updateQty(userId, module, productId, quantity) {
+    if (useMongo()) {
+      const { CartItem } = await import('../models/index.js');
+      const cart = await getOrCreateCartMongo(userId, module);
+      if (quantity <= 0) {
+        await CartItem.deleteMany({ cart_id: cart._id, product_id: productId });
+      } else {
+        await CartItem.updateMany({ cart_id: cart._id, product_id: productId }, { quantity });
+      }
+      return this.view(userId, module);
+    }
+    const cart = getOrCreateCartSQLite(userId, module);
     if (quantity <= 0) {
       db.prepare('DELETE FROM cart_items WHERE cart_id = ? AND product_id = ?').run(cart.id, productId);
     } else {
@@ -120,22 +222,34 @@ export const cartService = {
     return this.view(userId, module);
   },
 
-  remove(userId, module, productId) {
-    const cart = getOrCreateCart(userId, module);
+  async remove(userId, module, productId) {
+    if (useMongo()) {
+      const { CartItem } = await import('../models/index.js');
+      const cart = await getOrCreateCartMongo(userId, module);
+      await CartItem.deleteMany({ cart_id: cart._id, product_id: productId });
+      return this.view(userId, module);
+    }
+    const cart = getOrCreateCartSQLite(userId, module);
     db.prepare('DELETE FROM cart_items WHERE cart_id = ? AND product_id = ?').run(cart.id, productId);
     return this.view(userId, module);
   },
 
-  clear(userId, module) {
-    const cart = getOrCreateCart(userId, module);
+  async clear(userId, module) {
+    if (useMongo()) {
+      const { CartItem } = await import('../models/index.js');
+      const cart = await getOrCreateCartMongo(userId, module);
+      await CartItem.deleteMany({ cart_id: cart._id });
+      return this.view(userId, module);
+    }
+    const cart = getOrCreateCartSQLite(userId, module);
     db.prepare('DELETE FROM cart_items WHERE cart_id = ?').run(cart.id);
     return this.view(userId, module);
   },
 
-  summary(userId) {
+  async summary(userId) {
     const modules = ['shop', 'grocery', 'food'];
     const out = {};
-    for (const m of modules) out[m] = this.view(userId, m);
+    for (const m of modules) out[m] = await this.view(userId, m);
     return out;
   },
 };

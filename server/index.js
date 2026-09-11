@@ -85,6 +85,78 @@ if (isMongoConnected()) {
     }
   } catch (e) { logger.error('mongo init failed', e.message); }
 }
+// ── Mongo catalogue seeding — ensures production Atlas has products without wiping SQLite ──
+if (isMongoConnected()) {
+  try {
+    const { Product, Category, Brand, ProductVariant } = await import('./models/index.js');
+    const mCount = await Product.countDocuments({ active: true });
+    if (mCount === 0) {
+      logger.info('No products in Mongo — seeding catalogue to Atlas…');
+      const { slugify } = await import('./utils/id.js');
+      // Categories
+      const cat = async (name, parent=null) => {
+        const slug = slugify(name);
+        let existing = await Category.findOne({ slug });
+        if (existing) return existing;
+        return await Category.create({ name, slug, parent_id: parent?._id || null, module: 'shop', icon: '👕', position: 0, active: true });
+      };
+      const tShirts = await cat('T-Shirts');
+      const tOversized = await cat('Oversized', tShirts);
+      const tRegular = await cat('Regular Fit', tShirts);
+      const tGraphic = await cat('Graphic', tShirts);
+      const tPlain = await cat('Plain', tShirts);
+      const tPolo = await cat('Polo', tShirts);
+      const tPremium = await cat('Premium Cotton', tShirts);
+      // Brands
+      const brand = async (name) => {
+        const slug = slugify(name);
+        let b = await Brand.findOne({ slug });
+        if (b) return b;
+        return await Brand.create({ name, slug, active: true });
+      };
+      const bZUNO = await brand('ZUNO');
+      const bZUNOStudio = await brand('ZUNO Studio');
+      const IMG = {
+        tee1: ['https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=600&h=750&fit=crop','https://images.unsplash.com/photo-1576566588028-4147f3842f27?w=600&h=750&fit=crop'],
+        tee2: ['https://images.unsplash.com/photo-1586790170083-2f9ceadc732d?w=600&h=750&fit=crop','https://images.unsplash.com/photo-1618354691321-e851c56960d1?w=600&h=750&fit=crop'],
+        tee3: ['https://images.unsplash.com/photo-1576566588028-4147f3842f27?w=600&h=750&fit=crop','https://images.unsplash.com/photo-1583743814966-8936f5b7be1a?w=600&h=750&fit=crop'],
+        tee4: ['https://images.unsplash.com/photo-1618354691321-e851c56960d1?w=600&h=750&fit=crop','https://images.unsplash.com/photo-1542272604-787c3835535d?w=600&h=750&fit=crop'],
+        tee5: ['https://images.unsplash.com/photo-1556821840-3a63f95609a7?w=600&h=750&fit=crop','https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=600&h=750&fit=crop'],
+        tee6: ['https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=600&h=750&fit=crop','https://images.unsplash.com/photo-1586790170083-2f9ceadc732d?w=600&h=750&fit=crop'],
+        tee7: ['https://images.unsplash.com/photo-1583743814966-8936f5b7be1a?w=600&h=750&fit=crop','https://images.unsplash.com/photo-1576566588028-4147f3842f27?w=600&h=750&fit=crop'],
+      };
+      const clothingProd = async ({ name, categoryId, brandId, price, mrp, stock, desc, colors, sizes, fit, fabric, collection, customizable=0, featured=0, newArrival=0, specs={}, images=[] }) => {
+        const slug = slugify(name) + '-' + Math.random().toString(36).slice(2,6);
+        const rating = (4.2 + Math.random()*0.6).toFixed(1);
+        const ratingCount = Math.floor(40+Math.random()*600);
+        const prod = await Product.create({ category_id: categoryId, brand_id: brandId, name, slug, description: desc, price, mrp, stock, rating, rating_count: ratingCount, images, specs, module: 'shop', colors, sizes, fit, fabric, collection, customizable: !!customizable, featured: !!featured, new_arrival: !!newArrival, care_instructions: 'Machine wash cold', active: true });
+        for (const color of colors) for (const size of sizes) {
+          const sku = `ZUNO-${prod._id}-${color.toUpperCase().replace(/[^A-Z0-9]/g,'')}-${size}`;
+          try { await ProductVariant.create({ product_id: prod._id, sku, color, size, stock: Math.floor(stock/(colors.length*sizes.length))+5, price }); } catch {}
+        }
+      };
+      await clothingProd({ name: 'ZUNO Essential Heavyweight Tee', categoryId: tPlain._id, brandId: bZUNO._id, price: 129900, mrp: 179900, stock: 300, desc: 'Heavyweight 240 GSM cotton tee — minimal, premium, everyday.', colors: ['black','white','beige','charcoal'], sizes: ['S','M','L','XL','XXL'], fit: 'regular', fabric: '100% Cotton', collection: 'Essentials', featured: 1, newArrival: 1, specs: { Fabric: '100% Cotton', GSM: '240' }, images: IMG.tee1 });
+      await clothingProd({ name: 'ZUNO Oversized Core Tee', categoryId: tOversized._id, brandId: bZUNO._id, price: 149900, mrp: 199900, stock: 280, desc: 'Oversized street-ready tee with dropped shoulders.', colors: ['black','white','grey','olive','navy'], sizes: ['M','L','XL','XXL','XXXL'], fit: 'oversized', fabric: 'Cotton Blend', collection: 'Street Form', customizable: 1, featured: 1, newArrival: 1, specs: { Fabric: 'Cotton Blend' }, images: IMG.tee2 });
+      await clothingProd({ name: 'ZUNO Minimal Graphic Tee', categoryId: tGraphic._id, brandId: bZUNO._id, price: 159900, mrp: 219900, stock: 200, desc: 'Clean front graphic — subtle, not loud.', colors: ['black','white'], sizes: ['S','M','L','XL'], fit: 'regular', fabric: '100% Cotton', collection: 'Street Form', customizable: 1, specs: { Print: 'Screen Print' }, images: IMG.tee3 });
+      await clothingProd({ name: 'ZUNO Everyday Cotton Tee', categoryId: tRegular._id, brandId: bZUNO._id, price: 99900, mrp: 139900, stock: 400, desc: 'Breathable everyday tee — soft, lightweight.', colors: ['white','black','grey','navy','beige'], sizes: ['XS','S','M','L','XL'], fit: 'regular', fabric: '100% Cotton', collection: 'Essentials', featured: 1, specs: { Fabric: '100% Cotton' }, images: IMG.tee4 });
+      await clothingProd({ name: 'ZUNO Premium Relaxed Tee', categoryId: tPremium._id, brandId: bZUNO._id, price: 189900, mrp: 249900, stock: 180, desc: 'Premium relaxed tee — washed finish.', colors: ['black','charcoal','beige','sage'], sizes: ['S','M','L','XL'], fit: 'relaxed', fabric: 'Organic Cotton', collection: 'Essentials', featured: 1, specs: { Fabric: 'Organic Cotton' }, images: IMG.tee5 });
+      await clothingProd({ name: 'ZUNO Polo Classic', categoryId: tPolo._id, brandId: bZUNO._id, price: 179900, mrp: 239900, stock: 160, desc: 'Classic polo — piqué knit.', colors: ['navy','black','white','forest'], sizes: ['S','M','L','XL','XXL'], fit: 'regular', fabric: 'Piqué Cotton', collection: 'Essentials', specs: { Fabric: 'Piqué Cotton' }, images: IMG.tee6 });
+      await clothingProd({ name: 'ZUNO Street Graphic Oversized Tee', categoryId: tGraphic._id, brandId: bZUNOStudio._id, price: 169900, mrp: 229900, stock: 220, desc: 'Bold back graphic — street culture.', colors: ['black','white','charcoal'], sizes: ['M','L','XL','XXL'], fit: 'oversized', fabric: 'Cotton', collection: 'After Dark', customizable: 1, newArrival: 1, specs: { Print: 'Puff Print' }, images: IMG.tee7 });
+      await clothingProd({ name: 'ZUNO Washed Vintage Tee', categoryId: tPlain._id, brandId: bZUNO._id, price: 139900, mrp: 189900, stock: 250, desc: 'Garment-washed vintage tee.', colors: ['washed-black','washed-grey','washed-olive'], sizes: ['S','M','L','XL'], fit: 'regular', fabric: 'Washed Cotton', collection: 'Essentials', specs: { Wash: 'Garment Dyed' }, images: IMG.tee1 });
+      await clothingProd({ name: 'ZUNO Signature Tee', categoryId: tPremium._id, brandId: bZUNO._id, price: 199900, mrp: 269900, stock: 200, desc: 'Signature heavyweight tee — ZUNO embroidered.', colors: ['black','white','charcoal'], sizes: ['S','M','L','XL','XXL'], fit: 'regular', fabric: 'Heavyweight Cotton', collection: 'Essentials', featured: 1, specs: { GSM: '280' }, images: IMG.tee2 });
+      await clothingProd({ name: 'ZUNO Core Black Tee', categoryId: tPlain._id, brandId: bZUNO._id, price: 119900, mrp: 159900, stock: 350, desc: 'Core black tee — everyday.', colors: ['black'], sizes: ['XS','S','M','L','XL','XXL'], fit: 'regular', fabric: '100% Cotton', collection: 'Essentials', featured: 1, newArrival: 1, specs: { Fabric: '100% Cotton' }, images: IMG.tee3 });
+      await clothingProd({ name: 'ZUNO Graphic Series Tee', categoryId: tGraphic._id, brandId: bZUNOStudio._id, price: 179900, mrp: 239900, stock: 180, desc: 'Graphic series — bold front print.', colors: ['black','white','beige'], sizes: ['M','L','XL','XXL'], fit: 'oversized', fabric: 'Cotton', collection: 'Street Form', customizable: 1, featured: 1, specs: { Print: 'HD Screen Print' }, images: IMG.tee4 });
+      // Coupons for Mongo
+      const { Coupon } = await import('./models/index.js');
+      if (await Coupon.countDocuments({ code: 'ZUNO100' }) === 0) await Coupon.create({ code: 'ZUNO100', type: 'flat', value: 10000, min_order: 0, module: null, active: true });
+      if (await Coupon.countDocuments({ code: 'WELCOME10' }) === 0) await Coupon.create({ code: 'WELCOME10', type: 'percent', value: 10, min_order: 100000, max_discount: 50000, module: null, active: true });
+      if (await Coupon.countDocuments({ code: 'STUDIO50' }) === 0) await Coupon.create({ code: 'STUDIO50', type: 'flat', value: 5000, min_order: 50000, module: null, active: true });
+      logger.info(`Mongo catalogue seeded: ${await Product.countDocuments()} products`);
+    } else {
+      logger.info(`Mongo catalogue present: ${mCount} products`);
+    }
+  } catch (e) { logger.error('mongo catalogue seed failed', e.message); }
+}
 try {
   const prodCount = db.prepare('SELECT COUNT(*) c FROM products').get().c;
   if (prodCount === 0) {

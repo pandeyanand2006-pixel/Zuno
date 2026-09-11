@@ -7,17 +7,18 @@ import { z } from 'zod';
 import { orderService } from '../services/order.service.js';
 import { ok } from '../utils/response.js';
 
+const idSchema = z.union([z.number().int().positive(), z.string().min(1)]);
 const orderRouter = Router();
 orderRouter.use(authMiddleware);
-orderRouter.get('/:id/history', (req, res) => {
-  const history = orderService.getHistory(Number(req.params.id));
+orderRouter.get('/:id/history', async (req, res) => {
+  const history = await orderService.getHistory(req.params.id);
   return ok(res, { history });
 });
-orderRouter.post('/', validate(z.object({ module: z.enum(['shop','grocery','food']).default('shop'), addressId: z.number().int().positive(), couponCode: z.string().optional(), customerNotes: z.string().max(500).optional() })), orderCtrl.createOrder);
+orderRouter.post('/', validate(z.object({ module: z.enum(['shop','grocery','food']).default('shop'), addressId: idSchema, couponCode: z.string().optional(), customerNotes: z.string().max(500).optional() })), orderCtrl.createOrder);
 orderRouter.get('/', orderCtrl.listOrders);
 orderRouter.get('/:id', orderCtrl.getOrder);
 orderRouter.post('/:id/cancel', orderCtrl.cancelOrder);
-orderRouter.post('/custom', validate(z.object({ module: z.enum(['shop','grocery','food']), addressId: z.number().int().positive(), couponCode: z.string().optional(), items: z.array(z.object({ type: z.enum(['product','menu']), id: z.number().int().positive(), quantity: z.number().int().min(1).max(20) })).min(1) })), orderCtrl.createCustomOrder);
+orderRouter.post('/custom', validate(z.object({ module: z.enum(['shop','grocery','food']), addressId: idSchema, couponCode: z.string().optional(), items: z.array(z.object({ type: z.enum(['product','menu']), id: idSchema, quantity: z.number().int().min(1).max(20) })).min(1) })), orderCtrl.createCustomOrder);
 
 const paymentRouter = Router();
 paymentRouter.use(authMiddleware);
