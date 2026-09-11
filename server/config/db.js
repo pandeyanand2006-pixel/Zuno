@@ -454,6 +454,7 @@ export function initializeSchema() {
   addColumn('addresses', 'house_no', 'TEXT');
   addColumn('addresses', 'landmark', 'TEXT');
   addColumn('addresses', 'area', 'TEXT');
+  addColumn('products', 'video_url', 'TEXT');
 }
 
 export default db;

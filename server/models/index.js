@@ -89,6 +89,7 @@ const productSchema = new mongoose.Schema({
   featured: Boolean,
   new_arrival: Boolean,
   care_instructions: String,
+  video_url: String,
 }, { collection: 'products', timestamps: { createdAt: 'created_at', updatedAt: false } });
 productSchema.index({ category_id: 1 });
 productSchema.index({ module: 1 });

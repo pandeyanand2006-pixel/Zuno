@@ -8,8 +8,34 @@ import { z } from 'zod';
 import { validate } from '../middleware/validate.js';
 import { slugify } from '../utils/id.js';
 import { orderService } from '../services/order.service.js';
+import multer from 'multer';
+import path from 'node:path';
+import fs from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
 function useMongo() { return !!env.mongoUri && isMongoConnected(); }
+
+// ── Multer for product images/video ──
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const uploadDir = path.resolve(__dirname, '../../public/uploads/products');
+try { if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true }); } catch {}
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, uploadDir),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname) || (file.mimetype.includes('video') ? '.mp4' : '.jpg');
+    const name = `${Date.now()}-${Math.random().toString(36).slice(2,8)}${ext}`;
+    cb(null, name);
+  }
+});
+const upload = multer({
+  storage,
+  limits: { fileSize: 50 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (file.fieldname === 'images' && !file.mimetype.startsWith('image/')) return cb(new Error('Only images allowed for images'));
+    if (file.fieldname === 'video' && !file.mimetype.startsWith('video/')) return cb(new Error('Only video allowed for video'));
+    cb(null, true);
+  }
+});
 
 const router = Router();
 router.use(authMiddleware, requireRole('ADMIN'));
@@ -184,115 +210,250 @@ router.get('/products', async (req, res) => {
   return ok(res, { products: items, total, page: Number(page), limit: Number(limit) });
 });
 
-router.post('/products', validate(productSchema), async (req, res) => {
-  if (useMongo()) {
-    const { Product, ProductVariant, Category } = await import('../models/index.js');
-    const v = req.validated;
-    let catId = v.categoryId;
-    if (!/^[0-9a-fA-F]{24}$/.test(String(v.categoryId))) {
-      const cat = await Category.findOne({ slug: String(v.categoryId).toLowerCase() });
-      if (!cat) return fail(res, 'Category not found', 404);
-      catId = cat._id;
-    }
-    const slug = slugify(v.name) + '-' + Math.random().toString(36).slice(2, 6);
-    const prod = await Product.create({ category_id: catId, name: v.name, slug, description: v.description||'', price: v.price, mrp: v.mrp, stock: v.stock, images: v.images||[], module: v.module, colors: v.colors||[], sizes: v.sizes||[], fit: v.fit||null, fabric: v.fabric||null, collection: v.collection||null, customizable: !!v.customizable, featured: !!v.featured, new_arrival: !!v.newArrival, care_instructions: 'Machine wash cold', active: true });
-    if (v.colors && v.sizes) {
-      for (const color of v.colors) for (const size of v.sizes) {
-        const sku = `ZUNO-${prod._id}-${color.toUpperCase().replace(/[^A-Z0-9]/g, '')}-${size}`;
-        try { await ProductVariant.create({ product_id: prod._id, sku, color, size, stock: Math.floor(v.stock / (v.colors.length * v.sizes.length)) + 5, price: v.price }); } catch {}
+router.post('/products', upload.fields([{ name: 'images', maxCount: 10 }, { name: 'video', maxCount: 1 }]), async (req, res) => {
+  try {
+    // Support both JSON and multipart/FormData
+    const body = req.body || {};
+    // Parse fields that may be JSON strings when sent via FormData
+    const parseArray = (v) => {
+      if (Array.isArray(v)) return v;
+      if (typeof v === 'string') {
+        try { const p = JSON.parse(v); if (Array.isArray(p)) return p; } catch {}
+        return v.split(',').map(s => s.trim()).filter(Boolean);
+      }
+      return [];
+    };
+    const parseBool = (v) => v === true || v === 'true' || v === '1' || v === 1;
+    const name = body.name?.trim();
+    const categoryId = body.categoryId || body.category_id;
+    const price = Number(body.price);
+    const mrp = Number(body.mrp);
+    const stock = Number(body.stock);
+    const description = body.description || '';
+    const colors = parseArray(body.colors);
+    const sizes = parseArray(body.sizes);
+    const fit = body.fit || null;
+    const fabric = body.fabric || null;
+    const collection = body.collection || null;
+    const customizable = parseBool(body.customizable);
+    const featured = parseBool(body.featured);
+    const newArrival = parseBool(body.newArrival || body.new_arrival);
+    const module = body.module || 'shop';
+
+    if (!name || name.length < 2) return fail(res, 'Name is required (min 2)', 400);
+    if (!categoryId) return fail(res, 'Category is required', 400);
+    if (!price || price <= 0) return fail(res, 'Valid price required', 400);
+    if (!mrp || mrp <= 0) return fail(res, 'Valid MRP required', 400);
+    if (isNaN(stock) || stock < 0) return fail(res, 'Valid stock required', 400);
+
+    // Handle uploaded images
+    let images = [];
+    if (req.files && req.files.images) {
+      images = req.files.images.map(f => `/uploads/products/${f.filename}`);
+    } else if (body.images) {
+      // Legacy JSON: images as array of URLs or comma-separated string
+      if (Array.isArray(body.images)) images = body.images;
+      else if (typeof body.images === 'string') {
+        try { const p = JSON.parse(body.images); images = Array.isArray(p) ? p : body.images.split(',').map(s => s.trim()).filter(Boolean); } catch { images = body.images.split(',').map(s => s.trim()).filter(Boolean); }
       }
     }
-    return ok(res, { id: String(prod._id) }, 'Product created', 201);
-  }
-  const slug = slugify(req.validated.name) + '-' + Math.random().toString(36).slice(2, 6);
-  const v = req.validated;
-  const info = db.prepare('INSERT INTO products (seller_id, category_id, name, slug, description, price, mrp, stock, images, module, colors, sizes, fit, fabric, collection, customizable, featured, new_arrival, care_instructions) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-    .run(null, v.categoryId, v.name, slug, v.description || '', v.price, v.mrp, v.stock, JSON.stringify(v.images || []), v.module, JSON.stringify(v.colors || []), JSON.stringify(v.sizes || []), v.fit || null, v.fabric || null, v.collection || null, v.customizable ? 1 : 0, v.featured ? 1 : 0, v.newArrival ? 1 : 0, 'Machine wash cold');
-  if (v.colors && v.sizes) {
-    const varIns = db.prepare('INSERT INTO product_variants (product_id, sku, color, size, stock, price) VALUES (?, ?, ?, ?, ?, ?)');
-    for (const color of v.colors) for (const size of v.sizes) {
-      const sku = `ZUNO-${info.lastInsertRowid}-${color.toUpperCase().replace(/[^A-Z0-9]/g, '')}-${size}`;
-      try { varIns.run(info.lastInsertRowid, sku, color, size, Math.floor(v.stock / (v.colors.length * v.sizes.length)) + 5, v.price); } catch {}
+    // Include existing image URLs sent as imageUrls[] in FormData
+    if (body.imageUrls) {
+      const extra = parseArray(body.imageUrls);
+      images = images.concat(extra);
     }
+    if (images.length < 4) return fail(res, 'At least 4 images required (front, back, side views)', 400);
+    if (images.length > 10) return fail(res, 'Maximum 10 images allowed', 400);
+
+    let videoUrl = null;
+    if (req.files && req.files.video && req.files.video[0]) {
+      videoUrl = `/uploads/products/${req.files.video[0].filename}`;
+    } else if (body.videoUrl) {
+      videoUrl = body.videoUrl;
+    } else if (body.video_url) {
+      videoUrl = body.video_url;
+    }
+
+    if (useMongo()) {
+      const { Product, ProductVariant, Category } = await import('../models/index.js');
+      let catId = categoryId;
+      if (!/^[0-9a-fA-F]{24}$/.test(String(categoryId))) {
+        const cat = await Category.findOne({ slug: String(categoryId).toLowerCase() });
+        if (!cat) return fail(res, 'Category not found', 404);
+        catId = cat._id;
+      }
+      const slug = slugify(name) + '-' + Math.random().toString(36).slice(2, 6);
+      const prod = await Product.create({ category_id: catId, name, slug, description, price, mrp, stock, images, video_url: videoUrl, module, colors, sizes, fit, fabric, collection, customizable, featured, new_arrival: newArrival, care_instructions: 'Machine wash cold', active: true });
+      if (colors.length && sizes.length) {
+        for (const color of colors) for (const size of sizes) {
+          const sku = `ZUNO-${prod._id}-${color.toUpperCase().replace(/[^A-Z0-9]/g, '')}-${size}`;
+          try { await ProductVariant.create({ product_id: prod._id, sku, color, size, stock: Math.floor(stock / (colors.length * sizes.length)) + 5, price }); } catch {}
+        }
+      }
+      return ok(res, { id: String(prod._id) }, 'Product created', 201);
+    }
+    const slug = slugify(name) + '-' + Math.random().toString(36).slice(2, 6);
+    let catIdNum = Number(categoryId);
+    if (!catIdNum) {
+      const row = db.prepare('SELECT id FROM categories WHERE slug = ?').get(String(categoryId).toLowerCase());
+      if (!row) return fail(res, 'Category not found', 404);
+      catIdNum = row.id;
+    }
+    const info = db.prepare('INSERT INTO products (seller_id, category_id, name, slug, description, price, mrp, stock, images, video_url, module, colors, sizes, fit, fabric, collection, customizable, featured, new_arrival, care_instructions) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(null, catIdNum, name, slug, description, price, mrp, stock, JSON.stringify(images), videoUrl, module, JSON.stringify(colors), JSON.stringify(sizes), fit, fabric, collection, customizable ? 1 : 0, featured ? 1 : 0, newArrival ? 1 : 0, 'Machine wash cold');
+    if (colors.length && sizes.length) {
+      const varIns = db.prepare('INSERT INTO product_variants (product_id, sku, color, size, stock, price) VALUES (?, ?, ?, ?, ?, ?)');
+      for (const color of colors) for (const size of sizes) {
+        const sku = `ZUNO-${info.lastInsertRowid}-${color.toUpperCase().replace(/[^A-Z0-9]/g, '')}-${size}`;
+        try { varIns.run(info.lastInsertRowid, sku, color, size, Math.floor(stock / (colors.length * sizes.length)) + 5, price); } catch {}
+      }
+    }
+    return ok(res, { id: info.lastInsertRowid }, 'Product created', 201);
+  } catch (e) {
+    // Clean up uploaded files on error
+    if (req.files) {
+      try {
+        const all = [...(req.files.images||[]), ...(req.files.video||[])];
+        for (const f of all) { try { fs.unlinkSync(f.path); } catch {} }
+      } catch {}
+    }
+    if (e.message && e.message.includes('Only images')) return fail(res, e.message, 400);
+    if (e.message && e.message.includes('Only video')) return fail(res, e.message, 400);
+    return fail(res, e.message || 'Could not create product', 400);
   }
-  return ok(res, { id: info.lastInsertRowid }, 'Product created', 201);
 });
 
-router.put('/products/:id', async (req, res) => {
-  if (useMongo()) {
-    const { Product, ProductVariant } = await import('../models/index.js');
-    const d = req.body;
-    const existing = await Product.findById(req.params.id);
+router.put('/products/:id', upload.fields([{ name: 'images', maxCount: 10 }, { name: 'video', maxCount: 1 }]), async (req, res) => {
+  try {
+    const parseArray = (v) => {
+      if (!v) return undefined;
+      if (Array.isArray(v)) return v;
+      if (typeof v === 'string') {
+        try { const p = JSON.parse(v); if (Array.isArray(p)) return p; } catch {}
+        return v.split(',').map(s => s.trim()).filter(Boolean);
+      }
+      return undefined;
+    };
+    const body = req.body || {};
+    // Handle uploaded files for update
+    let newImages = null;
+    if (req.files && req.files.images && req.files.images.length) {
+      newImages = req.files.images.map(f => `/uploads/products/${f.filename}`);
+    } else if (body.images) {
+      if (Array.isArray(body.images)) newImages = body.images;
+      else if (typeof body.images === 'string') {
+        try { const p = JSON.parse(body.images); newImages = Array.isArray(p) ? p : body.images.split(',').map(s=>s.trim()).filter(Boolean); } catch { newImages = body.images.split(',').map(s=>s.trim()).filter(Boolean); }
+      }
+    }
+    if (body.imageUrls) {
+      const extra = parseArray(body.imageUrls);
+      if (extra) newImages = (newImages||[]).concat(extra);
+    }
+    let newVideo = null;
+    if (req.files && req.files.video && req.files.video[0]) newVideo = `/uploads/products/${req.files.video[0].filename}`;
+    else if (body.videoUrl) newVideo = body.videoUrl;
+    else if (body.video_url) newVideo = body.video_url;
+
+    // Normalize numeric fields (FormData sends strings)
+    const num = (v) => v !== undefined && v !== '' ? Number(v) : undefined;
+    const price = num(body.price);
+    const mrp = num(body.mrp);
+    const stock = num(body.stock);
+
+    if (useMongo()) {
+      const { Product, ProductVariant } = await import('../models/index.js');
+      const existing = await Product.findById(req.params.id);
+      if (!existing) return fail(res, 'Product not found', 404);
+      if (price !== undefined && (isNaN(price) || price <= 0)) return fail(res, 'Invalid price', 400);
+      if (mrp !== undefined && (isNaN(mrp) || mrp <= 0)) return fail(res, 'Invalid MRP', 400);
+      if (stock !== undefined && (isNaN(stock) || stock < 0)) return fail(res, 'Invalid stock', 400);
+      if (body.name) existing.name = body.name.trim();
+      if (body.slug) existing.slug = slugify(body.slug) + '-' + Math.random().toString(36).slice(2,4);
+      if (body.description !== undefined) existing.description = body.description;
+      if (price !== undefined) existing.price = price;
+      if (mrp !== undefined) existing.mrp = mrp;
+      if (stock !== undefined) existing.stock = stock;
+      if (newImages) {
+        if (newImages.length < 4) return fail(res, 'At least 4 images required', 400);
+        existing.images = newImages;
+      }
+      if (newVideo !== null) existing.video_url = newVideo;
+      if (body.active !== undefined) existing.active = body.active === 'true' || body.active === true || body.active === '1';
+      const colors = parseArray(body.colors);
+      const sizes = parseArray(body.sizes);
+      if (colors) existing.colors = colors;
+      if (sizes) existing.sizes = sizes;
+      if (body.fit !== undefined) existing.fit = body.fit;
+      if (body.fabric !== undefined) existing.fabric = body.fabric;
+      if (body.collection !== undefined) existing.collection = body.collection;
+      if (body.customizable !== undefined) existing.customizable = body.customizable === 'true' || body.customizable === true;
+      if (body.featured !== undefined) existing.featured = body.featured === 'true' || body.featured === true;
+      if (body.newArrival !== undefined || body.new_arrival !== undefined) existing.new_arrival = (body.newArrival === 'true' || body.newArrival === true || body.new_arrival === 'true');
+      await existing.save();
+      if (price) try { await ProductVariant.updateMany({ product_id: req.params.id }, { price }); } catch {}
+      return ok(res, null, 'Product updated');
+    }
+    const existing = db.prepare('SELECT * FROM products WHERE id = ?').get(req.params.id);
     if (!existing) return fail(res, 'Product not found', 404);
-    if (d.price !== undefined && (typeof d.price !== 'number' || d.price <= 0)) return fail(res, 'Invalid price', 400);
-    if (d.mrp !== undefined && (typeof d.mrp !== 'number' || d.mrp <= 0)) return fail(res, 'Invalid MRP', 400);
-    if (d.stock !== undefined && (typeof d.stock !== 'number' || d.stock < 0)) return fail(res, 'Invalid stock', 400);
-    if (d.name) existing.name = d.name;
-    if (d.slug) existing.slug = slugify(d.slug) + '-' + Math.random().toString(36).slice(2,4);
-    if (d.description !== undefined) existing.description = d.description;
-    if (d.price !== undefined) existing.price = d.price;
-    if (d.mrp !== undefined) existing.mrp = d.mrp;
-    if (d.stock !== undefined) existing.stock = d.stock;
-    if (d.images) existing.images = d.images;
-    if (d.active !== undefined) existing.active = !!d.active;
-    if (d.colors) existing.colors = d.colors;
-    if (d.sizes) existing.sizes = d.sizes;
-    if (d.fit !== undefined) existing.fit = d.fit;
-    if (d.fabric !== undefined) existing.fabric = d.fabric;
-    if (d.collection !== undefined) existing.collection = d.collection;
-    if (d.customizable !== undefined) existing.customizable = !!d.customizable;
-    if (d.featured !== undefined) existing.featured = !!d.featured;
-    if (d.newArrival !== undefined) existing.new_arrival = !!d.newArrival;
-    await existing.save();
-    if (d.price) try { await ProductVariant.updateMany({ product_id: req.params.id }, { price: d.price }); } catch {}
+    if (price !== undefined && (isNaN(price) || price <= 0)) return fail(res, 'Invalid price', 400);
+    if (mrp !== undefined && (isNaN(mrp) || mrp <= 0)) return fail(res, 'Invalid MRP', 400);
+    if (stock !== undefined && (isNaN(stock) || stock < 0)) return fail(res, 'Invalid stock', 400);
+    let imagesJson = null;
+    if (newImages) {
+      if (newImages.length < 4) return fail(res, 'At least 4 images required', 400);
+      imagesJson = JSON.stringify(newImages);
+    }
+    let videoVal = newVideo !== null ? newVideo : null;
+    const colors = parseArray(body.colors);
+    const sizes = parseArray(body.sizes);
+    db.prepare(`
+      UPDATE products SET
+        name = COALESCE(?, name),
+        slug = COALESCE(?, slug),
+        description = COALESCE(?, description),
+        price = COALESCE(?, price),
+        mrp = COALESCE(?, mrp),
+        stock = COALESCE(?, stock),
+        images = COALESCE(?, images),
+        video_url = COALESCE(?, video_url),
+        active = COALESCE(?, active),
+        colors = COALESCE(?, colors),
+        sizes = COALESCE(?, sizes),
+        fit = COALESCE(?, fit),
+        fabric = COALESCE(?, fabric),
+        collection = COALESCE(?, collection),
+        customizable = COALESCE(?, customizable),
+        featured = COALESCE(?, featured),
+        new_arrival = COALESCE(?, new_arrival)
+      WHERE id = ?
+    `).run(
+      body.name ? body.name.trim() : null,
+      body.slug ? slugify(body.slug) + '-' + Math.random().toString(36).slice(2,4) : null,
+      body.description ?? null,
+      price ?? null,
+      mrp ?? null,
+      stock ?? null,
+      imagesJson,
+      videoVal,
+      body.active !== undefined ? (body.active === 'true' || body.active === true || body.active === '1' ? 1 : 0) : null,
+      colors ? JSON.stringify(colors) : null,
+      sizes ? JSON.stringify(sizes) : null,
+      body.fit ?? null,
+      body.fabric ?? null,
+      body.collection ?? null,
+      body.customizable !== undefined ? (body.customizable === 'true' || body.customizable === true || body.customizable === '1' ? 1 : 0) : null,
+      body.featured !== undefined ? (body.featured === 'true' || body.featured === true ? 1 : 0) : null,
+      (body.newArrival !== undefined || body.new_arrival !== undefined) ? ((body.newArrival === 'true' || body.newArrival === true || body.new_arrival === 'true') ? 1 : 0) : null,
+      req.params.id
+    );
+    if (price) { try { db.prepare('UPDATE product_variants SET price = ? WHERE product_id = ?').run(price, req.params.id); } catch {} }
     return ok(res, null, 'Product updated');
+  } catch (e) {
+    if (req.files) {
+      try { const all = [...(req.files.images||[]), ...(req.files.video||[])]; for (const f of all) try { fs.unlinkSync(f.path); } catch {} } catch {}
+    }
+    return fail(res, e.message || 'Could not update product', 400);
   }
-  const d = req.body;
-  const existing = db.prepare('SELECT * FROM products WHERE id = ?').get(req.params.id);
-  if (!existing) return fail(res, 'Product not found', 404);
-  if (d.price !== undefined && (typeof d.price !== 'number' || d.price <= 0)) return fail(res, 'Invalid price', 400);
-  if (d.mrp !== undefined && (typeof d.mrp !== 'number' || d.mrp <= 0)) return fail(res, 'Invalid MRP', 400);
-  if (d.stock !== undefined && (typeof d.stock !== 'number' || d.stock < 0)) return fail(res, 'Invalid stock', 400);
-  db.prepare(`
-    UPDATE products SET
-      name = COALESCE(?, name),
-      slug = COALESCE(?, slug),
-      description = COALESCE(?, description),
-      price = COALESCE(?, price),
-      mrp = COALESCE(?, mrp),
-      stock = COALESCE(?, stock),
-      images = COALESCE(?, images),
-      active = COALESCE(?, active),
-      colors = COALESCE(?, colors),
-      sizes = COALESCE(?, sizes),
-      fit = COALESCE(?, fit),
-      fabric = COALESCE(?, fabric),
-      collection = COALESCE(?, collection),
-      customizable = COALESCE(?, customizable),
-      featured = COALESCE(?, featured),
-      new_arrival = COALESCE(?, new_arrival)
-    WHERE id = ?
-  `).run(
-    d.name || null,
-    d.slug ? slugify(d.slug) + '-' + Math.random().toString(36).slice(2,4) : null,
-    d.description ?? null,
-    d.price ?? null,
-    d.mrp ?? null,
-    d.stock ?? null,
-    d.images ? JSON.stringify(d.images) : null,
-    d.active !== undefined ? (d.active ? 1 : 0) : null,
-    d.colors ? JSON.stringify(d.colors) : null,
-    d.sizes ? JSON.stringify(d.sizes) : null,
-    d.fit ?? null,
-    d.fabric ?? null,
-    d.collection ?? null,
-    d.customizable !== undefined ? (d.customizable ? 1 : 0) : null,
-    d.featured !== undefined ? (d.featured ? 1 : 0) : null,
-    d.newArrival !== undefined ? (d.newArrival ? 1 : 0) : null,
-    req.params.id
-  );
-  if (d.price) { try { db.prepare('UPDATE product_variants SET price = ? WHERE product_id = ?').run(d.price, req.params.id); } catch {} }
-  return ok(res, null, 'Product updated');
 });
 
 router.delete('/products/:id', async (req, res) => {

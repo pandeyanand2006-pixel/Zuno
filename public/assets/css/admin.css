@@ -88,7 +88,22 @@
 .admin-login-brand { display: flex; align-items: center; gap: 12px; justify-content: center; margin-bottom: 20px; }
 .admin-login-brand .logo { width: 44px; height: 44px; border-radius: 12px; background: #0f172a; color: #fff; display: grid; place-items: center; font-weight: 800; }
 
-/* modal overrides for admin */
+/* modal overrides for admin — high contrast, no overlap */
+.overlay { background: rgba(15,23,42,0.6); backdrop-filter: blur(4px); }
+.modal { background: #ffffff !important; color: #0f172a !important; border: 1px solid #e2e8f0; box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
+.modal h1, .modal h2, .modal h3, .modal h4 { color: #0f172a !important; }
+.modal .muted { color: #64748b !important; }
+.modal .admin-input, .modal .admin-select { background: #fff; color: #0f172a; border-color: #cbd5e1; }
 .admin-modal { max-width: 720px; }
 .admin-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 @media (max-width: 640px) { .admin-form-grid { grid-template-columns: 1fr; } }
+
+/* Ensure admin content text is always visible on light background */
+.admin-content { background: #f8fafc; color: #0f172a; }
+.admin-card, .admin-stat, .admin-table, .admin-table td, .admin-table th { color: #0f172a; }
+.admin-table th { background: #f1f5f9; color: #334155; }
+.admin-table td { background: #fff; }
+.admin-card__title, .admin-stat__value, .admin-stat__label { color: #0f172a; }
+.admin-badge { color: #0f172a; }
+.admin-badge-pending, .admin-badge-low { color: #92400e; }
+.admin-badge-paid, .admin-badge-confirmed, .admin-badge-shipped, .admin-badge-delivered { color: #0f172a; }

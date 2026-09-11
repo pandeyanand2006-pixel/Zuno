@@ -27,11 +27,13 @@ async function request(method, path, { body, auth = true, query } = {}) {
     const s = qs.toString();
     if (s) url += '?' + s;
   }
-  const headers = { 'Content-Type': 'application/json' };
+  const headers = {};
+  const isFormData = typeof FormData !== 'undefined' && body instanceof FormData;
+  if (!isFormData) headers['Content-Type'] = 'application/json';
   const token = Store.getToken();
   if (auth && token) headers['Authorization'] = 'Bearer ' + token;
 
-  const res = await fetch(url, { method, headers, body: body ? JSON.stringify(body) : undefined });
+  const res = await fetch(url, { method, headers, body: body ? (isFormData ? body : JSON.stringify(body)) : undefined });
   let data = null;
   try { data = await res.json(); } catch { /* no body */ }
   if (!res.ok || (data && data.success === false)) {

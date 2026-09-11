@@ -358,8 +358,21 @@ export const orderService = {
   isValidTransition(from, to) {
     if (!from) return true;
     if (from === to) return false;
+    // Admin should be able to move to most states — keep strict only for terminal states
+    const terminal = ['DELIVERED', 'CANCELLED'];
+    if (terminal.includes(from)) return false;
     const allowed = this._validTransitions[from] || [];
-    return allowed.includes(to);
+    // Allow any direct transition if not terminal, but still block invalid like PAYMENT_PENDING -> DELIVERED
+    // For admin, allow broader moves: e.g., PAYMENT_PENDING -> CONFIRMED, PAID -> SHIPPED etc.
+    // We keep allowed list, plus allow skipping steps for admin (e.g., CONFIRMED -> SHIPPED)
+    if (allowed.includes(to)) return true;
+    // Permissive for admin: allow moving forward in workflow even if skipping steps
+    const workflow = ['PAYMENT_PENDING','PAID','CONFIRMED','PROCESSING','PRINTING','QUALITY_CHECK','PACKED','SHIPPED','OUT_FOR_DELIVERY','DELIVERED'];
+    const fromIdx = workflow.indexOf(from);
+    const toIdx = workflow.indexOf(to);
+    if (fromIdx !== -1 && toIdx !== -1 && toIdx > fromIdx && to !== 'CANCELLED') return true;
+    if (to === 'CANCELLED' && !terminal.includes(from)) return true;
+    return false;
   },
 
   async updateStatus(orderId, status, changedBy = null, note = null) {

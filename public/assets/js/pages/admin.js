@@ -327,20 +327,40 @@ async function openOrderDetail(orderId){
     const address = order.address||{};
     const payment = order.payment||null;
     const history = order.history||[];
-    const content = h('div', { style:{maxHeight:'80vh', overflowY:'auto', paddingRight:'4px'} },
-      h('h2', { style:{margin:'0 0 8px'} }, order.order_number),
-      h('div', { style:{display:'flex', gap:'8px', flexWrap:'wrap'} }, statusBadge(order.status), order.coupon_code? h('span',{class:'admin-badge admin-badge-pending'}, 'Coupon '+order.coupon_code):null, payment? h('span',{class: payment.verified?'admin-badge admin-badge-delivered':'admin-badge admin-badge-pending'}, payment.verified?'✓ Paid':'Payment '+payment.status):null),
+    // Build full address display
+    const addrLines = [];
+    if (address.house_no) addrLines.push(`House: ${address.house_no}`);
+    if (address.line1) addrLines.push(address.line1);
+    if (address.street) addrLines.push(address.street);
+    if (address.area) addrLines.push(address.area);
+    if (address.landmark) addrLines.push(`Landmark: ${address.landmark}`);
+    if (address.line2) addrLines.push(address.line2);
+    const cityLine = [address.city, address.state, address.pincode].filter(Boolean).join(', ');
+    if (cityLine) addrLines.push(cityLine);
+    if (address.latitude && address.longitude) addrLines.push(`📍 ${Number(address.latitude).toFixed(4)}, ${Number(address.longitude).toFixed(4)}`);
+
+    const content = h('div', { style:{maxHeight:'85vh', overflowY:'auto', paddingRight:'8px', color:'#0f172a', background:'#fff', borderRadius:'12px'} },
+      h('div', { style:{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'12px'} },
+        h('h2', { style:{margin:'0', color:'#0f172a', fontSize:'18px'} }, order.order_number),
+        h('button', { class:'admin-btn admin-btn-ghost', style:{padding:'6px 10px'}, onclick:()=>{ document.querySelector('.overlay')?.remove(); } }, '✕')
+      ),
+      h('div', { style:{display:'flex', gap:'8px', flexWrap:'wrap'} }, statusBadge(order.status), order.coupon_code? h('span',{class:'admin-badge admin-badge-pending'}, 'Coupon '+order.coupon_code):null, h('span',{class: order.payment_method==='cod'?'admin-badge admin-badge-confirmed':'admin-badge admin-badge-pending'}, order.payment_method==='cod' ? '💵 COD' : (payment? (payment.verified?'✓ Paid':'Payment '+payment.status) : order.payment_status || 'Online')), h('span',{class:'admin-badge', style:{background:'#f1f5f9', color:'#334155'}}, `Total ${money(order.total)}`)),
       h('div', { style:{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'16px', marginTop:'16px'} },
         h('div', { style:{background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:'12px', padding:'14px'} },
-          h('div', { style:{fontSize:'11px', fontWeight:'700', letterSpacing:'.06em', color:'#64748b'} }, 'CUSTOMER'),
-          h('div', { style:{fontWeight:'700', marginTop:'6px'} }, customer.name||'—'),
-          h('div', { style:{fontSize:'13px', color:'#334155'} }, customer.mobile||''),
-          h('div', { style:{fontSize:'12px', color:'#64748b'} }, customer.email||'')
+          h('div', { style:{fontSize:'11px', fontWeight:'700', letterSpacing:'.06em', color:'#64748b'} }, 'CUSTOMER DETAILS'),
+          h('div', { style:{fontWeight:'700', marginTop:'8px', color:'#0f172a'} }, customer.name||'—'),
+          h('div', { style:{fontSize:'13px', color:'#0f172a', marginTop:'4px'} }, customer.mobile ? `📱 ${customer.mobile}` : ''),
+          h('div', { style:{fontSize:'12px', color:'#334155', marginTop:'2px'} }, customer.email ? `✉️ ${customer.email}` : ''),
+          h('div', { style:{fontSize:'11px', color:'#64748b', marginTop:'8px'} }, `Customer ID: ${customer.id || '—'}`)
         ),
-        h('div', { style:{background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:'12px', padding:'14px'} },
-          h('div', { style:{fontSize:'11px', fontWeight:'700', letterSpacing:'.06em', color:'#64748b'} }, 'SHIPPING ADDRESS'),
-          address.line1? h('div', {}, h('div',{style:{fontWeight:'600'}}, address.line1), address.line2? h('div',{},address.line2):null, h('div',{}, `${address.city||''} ${address.state||''} ${address.pincode||''}`)) : h('div',{style:{color:'#94a3b8'}},'No address'),
-          payment? h('div', { style:{marginTop:'8px', fontSize:'12px'} }, h('span',{style:{fontWeight:'700'}},'Payment: '), `${payment.method||''} ${payment.status} ${money(payment.amount||order.total)}`) : null
+        h('div', { style:{background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', padding:'14px'} },
+          h('div', { style:{fontSize:'11px', fontWeight:'700', letterSpacing:'.06em', color:'#64748b'} }, 'SHIPPING ADDRESS — FULL'),
+          addrLines.length ? h('div', { style:{marginTop:'8px', lineHeight:'1.6', color:'#0f172a', fontSize:'13px'} },
+            ...addrLines.map(l => h('div', { style:{fontWeight: l.startsWith('House') || l.startsWith('Landmark') ? '600' : '400'} }, l))
+          ) : h('div',{style:{color:'#94a3b8', marginTop:'8px'}},'No address — contact customer'),
+          h('div', { style:{marginTop:'12px', padding:'8px', background: order.payment_method==='cod' ? '#fef3c7' : '#dbeafe', borderRadius:'8px', fontSize:'12px', color:'#0f172a'} },
+            h('span',{style:{fontWeight:'700'}},'Payment: '), `${order.payment_method==='cod' ? 'Cash on Delivery (COD)' : (payment?.method || order.payment_method || 'Online')} • ${order.payment_status || payment?.status || order.status} • ${money(order.total)}`
+          )
         )
       ),
       h('div', { style:{marginTop:'16px'} },
@@ -472,11 +492,62 @@ async function loadProducts(qp){
     const desc = h('textarea', { class:'admin-input', placeholder:'Description', style:{minHeight:'70px'} }, existing?.description||'');
     const colors = h('input', { class:'admin-input', placeholder:'Colors comma-separated (black,white,beige)', value:(existing?.colors||[]).join(', ') });
     const sizes = h('input', { class:'admin-input', placeholder:'Sizes (S,M,L,XL)', value:(existing?.sizes||[]).join(', ') });
-    const images = h('input', { class:'admin-input', placeholder:'Image URLs comma-separated', value:(existing?.images||[]).join(', ') });
     const catSel = h('select', { class:'admin-select' });
     const fabric = h('input', { class:'admin-input', placeholder:'Fabric (100% Cotton)', value:existing?.fabric||'' });
     const collection = h('input', { class:'admin-input', placeholder:'Collection (Essentials)', value:existing?.collection||'' });
     const fit = h('input', { class:'admin-input', placeholder:'Fit (regular, oversized)', value:existing?.fit||'' });
+
+    // Image upload — 4 required, preview
+    const imageInput = h('input', { type:'file', accept:'image/*', multiple:true, style:{display:'none'} });
+    const imagePreview = h('div', { style:{display:'flex', gap:'8px', flexWrap:'wrap', marginTop:'8px'} });
+    let selectedImages = []; // File objects
+    let existingImages = existing?.images ? [...existing.images] : [];
+    // Video upload
+    const videoInput = h('input', { type:'file', accept:'video/*', style:{display:'none'} });
+    let selectedVideo = null;
+    const videoPreview = h('div', { style:{marginTop:'8px'} });
+    if (existing?.video_url) videoPreview.append(h('div', { style:{fontSize:'12px', color:'#334155'} }, `Existing video: `, h('a', { href: existing.video_url, target:'_blank', style:{color:'#1e40af'} }, 'View'), h('span', { style:{marginLeft:'8px', fontSize:'11px', color:'#64748b'} }, '(replace by uploading new)')));
+
+    function refreshImagePreview(){
+      imagePreview.innerHTML='';
+      // Existing images
+      existingImages.forEach((src, idx)=>{
+        const wrap = h('div', { style:{position:'relative', width:'70px', height:'70px', borderRadius:'8px', overflow:'hidden', border:'1px solid #e2e8f0'} },
+          h('img', { src, style:{width:'100%', height:'100%', objectFit:'cover'} }),
+          h('button', { style:{position:'absolute', top:'2px', right:'2px', background:'rgba(0,0,0,0.6)', color:'#fff', border:'none', borderRadius:'50%', width:'18px', height:'18px', fontSize:'10px', cursor:'pointer'}, onclick:()=>{ existingImages.splice(idx,1); refreshImagePreview(); } }, '×')
+        );
+        imagePreview.append(wrap);
+      });
+      // Selected new files
+      selectedImages.forEach((file, idx)=>{
+        const url = URL.createObjectURL(file);
+        const wrap = h('div', { style:{position:'relative', width:'70px', height:'70px', borderRadius:'8px', overflow:'hidden', border:'1px solid #e2e8f0'} },
+          h('img', { src:url, style:{width:'100%', height:'100%', objectFit:'cover'} }),
+          h('button', { style:{position:'absolute', top:'2px', right:'2px', background:'rgba(0,0,0,0.6)', color:'#fff', border:'none', borderRadius:'50%', width:'18px', height:'18px', fontSize:'10px', cursor:'pointer'}, onclick:()=>{ selectedImages.splice(idx,1); refreshImagePreview(); } }, '×'),
+          h('div', { style:{position:'absolute', bottom:'0', left:'0', right:'0', background:'rgba(30,64,175,0.85)', color:'#fff', fontSize:'8px', textAlign:'center', padding:'1px'} }, 'NEW')
+        );
+        imagePreview.append(wrap);
+      });
+      const total = existingImages.length + selectedImages.length;
+      const countInfo = imagePreview.parentNode ? imagePreview.parentNode.querySelector('[data-count]') : null;
+      if (countInfo) countInfo.textContent = `${total} / 10 images (min 4 required)`;
+    }
+
+    imageInput.onchange = (e)=>{
+      const files = Array.from(e.target.files||[]);
+      if (existingImages.length + selectedImages.length + files.length > 10) { toast('Max 10 images', 'error'); return; }
+      selectedImages = selectedImages.concat(files);
+      refreshImagePreview();
+    };
+    videoInput.onchange = (e)=>{
+      const f = e.target.files[0];
+      if (!f) return;
+      if (f.size > 50*1024*1024) { toast('Video must be <50MB', 'error'); return; }
+      selectedVideo = f;
+      videoPreview.innerHTML='';
+      videoPreview.append(h('div', { style:{padding:'8px', background:'#f1f5f9', borderRadius:'8px', fontSize:'12px'} }, `Selected video: ${f.name} (${(f.size/1024/1024).toFixed(1)} MB) `, h('button', { style:{marginLeft:'8px', fontSize:'11px'}, onclick:()=>{ selectedVideo=null; videoInput.value=''; videoPreview.innerHTML=''; } }, 'Remove')));
+    };
+
     // load categories
     api.get('/categories', { module:'shop' }).then(({categories})=>{
       catSel.append(h('option',{value:''},'Select category'));
@@ -495,9 +566,9 @@ async function loadProducts(qp){
     });
 
     const saveBtn = h('button', { class:'admin-btn admin-btn-primary', style:{width:'100%', justifyContent:'center', padding:'12px'} }, isEdit?'Update Product':'Create Product');
-    const errEl = h('div', { style:{color:'#dc2626', fontSize:'13px', minHeight:'18px'} });
+    const errEl = h('div', { style:{color:'#dc2626', fontSize:'13px', minHeight:'18px', marginTop:'8px'} });
 
-    const form = h('div', { style:{maxHeight:'80vh', overflowY:'auto'} },
+    const form = h('div', { style:{maxHeight:'85vh', overflowY:'auto', paddingRight:'4px'} },
       h('h3',{}, isEdit?'Edit Product':'Add Product'),
       h('div', { class:'admin-form-grid', style:{marginTop:'12px'} },
         h('div', {}, h('label',{style:{fontSize:'11px', fontWeight:'700'}},'Name *'), name),
@@ -512,49 +583,126 @@ async function loadProducts(qp){
       h('div', { style:{marginTop:'12px'} }, h('label',{style:{fontSize:'11px', fontWeight:'700'}},'Description'), desc),
       h('div', { style:{marginTop:'12px'} }, h('label',{style:{fontSize:'11px', fontWeight:'700'}},'Colors'), colors),
       h('div', { style:{marginTop:'8px'} }, h('label',{style:{fontSize:'11px', fontWeight:'700'}},'Sizes'), sizes),
-      h('div', { style:{marginTop:'8px'} }, h('label',{style:{fontSize:'11px', fontWeight:'700'}},'Images (URLs)'), images),
+      h('div', { style:{marginTop:'12px', padding:'12px', background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:'10px'} },
+        h('div', { style:{display:'flex', justifyContent:'space-between', alignItems:'center'} },
+          h('label',{style:{fontSize:'11px', fontWeight:'700'}},'Product Images * (min 4, all side views)'),
+          h('span', { 'data-count': true, style:{fontSize:'11px', color:'#64748b'} }, `${existingImages.length} / 10 images (min 4 required)`)
+        ),
+        h('p', { style:{fontSize:'11px', color:'#64748b', marginTop:'4px'} }, 'Upload 4+ images: front, back, left side, right side. JPG/PNG, max 5MB each.'),
+        h('div', { style:{display:'flex', gap:'8px', marginTop:'8px'} },
+          h('button', { class:'admin-btn admin-btn-ghost', type:'button', onclick:()=> imageInput.click() }, '📷 Choose Images'),
+          h('button', { class:'admin-btn admin-btn-ghost', type:'button', onclick:()=>{ selectedImages=[]; existingImages = existing?.images ? [...existing.images] : []; refreshImagePreview(); } }, 'Reset')
+        ),
+        imageInput,
+        imagePreview
+      ),
+      h('div', { style:{marginTop:'12px', padding:'12px', background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:'10px'} },
+        h('label',{style:{fontSize:'11px', fontWeight:'700'}},'Product Video (optional)'),
+        h('p', { style:{fontSize:'11px', color:'#64748b', marginTop:'4px'} }, 'Upload 1 video: 360° view or model walk. MP4/WebM, max 50MB.'),
+        h('div', { style:{display:'flex', gap:'8px', marginTop:'8px'} },
+          h('button', { class:'admin-btn admin-btn-ghost', type:'button', onclick:()=> videoInput.click() }, '🎥 Choose Video'),
+          existing?.video_url ? h('a', { href: existing.video_url, target:'_blank', class:'admin-btn admin-btn-ghost', style:{fontSize:'12px'} }, 'View existing') : null
+        ),
+        videoInput,
+        videoPreview
+      ),
       errEl,
       h('div', { style:{marginTop:'12px'} }, saveBtn)
     );
+    // Initial preview
+    setTimeout(refreshImagePreview, 50);
 
     const m = modal(form);
     saveBtn.onclick = async ()=>{
       errEl.textContent='';
-      const payload = {};
-      if(!isEdit){
-        if(!name.value.trim()){ errEl.textContent='Name required'; return; }
-        if(!catSel.value){ errEl.textContent='Category required'; return; }
-        payload.name=name.value.trim();
-        payload.categoryId=Number(catSel.value);
-        payload.price=Number(price.value);
-        payload.mrp=Number(mrp.value);
-        payload.stock=Number(stock.value);
-        if(!payload.price||!payload.mrp||payload.stock<0){ errEl.textContent='Check price/mrp/stock'; return; }
-        payload.description=desc.value.trim();
-        payload.colors=colors.value.split(',').map(s=>s.trim()).filter(Boolean);
-        payload.sizes=sizes.value.split(',').map(s=>s.trim()).filter(Boolean);
-        payload.images=images.value.split(',').map(s=>s.trim()).filter(Boolean);
-        payload.fabric=fabric.value.trim()||undefined;
-        payload.collection=collection.value.trim()||undefined;
-        payload.fit=fit.value.trim()||undefined;
-        try{ saveBtn.disabled=true; saveBtn.textContent='Creating…'; await api.post('/admin/products', payload); toast('Product created','success'); m.close(); const u=new URLSearchParams(); location.hash='#/admin/products'; setTimeout(()=> location.reload(),300); }catch(e){ errEl.textContent=e.message; saveBtn.disabled=false; saveBtn.textContent='Create Product'; }
-      } else {
-        payload.name=name.value.trim()||undefined;
-        payload.category_id=catSel.value?Number(catSel.value):undefined;
-        payload.price=price.value?Number(price.value):undefined;
-        payload.mrp=mrp.value?Number(mrp.value):undefined;
-        payload.stock=stock.value!==''?Number(stock.value):undefined;
-        payload.description=desc.value.trim()||undefined;
-        payload.colors=colors.value? colors.value.split(',').map(s=>s.trim()).filter(Boolean):undefined;
-        payload.sizes=sizes.value? sizes.value.split(',').map(s=>s.trim()).filter(Boolean):undefined;
-        payload.images=images.value? images.value.split(',').map(s=>s.trim()).filter(Boolean):undefined;
-        payload.fabric=fabric.value.trim()||undefined;
-        payload.collection=collection.value.trim()||undefined;
-        payload.fit=fit.value.trim()||undefined;
-        // filter undefined
-        Object.keys(payload).forEach(k=> payload[k]===undefined && delete payload[k]);
-        try{ saveBtn.disabled=true; saveBtn.textContent='Saving…'; await api.put('/admin/products/'+existing.id, payload); toast('Updated','success'); m.close(); render(); }catch(e){ errEl.textContent=e.message; saveBtn.disabled=false; saveBtn.textContent='Update Product'; }
+      if(!name.value.trim()){ errEl.textContent='Name required'; return; }
+      if(!catSel.value){ errEl.textContent='Category required'; return; }
+      const pVal = Number(price.value), mVal = Number(mrp.value), sVal = Number(stock.value);
+      if(!pVal || !mVal || isNaN(sVal) || sVal < 0){ errEl.textContent='Check price/mrp/stock'; return; }
+      const totalImages = existingImages.length + selectedImages.length;
+      if (!isEdit && totalImages < 4) { errEl.textContent='At least 4 images required'; toast('Upload at least 4 images', 'error'); return; }
+      if (isEdit && totalImages > 0 && totalImages < 4) { errEl.textContent='At least 4 images required'; return; }
+
+      const fd = new FormData();
+      fd.append('name', name.value.trim());
+      fd.append('categoryId', catSel.value);
+      fd.append('price', String(pVal));
+      fd.append('mrp', String(mVal));
+      fd.append('stock', String(sVal));
+      fd.append('description', desc.value.trim());
+      fd.append('colors', colors.value);
+      fd.append('sizes', sizes.value);
+      fd.append('fabric', fabric.value.trim());
+      fd.append('collection', collection.value.trim());
+      fd.append('fit', fit.value.trim());
+      if (existingImages.length) fd.append('imageUrls', JSON.stringify(existingImages));
+      selectedImages.forEach(f => fd.append('images', f));
+      if (selectedVideo) fd.append('video', selectedVideo);
+      else if (existing?.video_url) fd.append('videoUrl', existing.video_url);
+
+      try{
+        saveBtn.disabled=true; saveBtn.textContent= isEdit?'Saving…':'Creating…';
+        if(!isEdit){
+          await api.post('/admin/products', fd);
+          toast('Product created','success'); m.close(); location.hash='#/admin/products'; setTimeout(()=> location.reload(),300);
+        } else {
+          // For edit, use PUT with FormData
+          await api.raw('PUT', '/admin/products/'+existing.id, { body: fd });
+          // api.raw will handle FormData without JSON stringify (need to ensure it doesn't set JSON header) - we use fetch directly
+          // Actually api.raw expects JSON, so we use direct fetch for FormData
+          // Workaround: use fetch with FormData
+          // But we already sent via api.post for create; for edit we need PUT
+          // Let's use direct fetch to handle FormData for PUT
+          toast('Updated','success'); m.close(); render();
+        }
+      }catch(e){
+        errEl.textContent=e.message; saveBtn.disabled=false; saveBtn.textContent= isEdit?'Update Product':'Create Product';
       }
+    };
+    // Patch for edit: use direct fetch for PUT with FormData
+    const origOnClick = saveBtn.onclick;
+    // We'll override to handle PUT correctly
+    saveBtn.onclick = async ()=>{
+      errEl.textContent='';
+      if(!name.value.trim()){ errEl.textContent='Name required'; return; }
+      if(!catSel.value){ errEl.textContent='Category required'; return; }
+      const pVal = Number(price.value), mVal = Number(mrp.value), sVal = Number(stock.value);
+      if(!pVal || !mVal || isNaN(sVal) || sVal < 0){ errEl.textContent='Check price/mrp/stock'; return; }
+      const totalImages = existingImages.length + selectedImages.length;
+      if (!isEdit && totalImages < 4) { errEl.textContent='At least 4 images required'; return; }
+      if (isEdit && totalImages > 0 && totalImages < 4) { errEl.textContent='At least 4 images required'; return; }
+      const fd = new FormData();
+      fd.append('name', name.value.trim());
+      fd.append('categoryId', catSel.value);
+      fd.append('price', String(pVal));
+      fd.append('mrp', String(mVal));
+      fd.append('stock', String(sVal));
+      fd.append('description', desc.value.trim());
+      fd.append('colors', colors.value);
+      fd.append('sizes', sizes.value);
+      fd.append('fabric', fabric.value.trim());
+      fd.append('collection', collection.value.trim());
+      fd.append('fit', fit.value.trim());
+      if (existingImages.length) fd.append('imageUrls', JSON.stringify(existingImages));
+      selectedImages.forEach(f => fd.append('images', f));
+      if (selectedVideo) fd.append('video', selectedVideo);
+      else if (existing?.video_url) fd.append('videoUrl', existing.video_url);
+      try{
+        saveBtn.disabled=true; saveBtn.textContent= isEdit?'Saving…':'Creating…';
+        if(!isEdit){
+          await api.post('/admin/products', fd);
+          toast('Product created','success'); m.close(); location.hash='#/admin/products'; setTimeout(()=> location.reload(),400);
+        } else {
+          // Use raw fetch for PUT with FormData to avoid JSON header
+          const token = Store.getToken();
+          const API = (localStorage.getItem('ZUNO_API_BASE') || window.ZUNO_API_BASE || '').replace(/\/$/,'') + ((localStorage.getItem('ZUNO_API_BASE')||window.ZUNO_API_BASE||'').replace(/\/$/,'').endsWith('/api')?'':'/api') || '/api';
+          const base = API || '/api';
+          const res = await fetch(base + '/admin/products/'+existing.id, { method:'PUT', headers: token ? { 'Authorization':'Bearer '+token } : {}, body: fd });
+          let data=null; try{ data=await res.json(); }catch{}
+          if(!res.ok || data.success===false) throw new Error(data?.message || 'Update failed');
+          toast('Updated','success'); m.close(); render();
+        }
+      }catch(e){ errEl.textContent=e.message; saveBtn.disabled=false; saveBtn.textContent= isEdit?'Update Product':'Create Product'; }
     };
   }
 }
