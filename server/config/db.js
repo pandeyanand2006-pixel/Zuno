@@ -4,12 +4,14 @@ import path from 'node:path';
 import { env } from './env.js';
 
 function ensureDbDir(p) {
-  const d = path.dirname(p);
+  // always work with absolute path for Render (cwd = /opt/render/project/src)
+  const abs = path.isAbsolute(p) ? p : path.resolve(p);
+  const d = path.dirname(abs);
   try {
     if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true });
-    // test writability
     fs.accessSync(d, fs.constants.W_OK);
-    return p;
+    env.dbPath = abs;
+    return abs;
   } catch (e) {
     console.warn(`[db] mkdir/access ${d} failed (${e.code}), falling back`);
     const fallback = path.resolve('data');
@@ -19,10 +21,11 @@ function ensureDbDir(p) {
       console.warn(`[db] using fallback DB_PATH=${fp}`);
       env.dbPath = fp;
       return fp;
-    } catch { return p; }
+    } catch { return abs; }
   }
 }
 const effectivePath = ensureDbDir(env.dbPath);
+console.log(`[db] using ${effectivePath}`);
 
 export const db = new DatabaseSync(effectivePath, { enableForeignKeyConstraints: true });
 db.exec('PRAGMA journal_mode = WAL');

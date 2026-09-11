@@ -5,8 +5,9 @@ import { logger } from './utils/logger.js';
 
 initializeSchema();
 logger.info('Database schema initialized');
+logger.info(`DB_PATH=${env.dbPath}`);
 
-// Seed roles
+// Seed roles + auto-seed catalogue if empty (critical for Render ephemeral free tier)
 import { db } from './config/db.js';
 const roleCount = db.prepare('SELECT COUNT(*) c FROM roles').get().c;
 if (roleCount === 0) {
@@ -19,6 +20,14 @@ if (roleCount === 0) {
   roles.forEach((r) => ins.run(r, descriptions[r]));
   logger.info('Seeded roles');
 }
+try {
+  const prodCount = db.prepare('SELECT COUNT(*) c FROM products').get().c;
+  if (prodCount === 0) {
+    logger.info('No products — auto-seeding catalogue…');
+    await import('./seed/seed.js');
+    logger.info('Auto-seed complete');
+  }
+} catch (e) { logger.error('auto-seed check failed', e); }
 
 const server = app.listen(env.port, () => {
   logger.info(`ZUNO API listening on http://localhost:${env.port}`); // eslint-disable-line
