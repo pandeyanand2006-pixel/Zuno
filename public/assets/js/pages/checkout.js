@@ -16,6 +16,7 @@ export async function Checkout() {
   let addresses = await api.get('/users/addresses');
   let selectedAddress = addresses[0]?.id || null;
   let coupon = null;
+  let couponInput = null;
   let payBtn = null;
 
   const left = h('div', { class: 'col gap-5' });
@@ -75,7 +76,6 @@ export async function Checkout() {
     replaceIn(left, box, 'items');
   }
 
-  let couponInput = null;
   function renderSummary() {
     const subtotal = cart.subtotal;
     const discount = coupon ? coupon.discount : 0;
