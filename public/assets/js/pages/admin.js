@@ -289,12 +289,20 @@ async function loadOrders(queryParams) {
           h('td', {}, statusBadge(o.status)),
           h('td', {}, h('div', { style:{fontSize:'12px'} }, formatDate(o.created_at))),
           h('td', {},
-            h('div', { style:{display:'flex', gap:'6px'} },
-              h('button', { class:'admin-btn admin-btn-ghost', style:{padding:'6px 10px'}, onclick:()=> openOrderDetail(o.id) }, 'View'),
-              h('select', { class:'admin-select', style:{padding:'6px 8px'}, value:o.status, onchange: async (e)=>{
+            h('div', { style:{display:'flex', gap:'6px', alignItems:'center'} },
+              h('button', { class:'admin-btn admin-btn-primary', style:{padding:'6px 12px', fontSize:'12px', background:'#1e40af', color:'#fff'}, onclick:()=> { location.hash = '#/admin/orders/' + o.id; } }, 'View'),
+              h('button', { class:'admin-btn admin-btn-ghost', style:{padding:'6px 8px', fontSize:'11px'}, onclick:()=> openOrderDetail(o.id), title:'Quick view' }, '👁️'),
+              h('select', { class:'admin-select', style:{padding:'6px 8px', minWidth:'130px'}, value:o.status, onchange: async (e)=>{
                 const ns=e.target.value;
                 if(ns===o.status) return;
-                try{ await api.post('/admin/orders/'+o.id+'/status', {status:ns}); toast('Status → '+ns,'success'); fetchAndRender(); }catch(err){ toast(err.message,'error'); e.target.value=o.status; }
+                const prev = e.target.value;
+                e.target.disabled = true;
+                try{ await api.post('/admin/orders/'+o.id+'/status', {status:ns}); toast('Status → '+ns,'success'); o.status = ns; // optimistic
+                  // update badge in row without full reload
+                  const row = e.target.closest('tr');
+                  if(row){ const badgeCell = row.querySelector('td:nth-child(3)'); if(badgeCell) { badgeCell.innerHTML=''; badgeCell.append(statusBadge(ns)); } }
+                }catch(err){ toast(err.message,'error'); e.target.value=o.status; }
+                e.target.disabled = false;
               } },
                 ...['PAYMENT_PENDING','PAID','CONFIRMED','PRINTING','QUALITY_CHECK','PACKED','SHIPPED','OUT_FOR_DELIVERY','DELIVERED','CANCELLED'].map(s=> h('option',{value:s, selected:s===o.status}, s.replace(/_/g,' ')))
               )
@@ -410,6 +418,119 @@ async function openOrderDetail(orderId){
     );
     modal(content);
   }catch(e){ toast(e.message,'error'); }
+}
+
+export async function AdminOrderDetail(ctx){
+  const guard = await guardOrRedirect();
+  if (guard && guard.nodeType) return adminShell('orders', guard);
+  if (!guard) return h('div',{},'Redirecting…');
+  const orderId = ctx.params.id;
+  try{
+    const { order } = await api.get('/admin/orders/'+orderId);
+    const items = order.items||[];
+    const customer = order.customer||{};
+    const address = order.address||{};
+    const payment = order.payment||null;
+    const history = order.history||[];
+    const addrLines = [];
+    if (address.house_no) addrLines.push(`House/Building: ${address.house_no}`);
+    if (address.line1) addrLines.push(address.line1);
+    if (address.area) addrLines.push(`Area: ${address.area}`);
+    if (address.landmark) addrLines.push(`Landmark: ${address.landmark}`);
+    if (address.line2) addrLines.push(address.line2);
+    const cityLine = [address.city, address.state, address.pincode].filter(Boolean).join(', ');
+    if (cityLine) addrLines.push(cityLine);
+    if (address.latitude && address.longitude) addrLines.push(`📍 ${Number(address.latitude).toFixed(5)}, ${Number(address.longitude).toFixed(5)}`);
+
+    const content = h('div', { style:{display:'flex', flexDirection:'column', gap:'16px'} },
+      h('div', { style:{display:'flex', gap:'12px', alignItems:'center'} },
+        h('a', { href:'#/admin/orders', class:'admin-btn admin-btn-ghost' }, '← Back to Orders'),
+        h('span', { style:{fontSize:'12px', color:'#64748b'} }, `Order ${order.order_number}`)
+      ),
+      h('div', { class:'admin-card', style:{padding:'20px'} },
+        h('div', { style:{display:'flex', justifyContent:'space-between', flexWrap:'wrap', gap:'12px'} },
+          h('div', {},
+            h('h2', { style:{margin:'0', color:'#0f172a'} }, order.order_number),
+            h('div', { style:{marginTop:'6px', display:'flex', gap:'8px', flexWrap:'wrap'} }, statusBadge(order.status), h('span',{class:'admin-badge', style:{background: order.payment_method==='cod'?'#fef3c7':'#dbeafe', color:'#0f172a'}}, order.payment_method==='cod' ? '💵 COD' : 'Online'), h('span',{style:{fontSize:'12px', color:'#64748b'}}, formatDateTime(order.created_at)))
+          ),
+          h('div', { style:{textAlign:'right'} },
+            h('div', { style:{fontSize:'22px', fontWeight:'800', color:'#0f172a'} }, money(order.total)),
+            h('div', { style:{fontSize:'12px', color:'#64748b'} }, `${order.payment_status || payment?.status || order.status} • ${money(order.subtotal)} + Tax ${money(order.tax)}`)
+          )
+        ),
+        h('div', { style:{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'16px', marginTop:'16px'} },
+          h('div', { style:{background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:'12px', padding:'16px'} },
+            h('div', { style:{fontSize:'11px', fontWeight:'700', letterSpacing:'.06em', color:'#64748b'} }, 'CUSTOMER'),
+            h('div', { style:{fontWeight:'700', marginTop:'8px', color:'#0f172a', fontSize:'14px'} }, customer.name||'—'),
+            h('div', { style:{fontSize:'13px', color:'#0f172a', marginTop:'6px'} }, customer.mobile?`📱 ${customer.mobile}`:''),
+            h('div', { style:{fontSize:'12px', color:'#334155', marginTop:'4px'} }, customer.email?`✉️ ${customer.email}`:''),
+            h('div', { style:{fontSize:'11px', color:'#64748b', marginTop:'8px'} }, `ID: ${customer.id||'—'}`)
+          ),
+          h('div', { style:{background:'#fff', border:'2px solid #1e40af', borderRadius:'12px', padding:'16px'} },
+            h('div', { style:{fontSize:'11px', fontWeight:'700', letterSpacing:'.06em', color:'#1e40af'} }, 'FULL SHIPPING ADDRESS'),
+            addrLines.length ? h('div', { style:{marginTop:'10px', lineHeight:'1.7', color:'#0f172a', fontSize:'13px', background:'#f8fafc', padding:'12px', borderRadius:'8px', border:'1px solid #e2e8f0'} },
+              ...addrLines.map(l=> h('div', { style:{fontWeight: l.startsWith('House')||l.startsWith('Landmark') ? '700' : '400', color:'#0f172a'} }, l))
+            ) : h('div',{style:{color:'#94a3b8', marginTop:'8px'}},'No address'),
+            h('div', { style:{marginTop:'12px', display:'flex', gap:'8px', flexWrap:'wrap'} },
+              h('button', { class:'admin-btn admin-btn-primary', style:{padding:'8px 12px', fontSize:'12px'}, onclick:()=>{ const txt = addrLines.join(', ') + ` | ${customer.name||''} ${customer.mobile||''}`; navigator.clipboard?.writeText(txt); toast('Address copied','success'); } }, '📋 Copy Address'),
+              h('button', { class:'admin-btn admin-btn-ghost', style:{padding:'8px 12px', fontSize:'12px'}, onclick:()=> window.print() }, '🖨️ Print')
+            )
+          )
+        ),
+        h('div', { style:{marginTop:'20px'} },
+          h('h3', { style:{color:'#0f172a', marginBottom:'12px'} }, `Items (${items.length})`),
+          ...items.map(it=>{
+            const variant = it.variant||{};
+            const isCustom = !!it.customization_data;
+            const cust = it.customization||null;
+            return h('div', { style:{background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', padding:'16px', marginBottom:'12px', borderLeft: isCustom?'4px solid #f59e0b':'4px solid #1e40af'} },
+              h('div', { style:{display:'flex', justifyContent:'space-between', gap:'12px'} },
+                h('div', { style:{fontWeight:'700', color:'#0f172a'} }, it.name + (isCustom?' ✦ Custom':'')),
+                h('div', { style:{fontWeight:'800', color:'#0f172a'} }, money(it.price*it.quantity))
+              ),
+              variant.color||variant.size? h('div', { style:{fontSize:'12px', color:'#334155', marginTop:'6px', background:'#f1f5f9', padding:'6px 10px', borderRadius:'6px', display:'inline-block'} }, `Color ${variant.color||'—'} • Size ${variant.size||'—'}${variant.fit?' • Fit '+variant.fit:''}`) : null,
+              cust? h('div', { style:{background:'#fff7ed', border:'1px solid #fed7aa', borderRadius:'8px', padding:'12px', marginTop:'10px'} },
+                h('div',{style:{fontWeight:'700', color:'#9a3412', fontSize:'12px'}},'🎨 Custom Design'),
+                h('div',{style:{marginTop:'6px', fontSize:'12px', color:'#0f172a'}}, `Front: ${cust.front?.elements?.length||0} • Back: ${cust.back?.elements?.length||0}`),
+                ...((cust.front?.elements||[]).slice(0,3).map(e=> e.type==='text'? h('div',{style:{background:'#fff', padding:'8px', borderRadius:'6px', marginTop:'6px', border:'1px solid #e2e8f0', color:'#0f172a'}}, `"${e.value}"`): h('div',{style:{background:'#fff', padding:'6px', borderRadius:'6px', marginTop:'6px'}}, `🖼️ Image`)))
+              ):null,
+              h('div', { style:{display:'flex', justifyContent:'space-between', marginTop:'10px', fontSize:'13px', color:'#334155'} }, h('span',{}, `Qty ${it.quantity} × ${money(it.price)}`), h('span',{style:{fontWeight:'700', color:'#0f172a'}}, money(it.price*it.quantity)))
+            );
+          }),
+          h('div', { style:{display:'flex', justifyContent:'space-between', padding:'16px', background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:'10px', marginTop:'12px', fontWeight:'700'} },
+            h('span',{style:{color:'#64748b'}}, `Subtotal ${money(order.subtotal)} • Discount ${order.discount? money(order.discount): '₹0'} • Tax ${money(order.tax)}`),
+            h('span',{style:{fontSize:'20px', color:'#0f172a'}}, money(order.total))
+          )
+        ),
+        h('div', { style:{marginTop:'16px', padding:'16px', background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px'} },
+          h('div', { style:{fontWeight:'700', color:'#0f172a', marginBottom:'10px'} }, 'Update Status'),
+          h('div', { style:{display:'flex', gap:'8px', flexWrap:'wrap', alignItems:'center'} },
+            h('select', { class:'admin-select', id:'detailStatusSel', style:{minWidth:'180px'} },
+              ...['PAYMENT_PENDING','PAID','CONFIRMED','PRINTING','QUALITY_CHECK','PACKED','SHIPPED','OUT_FOR_DELIVERY','DELIVERED','CANCELLED'].map(s=> h('option',{value:s, selected:s===order.status}, s.replace(/_/g,' ')))
+            ),
+            h('button', { class:'admin-btn admin-btn-primary', onclick: async ()=>{
+              const sel=document.getElementById('detailStatusSel');
+              try{ await api.post('/admin/orders/'+order.id+'/status', {status:sel.value}); toast('Status → '+sel.value,'success'); setTimeout(()=> location.reload(), 600); }catch(e){ toast(e.message,'error'); }
+            } }, 'Update'),
+            h('button', { class:'admin-btn admin-btn-ghost', onclick: async ()=>{
+              const note=prompt('Add admin note:');
+              if(!note) return;
+              try{ await api.post('/admin/orders/'+order.id+'/notes', {note}); toast('Note added','success'); }catch(e){ toast(e.message,'error'); }
+            } }, 'Add Note')
+          ),
+          history.length? h('div', { style:{marginTop:'16px'} },
+            h('div', { style:{fontWeight:'700', fontSize:'13px', color:'#0f172a', marginBottom:'8px'} }, 'History'),
+            h('div', { style:{maxHeight:'160px', overflowY:'auto', border:'1px solid #e2e8f0', borderRadius:'8px', padding:'8px', background:'#f8fafc'} },
+              ...history.map(his=> h('div', { style:{fontSize:'12px', padding:'8px', borderBottom:'1px solid #e2e8f0', color:'#0f172a'} }, `${his.to_status} • ${formatDateTime(his.created_at)}${his.note?' • '+his.note:''}${his.changed_by_name?' — by '+his.changed_by_name:''}`))
+            )
+          ):null
+        )
+      )
+    );
+    return adminShell('orders', content);
+  }catch(e){
+    return adminShell('orders', h('div', { class:'admin-card', style:{padding:'20px', color:'#dc2626'} }, h('h3',{},'Failed to load order'), h('p',{}, e.message), h('a',{href:'#/admin/orders', class:'admin-btn admin-btn-primary'}, 'Back to Orders')));
+  }
 }
 
 // ── Products ──
