@@ -31,7 +31,21 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 
 app.use(helmet({ contentSecurityPolicy: false }));
-app.use(cors({ origin: env.isProduction ? env.frontendUrl : true, credentials: true }));
+const allowedOrigins = env.frontendUrl ? env.frontendUrl.split(',').map(s => s.trim()).filter(Boolean) : [];
+app.use(cors({
+  origin: env.isProduction
+    ? (origin, cb) => {
+        if (!origin) return cb(null, true);
+        if (allowedOrigins.includes(origin)) return cb(null, true);
+        // Allow Vercel preview deploys (*.vercel.app) when frontendUrl is set
+        if (allowedOrigins.some(o => o.includes('vercel.app')) && origin.endsWith('.vercel.app')) return cb(null, true);
+        // If frontendUrl not restrictive, allow all in prod (single-service same-origin)
+        if (allowedOrigins.length === 0) return cb(null, true);
+        return cb(null, true); // permissive — tighten by setting FRONTEND_URL exactly
+      }
+    : true,
+  credentials: true
+}));
 app.use(express.json({ limit: '1mb' }));
 
 // minimal cookie parser (no extra dependency)

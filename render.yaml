@@ -1,0 +1,65 @@
+# Render Blueprint — ZUNO full-stack
+# Deploy in 1 click: https://dashboard.render.com/select-repo?type=blueprint
+# Or manually: New → Blueprint → connect repo → Render reads this file.
+#
+# This deploys ZUNO as a SINGLE Node Web Service that serves BOTH API + frontend
+# (Express static serves public/ — no split needed).
+# SQLite persists on a 1GB disk at /data (else data resets on each deploy).
+services:
+  - type: web
+    name: zuno
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      # Render injects PORT=10000 automatically; app reads process.env.PORT
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 7d
+      - key: DB_PATH
+        value: /data/ZUNO.db
+      - key: FRONTEND_URL
+        value: https://zuno.onrender.com
+      # Optional — fill in Render dashboard after deploy:
+      # RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET, RAZORPAY_WEBHOOK_SECRET, GOOGLE_CLIENT_ID, SMTP_*
+    disk:
+      name: zuno-data
+      mountPath: /data
+      sizeGB: 1
+
+# ── OPTIONAL: split deploy (uncomment if you want frontend on Render Static + backend on Render Web) ──
+# - type: web
+#   name: zuno-api
+#   runtime: node
+#   buildCommand: npm install
+#   startCommand: npm start
+#   envVars:
+#     - key: NODE_ENV
+#       value: production
+#     - key: FRONTEND_URL
+#       value: https://zuno-frontend.onrender.com
+#     - key: DB_PATH
+#       value: /data/ZUNO.db
+#   disk:
+#     name: zuno-api-data
+#     mountPath: /data
+#     sizeGB: 1
+# - type: static
+#   name: zuno-frontend
+#   buildCommand: echo "static — no build"
+#   staticPublishPath: public
+#   routes:
+#     - type: rewrite
+#       source: /api/*
+#       destination: https://zuno-api.onrender.com/api/$1
+#     - type: rewrite
+#       source: /*
+#       destination: /index.html
