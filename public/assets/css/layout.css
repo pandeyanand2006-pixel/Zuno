@@ -165,6 +165,13 @@
 .tl-item:not(:last-child)::before { content: ""; position: absolute; left: 10px; top: 22px; bottom: 0; width: 2px; background: var(--ink-200); }
 .tl-item.done:not(:last-child)::before { background: var(--zuno-success); }
 
+/* ── ZUNO Reference Hero — section.hero 1fr 1.15fr (252) ── */
+section.hero { display: grid; grid-template-columns: 1fr 1.15fr; align-items: center; position: relative; height: 709px; padding: 85px clamp(22px,7vw,120px) 54px; background-image: radial-gradient(circle at 72% 45%, rgb(35, 48, 58) 0px, rgb(16, 20, 29) 27%, transparent 52%); background-color: rgb(16,20,29); color: rgb(245,247,240); font-family: 'Manrope', sans-serif; overflow: hidden; }
+.hero-copy { display: flex; flex-direction: column; gap: 16px; max-width: 560px; }
+.hero-art { display: grid; height: 570px; position: relative; align-items: center; justify-items: center; background: transparent; }
+.hero-index { display: none; font-family: "DM Mono", monospace; color: #555d6f; position: absolute; }
+@media (max-width: 900px) { section.hero { grid-template-columns: 1fr; height: auto; min-height: 640px; padding: 40px 20px; } .hero-art { height: 360px; } }
+
 /* ── ZUNO Fashion Homepage + Denim overrides ── */
 .hero-fashion { background: var(--dark-charcoal); color: var(--pure-white); overflow: hidden; }
 .hero-fashion-inner { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-8); align-items: center; min-height: 560px; padding: var(--sp-9) var(--sp-5); max-width: var(--maxw); margin: 0 auto; }

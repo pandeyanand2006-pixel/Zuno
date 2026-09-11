@@ -1,19 +1,23 @@
 :root {
-  /* ZUNO — Denim Blue (Souled Store-inspired) */
+  /* ZUNO — Reference Dark (Manrope + radial 72% 45%) — from hero section.hero:252 */
+  --hero-bg-1: rgb(35, 48, 58);
+  --hero-bg-2: rgb(16, 20, 29);
+  --hero-ink: rgb(245, 247, 240);
+  --hero-muted: #555d6f; /* .hero-index DM Mono */
   --primary-denim: #2B4C7E;
   --secondary-wash: #4A6FA5;
   --light-indigo: #E9EEF5;
-  --dark-charcoal: #1C2541;
-  --pure-white: #FFFFFF;
+  --dark-charcoal: rgb(16, 20, 29);
+  --pure-white: rgb(245, 247, 240);
 
-  /* ZUNO legacy tokens → mapped to Denim for backwards compat */
-  --zuno-primary: var(--primary-denim);
+  /* ZUNO legacy tokens → mapped to Dark for backwards compat */
+  --zuno-primary: var(--hero-bg-1);
   --zuno-primary-600: var(--secondary-wash);
   --zuno-primary-700: var(--dark-charcoal);
-  --zuno-primary-50: var(--light-indigo);
-  --zuno-primary-100: #d6deee;
-  --zuno-accent: var(--primary-denim);
-  --zuno-accent-50: var(--light-indigo);
+  --zuno-primary-50: #1e293b;
+  --zuno-primary-100: #233040;
+  --zuno-accent: var(--hero-bg-1);
+  --zuno-accent-50: rgba(35,48,58,0.12);
   --zuno-success: #16A34A;
   --zuno-success-50: #f0fdf4;
   --zuno-danger: #dc2626;
@@ -21,25 +25,26 @@
   --zuno-warning: #d97706;
   --zuno-warning-50: #fffbeb;
 
-  /* Neutrals — denim-tinted */
-  --ink-900: var(--dark-charcoal);
-  --ink-800: #23395d;
-  --ink-700: #344a6e;
-  --ink-600: #5a6d8a;
-  --ink-500: #7a8aa6;
-  --ink-400: #a3b1cc;
-  --ink-300: #c9d2e3;
-  --ink-200: #dde3ef;
-  --ink-100: var(--light-indigo);
-  --ink-50: #f4f6fb;
-  --surface: var(--pure-white);
-  --surface-2: var(--pure-white);
-  --bg: var(--pure-white);
-  --bg-soft: var(--light-indigo);
+  /* Neutrals — dark-tinted (reference 16,20,29) */
+  --ink-900: var(--hero-ink);
+  --ink-800: #e6e9ee;
+  --ink-700: #a3adc0;
+  --ink-600: #7a8599;
+  --ink-500: var(--hero-muted);
+  --ink-400: #6b7689;
+  --ink-300: #2a3347;
+  --ink-200: #232e3f;
+  --ink-100: #1e293b;
+  --ink-50: #0f141e;
+  --surface: rgb(22, 27, 38);
+  --surface-2: rgb(28, 34, 48);
+  --bg: var(--dark-charcoal);
+  --bg-soft: #0f141e;
 
-  /* Typography */
-  --font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  --font-display: "Inter", sans-serif;
+  /* Typography — Reference Manrope / DM Mono */
+  --font: "Manrope", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-display: "Manrope", sans-serif;
+  --font-mono: "DM Mono", monospace;
   --fs-xs: 0.7rem;
   --fs-sm: 0.8rem;
   --fs-md: 0.9375rem;

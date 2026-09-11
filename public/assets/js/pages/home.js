@@ -5,98 +5,25 @@ import { ProductCard } from '../components.js';
 export async function Home() {
   const main = h('div', {});
 
-  // ── HERO CAROUSEL — full-width auto-scaling, absolute overlay (Denim) ──
-  const slides = [
-    {
-      eyebrow: 'ZUNO DENIM — NEW SEASON',
-      titleA: 'WEAR YOUR', titleB: 'ATTITUDE.',
-      sub: 'Heavyweight cotton, perfect fit — made for everyday confidence.',
-      img: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=1600&h=800&fit=crop',
-      ctaPrimary: { label: 'SHOP T-SHIRTS', href: '#/shop' },
-      ctaGhost: { label: 'CREATE YOUR T-SHIRT', href: '#/customize' },
-    },
-    {
-      eyebrow: 'THE DENIM WASH EDIT',
-      titleA: 'FADED TO', titleB: 'PERFECTION.',
-      sub: 'Soft washed indigo, cargo utility and street-ready sneaker drops.',
-      img: 'https://images.unsplash.com/photo-1485230895905-ec40ba36b9bc?w=1600&h=800&fit=crop',
-      ctaPrimary: { label: 'SHOP NEW DROPS', href: '#/shop?sort=newest' },
-      ctaGhost: { label: 'VIEW LOOKBOOK', href: '#/shop?collection=Street%20Form' },
-    },
-    {
-      eyebrow: 'ZUNO CUSTOM STUDIO',
-      titleA: 'MAKE IT', titleB: 'YOURS.',
-      sub: 'Add text, upload artwork — preview live on premium 240 GSM tees.',
-      img: 'https://images.unsplash.com/photo-1556821840-3a63f95609a7?w=1600&h=800&fit=crop',
-      ctaPrimary: { label: 'START DESIGNING', href: '#/customize' },
-      ctaGhost: { label: 'EXPLORE SHOP', href: '#/shop?category=oversized' },
-    },
-  ];
-
-  let current = 0;
-  let timer = null;
-
-  const track = h('div', { class: 'hero-carousel__track', style: { transform: 'translateX(0%)' } },
-    ...slides.map((s, idx) => h('div', { class: 'hero-carousel__slide', 'aria-hidden': idx === 0 ? 'false' : 'true' },
-      h('img', { src: s.img, alt: s.titleA + ' ' + s.titleB, loading: idx === 0 ? 'eager' : 'lazy' }),
-      h('div', { class: 'hero-carousel__overlay', 'aria-hidden': 'true' }),
-      h('div', { class: 'hero-carousel__content' },
-        h('p', { class: 'hero-carousel__eyebrow' }, s.eyebrow),
-        h('h1', { class: 'hero-carousel__title' }, s.titleA, h('br'), s.titleB),
-        h('p', { class: 'hero-carousel__sub' }, s.sub),
-        h('div', { class: 'hero-carousel__cta' },
-          h('a', { href: s.ctaPrimary.href, class: 'btn btn-primary btn-lg', style: { background: 'var(--primary-denim)', color: 'var(--pure-white)', borderRadius: '999px', padding: '14px 28px', letterSpacing: '0.04em', fontWeight: '700', transition: 'background 0.2s ease-in', textDecoration: 'none' }, onmouseenter: (e) => e.target.style.background='var(--secondary-wash)', onmouseleave: (e)=> e.target.style.background='var(--primary-denim)' }, s.ctaPrimary.label),
-          h('a', { href: s.ctaGhost.href, style: { background: 'transparent', color: 'var(--pure-white)', border: '1px solid rgba(255,255,255,0.8)', padding: '14px 28px', borderRadius: '999px', fontWeight: '700', textDecoration: 'none' } }, s.ctaGhost.label)
-        )
+  // ── HERO — Reference section.hero 1fr 1.15fr radial Manrope (252) ──
+  const hero = h('section', { class: 'hero', style: { display: 'grid', gridTemplateColumns: '1fr 1.15fr', alignItems: 'center', position: 'relative', height: '709px', padding: '85px clamp(22px,7vw,120px) 54px', backgroundImage: 'radial-gradient(circle at 72% 45%, rgb(35, 48, 58) 0px, rgb(16, 20, 29) 27%, transparent 52%)', backgroundColor: 'rgb(16,20,29)', color: 'rgb(245,247,240)', fontFamily: 'Manrope, sans-serif', overflow: 'hidden' } },
+    h('div', { class: 'hero-copy', style: { display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '560px' } },
+      h('p', { style: { fontFamily: '"DM Mono", monospace', color: '#8a94a8', fontSize: '11px', letterSpacing: '0.14em', margin: '0', textTransform: 'uppercase' } }, 'DROP 01 — ZUNO LABS / HEAVYWEIGHT COTTON'),
+      h('h1', { style: { fontFamily: 'Manrope, sans-serif', fontSize: 'clamp(36px,6vw,64px)', lineHeight: '0.9', fontWeight: '800', letterSpacing: '-0.03em', margin: '0', color: 'rgb(245,247,240)' } }, 'WEAR YOUR', h('br'), h('span', { style: { color: 'rgb(245,247,240)' } }, 'ATTITUDE.')),
+      h('p', { style: { color: 'rgba(245,247,240,0.7)', fontSize: '15px', lineHeight: '1.6', maxWidth: '42ch', margin: '0' } }, 'Heavyweight cotton, perfect fit — made for everyday confidence. Engineered for the everyday future.'),
+      h('div', { style: { display: 'flex', gap: '12px', marginTop: '12px', flexWrap: 'wrap' } },
+        h('a', { href: '#/shop', class: 'btn btn-primary', style: { background: 'rgb(245,247,240)', color: 'rgb(16,20,29)', borderRadius: '999px', padding: '14px 28px', fontWeight: '800', letterSpacing: '0.04em', border: 'none', textDecoration: 'none' } }, 'SHOP T-SHIRTS'),
+        h('a', { href: '#/customize', style: { background: 'transparent', color: 'rgb(245,247,240)', border: '1px solid rgba(245,247,240,0.25)', padding: '14px 28px', borderRadius: '999px', fontWeight: '700', textDecoration: 'none', backdropFilter: 'blur(6px)' } }, 'CREATE YOUR T-SHIRT')
+      ),
+      h('div', { style: { display: 'flex', gap: '20px', marginTop: '18px', fontFamily: '"DM Mono", monospace', fontSize: '11px', color: '#555d6f' } },
+        h('span', {}, '01 — CORE FORM'), h('span', {}, '240 GSM'), h('span', {}, 'MADE IN INDIA')
       )
-    ))
+    ),
+    h('div', { class: 'hero-art', style: { display: 'grid', height: '570px', position: 'relative', alignItems: 'center', justifyItems: 'center' } },
+      h('img', { src: 'https://static.prod-images.emergentagent.com/jobs/f1d81413-9ad3-4b13-b1af-776dbf9ca9c1/images/7da540be91dd7a64dfab0e50e3c6394af0022bcd8e94f44d78605248ae0f2ec0.jpeg', alt: 'ZUNO Tee', style: { maxHeight: '540px', width: 'auto', maxWidth: '90%', objectFit: 'contain', filter: 'drop-shadow(0 30px 60px rgba(0,0,0,0.5))', borderRadius: '12px' }, loading: 'eager' })
+    ),
+    h('div', { class: 'hero-index', style: { display: 'none', fontFamily: '"DM Mono", monospace', color: '#555d6f', position: 'absolute', top: '28px', right: 'clamp(22px,7vw,120px)', fontSize: '11px', letterSpacing: '0.08em' } }, 'INDEX 01 / 04')
   );
-
-  const dotsWrap = h('div', { class: 'hero-carousel__dots', role: 'tablist', 'aria-label': 'Carousel' },
-    ...slides.map((_, i) => h('button', {
-      class: i === 0 ? 'hero-carousel__dot hero-carousel__dot--active' : 'hero-carousel__dot hero-carousel__dot--idle',
-      'aria-label': 'Go to slide ' + (i + 1),
-      'aria-selected': i === 0 ? 'true' : 'false',
-      role: 'tab',
-      onclick: () => goTo(i)
-    }))
-  );
-
-  const prevBtn = h('button', { class: 'hero-carousel__arrow hero-carousel__arrow--prev', 'aria-label': 'Previous banner', onclick: () => goTo(current - 1) }, '‹');
-  const nextBtn = h('button', { class: 'hero-carousel__arrow hero-carousel__arrow--next', 'aria-label': 'Next banner', onclick: () => goTo(current + 1) }, '›');
-
-  const hero = h('section', { class: 'hero-carousel', 'aria-roledescription': 'carousel', 'aria-label': 'Featured collections' }, track, dotsWrap, prevBtn, nextBtn);
-
-  function update() {
-    track.style.transform = 'translateX(-' + (current * 100) + '%)';
-    track.querySelectorAll('.hero-carousel__slide').forEach((el, i) => el.setAttribute('aria-hidden', i === current ? 'false' : 'true'));
-    dotsWrap.querySelectorAll('button').forEach((d, i) => {
-      const active = i === current;
-      d.className = active ? 'hero-carousel__dot hero-carousel__dot--active' : 'hero-carousel__dot hero-carousel__dot--idle';
-      d.setAttribute('aria-selected', active ? 'true' : 'false');
-    });
-  }
-  function goTo(idx) {
-    current = (idx + slides.length) % slides.length;
-    update();
-    restart();
-  }
-  function restart() {
-    if (timer) clearInterval(timer);
-    timer = setInterval(() => { current = (current + 1) % slides.length; update(); }, 4200);
-  }
-  hero.addEventListener('mouseenter', () => { if (timer) clearInterval(timer); });
-  hero.addEventListener('mouseleave', restart);
-  hero.addEventListener('focusin', () => { if (timer) clearInterval(timer); });
-  hero.addEventListener('focusout', restart);
-  // Touch swipe
-  let sx = 0;
-  hero.addEventListener('touchstart', (e) => sx = e.touches[0].clientX, { passive: true });
-  hero.addEventListener('touchend', (e) => {
-    const dx = e.changedTouches[0].clientX - sx;
-    if (Math.abs(dx) > 40) goTo(current + (dx < 0 ? 1 : -1));
-  });
-  restart();
 
   // ── CATEGORY CIRCLES — only real backend categories ──
   const categories = [
@@ -161,10 +88,8 @@ export async function Home() {
     }
   })();
 
-  // Cleanup timer when navigating away
-  const cleanup = () => { if (timer) clearInterval(timer); };
-  // Attach to page via router cleanup signal
-  main._cleanup = cleanup;
+  // No carousel timer — static hero
+  main._cleanup = () => {};
 
   return main;
 }
