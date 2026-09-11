@@ -3,10 +3,28 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { env } from './env.js';
 
-const dbDir = path.dirname(env.dbPath);
-if (!fs.existsSync(dbDir)) fs.mkdirSync(dbDir, { recursive: true });
+function ensureDbDir(p) {
+  const d = path.dirname(p);
+  try {
+    if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true });
+    // test writability
+    fs.accessSync(d, fs.constants.W_OK);
+    return p;
+  } catch (e) {
+    console.warn(`[db] mkdir/access ${d} failed (${e.code}), falling back`);
+    const fallback = path.resolve('data');
+    try {
+      if (!fs.existsSync(fallback)) fs.mkdirSync(fallback, { recursive: true });
+      const fp = path.join(fallback, 'ZUNO.db');
+      console.warn(`[db] using fallback DB_PATH=${fp}`);
+      env.dbPath = fp;
+      return fp;
+    } catch { return p; }
+  }
+}
+const effectivePath = ensureDbDir(env.dbPath);
 
-export const db = new DatabaseSync(env.dbPath, { enableForeignKeyConstraints: true });
+export const db = new DatabaseSync(effectivePath, { enableForeignKeyConstraints: true });
 db.exec('PRAGMA journal_mode = WAL');
 db.exec('PRAGMA foreign_keys = ON');
 

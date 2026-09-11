@@ -25,15 +25,17 @@ services:
       - key: JWT_EXPIRES_IN
         value: 7d
       - key: DB_PATH
-        value: /data/ZUNO.db
+        value: data/ZUNO.db
       - key: FRONTEND_URL
         value: https://zuno.onrender.com
       # Optional — fill in Render dashboard after deploy:
       # RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET, RAZORPAY_WEBHOOK_SECRET, GOOGLE_CLIENT_ID, SMTP_*
-    disk:
-      name: zuno-data
-      mountPath: /data
-      sizeGB: 1
+    # Disk is only on paid plan — free tier runs with ephemeral SQLite (data resets on deploy)
+    # Uncomment below if you upgrade to Starter ($7) — then change DB_PATH to /data/ZUNO.db
+    # disk:
+    #   name: zuno-data
+    #   mountPath: /data
+    #   sizeGB: 1
 
 # ── OPTIONAL: split deploy (uncomment if you want frontend on Render Static + backend on Render Web) ──
 # - type: web
