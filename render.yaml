@@ -24,14 +24,20 @@ services:
         generateValue: true
       - key: JWT_EXPIRES_IN
         value: 7d
+      # For Starter plan with persistent disk, use /data/ZUNO.db (disk mount below).
+      # Free tier has no disk — uses ephemeral data/ZUNO.db (resets on deploy, Mongo fallback recommended).
       - key: DB_PATH
-        value: data/ZUNO.db
+        value: /data/ZUNO.db
+      # Set to your actual Vercel domain(s), comma-separated. Wildcard covers preview deploys.
+      # Example: https://zuno.vercel.app,https://*.vercel.app
       - key: FRONTEND_URL
-        value: https://zuno-ydl3.onrender.com,https://*.vercel.app
-      # Optional — fill in Render dashboard after deploy:
+        value: https://*.vercel.app
+      # Optional — fill in Render dashboard > Environment after deploy:
+      # MONGODB_URI=mongodb+srv://user:pass@cluster.mongodb.net/zuno?retryWrites=true&w=majority
       # RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET, RAZORPAY_WEBHOOK_SECRET, GOOGLE_CLIENT_ID, SMTP_*
-    # Disk is only on paid plan — free tier runs with ephemeral SQLite (data resets on deploy)
-    # Uncomment below if you upgrade to Starter ($7) — then change DB_PATH to /data/ZUNO.db
+      # API_BASE_URL is auto-derived; no need to set.
+    # Persistent disk — enable ONLY on paid plan (Starter $7+). Free tier: keep commented.
+    # When enabled, DB_PATH=/data/ZUNO.db above will persist across deploys.
     # disk:
     #   name: zuno-data
     #   mountPath: /data

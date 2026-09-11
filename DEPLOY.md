@@ -1,137 +1,156 @@
-# ZUNO — Deploy to Render / Vercel
+# ZUNO — Deploy to Render + Vercel (Production + Local)
 
-ZUNO is a **single Node + SQLite + vanilla SPA** app. You have two deploy choices.
+> Architecture: **Vercel (frontend) → Render (backend) → DB (SQLite disk OR Mongo Atlas)**. Also supports single-service Render (frontend+backend together).
 
----
-
-## A) EASIEST — Full-stack on Render (1 service, 1 click) ⭐ Recommended
-
-`Express` serves `public/` + `/api` together. No split needed.
-
-**1. Push to GitHub** (already done):
-```bash
-git push origin main
 ```
-
-**2. Render Blueprint (IaC):**
-- Go to https://dashboard.render.com → **New → Blueprint** → Connect `Zuno` repo
-- Render reads `render.yaml` and creates **Web Service `zuno`** (free tier)
-- Build: `npm install` — Start: `npm start` — Health: `/api/health`
-- Disk: 1GB at `/data` → `DB_PATH=/data/ZUNO.db` (SQLite persists across deploys)
-
-**3. Env vars (Render Dashboard → Service → Environment):**
-| Key | Value |
-|-----|-------|
-| `NODE_ENV` | `production` |
-| `JWT_SECRET` | auto-generated (or set a long random) |
-| `JWT_EXPIRES_IN` | `7d` |
-| `DB_PATH` | `/data/ZUNO.db` |
-| `FRONTEND_URL` | `https://zuno.onrender.com` (your Render URL) |
-| `PORT` | `10000` (Render injects — keep) |
-| `RAZORPAY_KEY_ID` | (optional — leave blank = test mode) |
-| `RAZORPAY_KEY_SECRET` |  |
-| `RAZORPAY_WEBHOOK_SECRET` |  |
-| `GOOGLE_CLIENT_ID` |  |
-
-**4. Seed (first deploy only):**
-Render → Shell:
-```bash
-npm run seed   # 11 tees, 238 variants, 3 coupons — skips if data exists
-```
-
-**5. Open:** `https://zuno.onrender.com` → `#/admin` with `admin@zuno.app / Admin@1234`
-
-> SQLite lives on Render Disk. Without disk, data resets each deploy — `render.yaml` already adds it.
-
----
-
-## B) SPLIT — Backend on Render, Frontend on Vercel
-
-Use if you want **frontend on Vercel** (global CDN) + **backend on Render**.
-
-### B1 — Backend (Render Web Service)
-Same as above, but set:
-```
-FRONTEND_URL=https://your-frontend.vercel.app,https://*.vercel.app
-DB_PATH=/data/ZUNO.db
-```
-Copy the Render backend URL: `https://zuno-api.onrender.com`
-
-### B2 — Frontend (Vercel Static)
-- Import same GitHub repo into https://vercel.com → **New Project** → select `Zuno`
-- **Build settings:** Framework = Other, Build Command = `echo "static"`, Output Directory = `public`
-- **Environment:** Add `ZUNO_API_BASE`? Instead, inject at runtime:
-  In Vercel → Settings → Environment Variables — OR — edit `public/index.html` head:
-  ```html
-  <script>window.ZUNO_API_BASE="https://zuno-api.onrender.com"</script>
-  ```
-  `public/assets/js/api.js` reads `window.ZUNO_API_BASE` or `localStorage.ZUNO_API_BASE` before falling back to `/api`.
-- Deploy — Vercel serves `public/` as static, API calls go to Render.
-
-### B3 — Full Vercel (serverless + static) — experimental
-`vercel.json` + `api/index.js` are provided. Vercel will:
-- `builds: server/index.js → @vercel/node` for `/api/*`
-- `builds: public/** → @vercel/static` for frontend
-- **Note:** SQLite on Vercel serverless is **ephemeral** (`/tmp` only). Data resets every cold start. Use only for demo; for production use Render disk or switch `DB_PATH` to Turso/Neon Postgres.
-
-```bash
-vercel --prod
-# env on Vercel dashboard: JWT_SECRET, RAZORPAY_*, GOOGLE_CLIENT_ID
+         VERCEL (static SPA)
+              |
+              |  window.ZUNO_API_BASE -> https://zuno-ydl3.onrender.com/api
+              v
+          RENDER (Express + /api)  ----->  /data/ZUNO.db (disk) or Mongo Atlas
+              |
+              +--> serves public/ fallback (for /api/health checks)
 ```
 
 ---
 
-## Frontend / Backend layout
+## 1) Local development
+
+```bash
+npm install
+cp .env.example .env   # set JWT_SECRET, leave MONGODB_URI blank for SQLite
+npm start              # http://localhost:4000  (API + frontend same-origin)
+npm run seed           # first run only; idempotent admin+roles ensured on every boot
+```
+
+- **Local frontend+local backend (default):** `http://localhost:4000` → `/api` (same-origin)
+- **Local frontend+Render backend:** `localStorage.setItem('ZUNO_API_BASE','https://zuno-ydl3.onrender.com/api')` + reload → `http://localhost:4000` now hits Render. To go back: `localStorage.setItem('ZUNO_API_BASE','')` + reload.
+- **Admin:** `http://localhost:4000/admin` or `http://localhost:4000/#/admin` → `/#/admin/login`
+
+`public/assets/js/api.js` resolves `localStorage > window.ZUNO_API_BASE > /api` and normalizes trailing `/api` (no double `//api`).
+
+---
+
+## 2) Production: Render backend
+
+Render reads `render.yaml` (Blueprint). Push to GitHub auto-deploys.
+
+**Service:** `zuno` (Web, Node, `npm install` → `npm start`, health `/api/health`)
+
+**Required env vars (Render Dashboard → Service → Environment):**
+
+| Key | Value | Notes |
+|-----|-------|-------|
+| `NODE_ENV` | `production` | Enables Prod CORS + hides dev OTP |
+| `PORT` | `10000` | Render injects; app reads `process.env.PORT` |
+| `JWT_SECRET` | long random 32+ | Generate Value (persisted, not regenerated each deploy) |
+| `JWT_EXPIRES_IN` | `7d` | |
+| `DB_PATH` | `/data/ZUNO.db` | With disk (Starter). Free tier falls back to `data/ZUNO.db` (ephemeral) |
+| `FRONTEND_URL` | `https://*.vercel.app` | Or exact `https://your-zuno.vercel.app,https://*.vercel.app` |
+| `MONGODB_URI` | `mongodb+srv://user:pass@cluster.mongodb.net/zuno?retryWrites=true` | **Recommended for free tier** – persistent even without disk |
+| `RAZORPAY_KEY_ID` … | optional | Blank = test mode (dev HMAC) |
+| `GOOGLE_CLIENT_ID` | optional | |
+
+**Disk (persistent SQLite):** Starter plan only. `render.yaml` disk commented for free tier. To enable:
+```yaml
+disk:
+  name: zuno-data
+  mountPath: /data
+  sizeGB: 1
+```
+Then `DB_PATH=/data/ZUNO.db` persists. On free tier without disk, `server/config/db.js:ensureDbDir` falls back to `data/ZUNO.db` and logs fallback; data resets on deploy → use **Mongo Atlas** for persistence.
+
+**Idempotent admin seed:** `server/index.js` on every boot ensures roles + admin `admin@zuno.app / 9999999999 / Admin@1234` (bcrypt) exist in **both SQLite and Mongo** without deleting products/orders. `server/seed/seed.js` now creates admin before early-return on catalogue. No need to delete DB.
+
+**Health:** `GET https://zuno-ydl3.onrender.com/api/health` → `{success:true, data:{status:'healthy'}}`
+
+---
+
+## 3) Production: Vercel frontend
+
+**Import repo into Vercel:** New Project → select `Zuno` → Framework = Other, no build command, Output = `public`.
+
+`vercel.json` is now **frontend-only** (no `@vercel/node` serverless). It only rewrites `/*` → `/index.html` for SPA.
+
+**Configure API URL:** Edit `public/index.html:24` head:
+```html
+<script>window.ZUNO_API_BASE="https://zuno-ydl3.onrender.com/api"</script>
+```
+Commit + push, or set via Vercel env injection at build (static needs head edit). `public/assets/js/api.js` will use it.
+
+**Do not confuse:** `FRONTEND_URL` (Render env) = Vercel URL. `window.ZUNO_API_BASE` (Vercel frontend) = Render URL. They are opposite.
+
+---
+
+## 4) Admin authentication flow
+
+```
+Vercel /admin → #/admin/login → POST https://zuno-ydl3.onrender.com/api/auth/login
+  → server/services/auth.service.js:login verifies bcrypt → signToken({sub:id, role})
+  → frontend Store stores JWT (localStorage ZUNO_token)
+  → #/admin → GET /api/admin/dashboard with Authorization: Bearer <JWT>
+  → server/middleware/auth.js verifies JWT + requireRole('ADMIN') → 200 or 401/403
+```
+
+- Unauthenticated → 401
+- Authenticated non-admin → 403
+- Admin → 200 (real DB data, no mocks)
+
+**Credentials:** `admin@zuno.app` / `Admin@1234` (also `9999999999`). Seeded idempotently; password verified via `bcryptjs.compare`.
+
+---
+
+## 5) Frontend / Backend layout
 
 ```
 Zuno/
-├── server/           ← BACKEND (Node + Express + SQLite)
-│   ├── config/env.js  PORT, JWT, DB_PATH, FRONTEND_URL, Razorpay
-│   ├── config/db.js    SQLite via node:sqlite, path = DB_PATH
-│   ├── routes/*.routes.js   /api/auth, /products, /cart, /orders, /admin ...
-│   ├── services/*.service.js
-│   └── index.js        app.listen(PORT)
-├── public/           ← FRONTEND (vanilla ES-module SPA, no build)
-│   ├── index.html
-│   ├── assets/css/   tokens, base, components, layout — Denim #2B4C7E
-│   └── assets/js/    app, router, api, store, pages/*, components
-├── api/index.js      ← Vercel serverless wrapper (imports server/app.js)
-├── render.yaml       ← Render Blueprint (single-service + optional split)
-├── vercel.json       ← Vercel routes (api + static)
-└── package.json      ← type: module, start: node server/index.js
+├── server/config/env.js  PORT, JWT, DB_PATH, FRONTEND_URL, MONGODB_URI
+├── server/config/db.js    SQLite via node:sqlite, path = DB_PATH (ensureDbDir)
+├── server/routes/*.routes.js  /api/auth, /products, /cart, /orders, /admin
+├── server/services/       auth, product, cart, order (validated status workflow)
+├── server/index.js        idempotent roles+admin for SQLite+Mongo, auto-seed catalogue
+├── public/index.html      window.ZUNO_API_BASE (Vercel→Render)
+├── public/assets/js/api.js  resolveApiBase() with localStorage override
+├── render.yaml            single-service + disk comment
+└── vercel.json            static only, SPA rewrite
 ```
-
-**No build step** — frontend is static `public/`. Backend serves it via `express.static(public)` in `server/app.js:88`.
 
 ---
 
-## Local vs Prod env
+## 6) Local vs Prod matrix
 
 | Env | Frontend | Backend | DB |
 |-----|----------|---------|----|
-| Local | `http://localhost:4000` (served by Express) | `http://localhost:4000/api` | `./data/ZUNO.db` |
-| Render single | `https://zuno.onrender.com/` | `https://zuno.onrender.com/api` | `/data/ZUNO.db` (disk) |
-| Split | `https://*.vercel.app` | `https://zuno-api.onrender.com/api` | `/data/ZUNO.db` |
+| Local | `http://localhost:4000` | `http://localhost:4000/api` | `./data/ZUNO.db` |
+| Local→Render | `http://localhost:4000` (localStorage Render) | `https://zuno-ydl3.onrender.com/api` | Render DB (SQLite/Mongo) |
+| Render single | `https://zuno-ydl3.onrender.com/` | same `/api` | `/data/ZUNO.db` or Mongo |
+| Vercel split | `https://*.vercel.app` | `https://zuno-ydl3.onrender.com/api` | Render DB |
+
+Switch local: `localStorage.setItem('ZUNO_API_BASE','')` → local, else Render.
 
 ---
 
-## Checklist before prod
+## 7) Checklist before prod
 
-- [ ] Set `JWT_SECRET` to 32+ random chars (Render Generate Value)
-- [ ] Set `FRONTEND_URL` to your actual frontend origin(s), comma-separated
-- [ ] If real payments: set `RAZORPAY_KEY_ID/SECRET/WEBHOOK_SECRET`
-- [ ] If Google login: set `GOOGLE_CLIENT_ID`
-- [ ] `npm run seed` once (or mount existing `data/ZUNO.db`)
-- [ ] Test: `/api/health` → `healthy`, login as admin, place test order with coupon `ZUNO100`
+- [ ] `JWT_SECRET` set (not dev default)
+- [ ] `FRONTEND_URL` includes exact Vercel origin(s)
+- [ ] `DB_PATH=/data/ZUNO.db` (with disk) OR `MONGODB_URI` set (free tier)
+- [ ] `/api/health` → healthy
+- [ ] Admin login `admin@zuno.app / Admin@1234` → 200 JWT `role ADMIN`
+- [ ] `/api/admin/dashboard` with admin JWT → 200, with customer JWT → 403
+- [ ] Place test order `ZUNO100` coupon, verify appears in admin
 
----
+## 8) Troubleshooting
 
-## Troubleshooting
+**401 Invalid email/mobile or password on Render:**
+- Render Mongo active but admin not seeded → fixed: `server/index.js` now seeds Mongo admin on every boot without data loss. Redeploy Render after pulling latest commit. Check Render logs: `Admin user admin@zuno.app already present (Mongo) — OK` or `Seeded admin (Mongo) — created`.
+- Free tier SQLite ephemeral + no Mongo → DB empty after deploy → admin missing until seed. Either set `MONGODB_URI` (persistent) or upgrade to disk. Also `npm run seed` once via Render Shell is ephemeral; idempotent boot seed is preferred.
+- Wrong `JWT_SECRET` not cause login 401 (only token verification after).
 
-**Data resets after deploy** → Disk not attached. Check Render → Service → Disks, `DB_PATH=/data/ZUNO.db`.
+**CORS error from Vercel:** Add exact origin to `FRONTEND_URL` comma-separated; ensure Render redeployed; check `GET /api/health` includes `access-control-allow-origin`.
 
-**CORS error from Vercel frontend** → Add frontend origin to `FRONTEND_URL` (comma-separated, supports `*.vercel.app` wildcard).
+**Data resets after deploy (free tier):** Disk not attached → use Mongo or upgrade. `DB_PATH=/data/ZUNO.db` without disk falls back, log shows `[db] using fallback`.
 
-**Images lazy intervention** → Chrome message, not error; hero first slide is `eager`.
+**Images lazy intervention:** Chrome message, not error; hero is `eager`.
 
-**401 on /api/auth/login** → Wrong password — expected; UI shows inline error. Try `demo@zuno.app / Demo@1234`.
+**Verify:** `curl https://zuno-ydl3.onrender.com/api/health` then `curl -X POST .../api/auth/login -d '{"identifier":"admin@zuno.app","password":"Admin@1234"}'`.

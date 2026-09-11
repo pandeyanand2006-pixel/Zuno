@@ -7,26 +7,56 @@ import { logger } from '../utils/logger.js';
 import bcrypt from 'bcryptjs';
 function bcryptHash(p) { return bcrypt.hashSync(p, 12); }
 
-function seed() {
-  initializeSchema();
+function ensureRolesAndAdmin() {
+  // Roles - idempotent
   if (db.prepare('SELECT COUNT(*) c FROM roles').get().c === 0) {
     const roles = ['USER', 'ADMIN', 'SELLER', 'RESTAURANT', 'SERVICE_PROVIDER', 'DELIVERY_PARTNER'];
     const ins = db.prepare('INSERT INTO roles (name, description) VALUES (?, ?)');
     roles.forEach((r) => ins.run(r, r));
+    logger.info('Seeded roles (SQLite)');
   }
+  // Admin - idempotent, never destroys existing data, ensures ADMIN exists
+  try {
+    const adminRole = db.prepare('SELECT id FROM roles WHERE name = ?').get('ADMIN');
+    if (adminRole) {
+      const existing = db.prepare('SELECT id, role_id, status FROM users WHERE email = ? OR mobile = ?').get('admin@zuno.app', '9999999999');
+      const adminHash = bcryptHash('Admin@1234');
+      if (!existing) {
+        db.prepare('INSERT INTO users (name, email, mobile, password_hash, role_id, email_verified, status) VALUES (?, ?, ?, ?, ?, 1, ?)')
+          .run('ZUNO Admin', 'admin@zuno.app', '9999999999', adminHash, adminRole.id, 'active');
+        logger.info('Seeded admin user admin@zuno.app (SQLite)');
+      } else {
+        // Ensure correct role, active status, and if password missing, set it (but do not blindly overwrite if admin already has a valid password)
+        // We verify if existing password hash is missing or login would fail - ensure password works if admin was created without password
+        const needsUpdate = existing.role_id !== adminRole.id || existing.status !== 'active';
+        if (needsUpdate) {
+          db.prepare('UPDATE users SET role_id = ?, status = ? WHERE id = ?').run(adminRole.id, 'active', existing.id);
+          logger.info('Fixed admin role/status for existing admin (SQLite)');
+        }
+        // If admin exists but password is null/empty, set default; otherwise preserve existing password to avoid overwriting intentional changes
+        const full = db.prepare('SELECT password_hash FROM users WHERE id = ?').get(existing.id);
+        if (!full.password_hash) {
+          db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(adminHash, existing.id);
+          logger.info('Set missing admin password (SQLite)');
+        }
+      }
+    }
+  } catch (e) { logger.error('ensure admin sqlite failed', e.message); }
+}
+
+function seed() {
+  initializeSchema();
+  ensureRolesAndAdmin();
+
   const count = db.prepare('SELECT COUNT(*) c FROM products').get().c;
   if (count > 0) {
-    logger.info('Seed skipped: data already present (delete data/ZUNO.db to reseed)');
+    logger.info('Seed skipped: catalogue already present (admin ensured)');
     return;
   }
 
-  // ---------- Users ----------
+  // ---------- Users (additional demo users for catalogue) ----------
   const roleId = (name) => db.prepare('SELECT id FROM roles WHERE name = ?').get(name).id;
-  const adminRole = roleId('ADMIN');
   const sellerRole = roleId('SELLER');
-  const adminHash = bcryptHash('Admin@1234');
-  db.prepare('INSERT OR IGNORE INTO users (name, email, mobile, password_hash, role_id, email_verified) VALUES (?, ?, ?, ?, ?, 1)')
-    .run('ZUNO Admin', 'admin@zuno.app', '9999999999', adminHash, adminRole);
 
   const mkUser = (name, email, mobile, pass, role) =>
     db.prepare('INSERT INTO users (name, email, mobile, password_hash, role_id) VALUES (?, ?, ?, ?, ?)')

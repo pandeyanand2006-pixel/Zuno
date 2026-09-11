@@ -1,11 +1,24 @@
 import { Store } from './store.js';
 
-// For split deploys (Vercel frontend → Render backend) set window.ZUNO_API_BASE
-// e.g. <script>window.ZUNO_API_BASE="https://zuno.onrender.com/api"</script> or localStorage
-// Falls back to same-origin /api (single-service deploy — recommended)
-// Normalizes: if base is "https://xxx.onrender.com" without /api, auto-appends /api
-const rawBase = (typeof window !== 'undefined' && (window.ZUNO_API_BASE || localStorage.getItem('ZUNO_API_BASE'))) || '';
-const API = rawBase ? rawBase.replace(/\/$/, '') + (rawBase.replace(/\/$/, '').endsWith('/api') ? '' : '/api') : '/api';
+// For split deploys (Vercel → Render) set window.ZUNO_API_BASE or localStorage ZUNO_API_BASE.
+// Priority: localStorage (if explicitly set) > window.ZUNO_API_BASE > same-origin /api
+// - localStorage = '' (empty) or 'local' => forces same-origin /api (useful for local dev)
+// - localStorage = 'https://zuno-ydl3.onrender.com' or '.../api' => uses that backend
+// - window.ZUNO_API_BASE is the Vercel production default (Render backend)
+// Normalizes: avoids double /api and trailing slash issues.
+function resolveApiBase() {
+  const ls = (typeof window !== 'undefined' && typeof localStorage !== 'undefined') ? localStorage.getItem('ZUNO_API_BASE') : null;
+  // localStorage takes precedence if user explicitly set it (including empty string to force local)
+  if (ls !== null) {
+    const v = String(ls).trim();
+    if (v === '' || v.toLowerCase() === 'local' || v === '/api') return '/api';
+    return v.replace(/\/$/, '') + (v.replace(/\/$/, '').endsWith('/api') ? '' : '/api');
+  }
+  const win = (typeof window !== 'undefined' && window.ZUNO_API_BASE) ? String(window.ZUNO_API_BASE).trim() : '';
+  if (!win) return '/api';
+  return win.replace(/\/$/, '') + (win.replace(/\/$/, '').endsWith('/api') ? '' : '/api');
+}
+const API = resolveApiBase();
 
 async function request(method, path, { body, auth = true, query } = {}) {
   let url = API + path;
