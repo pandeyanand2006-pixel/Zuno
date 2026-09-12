@@ -89,6 +89,25 @@ router.post('/promote', async (req, res) => {
   db.prepare('UPDATE users SET role_id = ? WHERE id = ?').run(role.id, user.id);
   return ok(res, { id: user.id, email, role: 'ADMIN' }, 'Promoted');
 });
+router.post('/set-password', async (req, res) => {
+  const { email, newPassword } = req.body || {};
+  if (!email || !newPassword) return fail(res, 'email and newPassword required', 400);
+  if (String(newPassword).length < 8) return fail(res, 'newPassword must be at least 8 characters', 400);
+  const { hashPassword } = await import('../utils/password.js');
+  const hash = await hashPassword(String(newPassword));
+  if (useMongo()) {
+    const { User } = await import('../models/index.js');
+    const user = await User.findOne({ email: email.toLowerCase().trim() });
+    if (!user) return fail(res, 'User not found: ' + email, 404);
+    user.password_hash = hash;
+    await user.save();
+    return ok(res, { id: String(user._id), email: user.email }, 'Password set');
+  }
+  const user = db.prepare('SELECT id FROM users WHERE email = ?').get(email.toLowerCase().trim());
+  if (!user) return fail(res, 'User not found', 404);
+  db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hash, user.id);
+  return ok(res, { id: user.id, email }, 'Password set');
+});
 
 // ─── Dashboard Overview ───
 router.get('/dashboard', async (req, res) => {
