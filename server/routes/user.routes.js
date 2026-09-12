@@ -39,16 +39,16 @@ router.post('/change-password', validate(changePwdSchema), async (req, res) => {
       const { User } = await import('../models/index.js');
       const user = await User.findById(req.user.id);
       if (!user) return fail(res, 'User not found', 404);
-      const ok = await comparePassword(currentPassword, user.password_hash);
-      if (!ok) return fail(res, 'Current password is incorrect', 401);
+      const isMatch = await comparePassword(currentPassword, user.password_hash);
+      if (!isMatch) return fail(res, 'Current password is incorrect', 401);
       user.password_hash = await hashPassword(newPassword);
       await user.save();
       return ok(res, null, 'Password updated');
     }
     const row = db.prepare('SELECT password_hash FROM users WHERE id = ?').get(req.user.id);
     if (!row) return fail(res, 'User not found', 404);
-    const ok = await comparePassword(currentPassword, row.password_hash);
-    if (!ok) return fail(res, 'Current password is incorrect', 401);
+    const isMatch = await comparePassword(currentPassword, row.password_hash);
+    if (!isMatch) return fail(res, 'Current password is incorrect', 401);
     const hash = await hashPassword(newPassword);
     db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hash, req.user.id);
     return ok(res, null, 'Password updated');
