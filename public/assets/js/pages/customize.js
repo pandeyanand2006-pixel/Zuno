@@ -399,40 +399,40 @@ export async function Customize() {
   function renderControls() {
     controls.innerHTML = '';
     controls.append(
-      // Product Selection Card
-      h('div', { class: 'card card-pad', style: { background: 'linear-gradient(to bottom, #fafafa, white)', border: '2px solid var(--ink-200)' } },
-        h('h3', { style: { marginBottom: '4px' } }, '👕 Choose Your T-Shirt'),
-        h('p', { class: 'muted text-xs', style: { marginBottom: '12px' } }, 'Select product, color, size, and fit'),
-        h('div', { class: 'field', style: { marginTop: '10px' } }, h('label', {}, 'T-Shirt Style'), productSel),
+      // Product Selection Card — high contrast
+      h('div', { class: 'card card-pad', style: { background: '#ffffff', border: '1.5px solid #e2e8f0' } },
+        h('h3', { style: { marginBottom: '4px', color: '#0f172a' } }, '👕 Choose Your T-Shirt'),
+        h('p', { style: { marginBottom: '12px', fontSize: '13px', color: '#475569' } }, 'Select product, color, size, and fit'),
+        h('div', { class: 'field', style: { marginTop: '10px' } }, h('label', { style: { color: '#0f172a' } }, 'T-Shirt Style'), productSel),
         h('div', { class: 'field', style: { marginTop: '12px' } }, 
-          h('label', {}, 'Color'), 
-          h('div', { class: 'text-xs muted', style: { marginTop: '4px', marginBottom: '6px' } }, 'Click to select t-shirt color'),
+          h('label', { style: { color: '#0f172a' } }, 'Color'), 
+          h('div', { style: { marginTop: '4px', marginBottom: '6px', fontSize: '12px', color: '#334155', fontWeight: '600' } }, 'Click to select t-shirt color'),
           colorRow),
-        h('div', { class: 'field', style: { marginTop: '12px' } }, h('label', {}, 'Size'), sizeRow),
-        h('div', { class: 'field', style: { marginTop: '12px' } }, h('label', {}, 'Fit'), fitRow)),
+        h('div', { class: 'field', style: { marginTop: '12px' } }, h('label', { style: { color: '#0f172a' } }, 'Size'), sizeRow),
+        h('div', { class: 'field', style: { marginTop: '12px' } }, h('label', { style: { color: '#0f172a' } }, 'Fit'), fitRow)),
       
-      // Text Design Card
-      h('div', { class: 'card card-pad', style: { marginTop: '16px', background: 'linear-gradient(to bottom, #fffbeb, white)', border: '2px solid #fbbf24' } },
-        h('h3', { style: { marginBottom: '4px' } }, '✏️ Add Custom Text'),
-        h('p', { class: 'muted text-xs', style: { marginBottom: '12px' } }, 'Add your own words, slogans, or messages'),
+      // Text Design Card — high contrast, no overflow
+      h('div', { class: 'card card-pad', style: { marginTop: '16px', background: '#ffffff', border: '1.5px solid #fde68a' } },
+        h('h3', { style: { marginBottom: '4px', color: '#0f172a' } }, '✏️ Add Custom Text'),
+        h('p', { style: { marginBottom: '12px', fontSize: '13px', color: '#475569' } }, 'Add your own words, slogans, or messages'),
         textInput,
-        h('div', { class: 'row gap-2', style: { marginTop: '8px', alignItems: 'center' } }, 
+        h('div', { class: 'row gap-2', style: { marginTop: '8px', alignItems: 'center', flexWrap: 'wrap' } }, 
           fontSel, 
           h('div', { style: { display: 'flex', alignItems: 'center', gap: '6px' } },
-            h('span', { class: 'text-xs muted' }, 'Text Color:'),
+            h('span', { style: { fontSize: '12px', color: '#334155', fontWeight: '600' } }, 'Text Color:'),
             textColor)),
-        h('div', { class: 'row gap-2', style: { marginTop: '8px', alignItems: 'center' } },
-          h('span', { class: 'muted text-xs', style: { minWidth: '40px' } }, 'Size'),
+        h('div', { class: 'row gap-2', style: { marginTop: '8px', alignItems: 'center', flexWrap: 'wrap' } },
+          h('span', { style: { minWidth: '40px', fontSize: '12px', color: '#334155', fontWeight: '600' } }, 'Size'),
           fontSize, boldBtn, italicBtn),
         addTextBtn),
       
-      // Image Upload Card
-      h('div', { class: 'card card-pad', style: { marginTop: '16px', background: 'linear-gradient(to bottom, #f0fdf4, white)', border: '2px solid #22c55e' } },
-        h('h3', { style: { marginBottom: '4px' } }, '🖼️ Upload Your Design'),
-        h('p', { class: 'muted text-xs', style: { marginBottom: '12px' } }, 'Add photos, logos, or custom artwork'),
+      // Image Upload Card — high contrast
+      h('div', { class: 'card card-pad', style: { marginTop: '16px', background: '#ffffff', border: '1.5px solid #bbf7d0' } },
+        h('h3', { style: { marginBottom: '4px', color: '#0f172a' } }, '🖼️ Upload Your Design'),
+        h('p', { style: { marginBottom: '12px', fontSize: '13px', color: '#475569' } }, 'Add photos, logos, or custom artwork'),
         uploadBtn, fileInput, uploadHint,
         h('div', { style: { marginTop: '10px', padding: '8px', background: '#fef3c7', borderRadius: '6px', border: '1px solid #fde68a' } },
-          h('div', { class: 'text-xs fw-600', style: { color: '#92400e' } }, '💡 Tip: Transparent PNG works best!'))),
+          h('div', { style: { fontSize: '12px', fontWeight: '700', color: '#92400e' } }, '💡 Tip: Transparent PNG works best!'))),
       
       // Selected Element Controls
       selectedId ? (() => {

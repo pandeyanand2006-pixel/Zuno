@@ -180,9 +180,9 @@ section.hero { display: grid; grid-template-columns: 1fr 1.15fr; align-items: ce
 .hero-copy { display: flex; flex-direction: column; gap: 16px; max-width: 560px; }
 .hero-art { display: grid; height: 570px; position: relative; align-items: center; justify-items: center; background: transparent; }
 .hero-index { display: none; font-family: "DM Mono", monospace; color: #555d6f; position: absolute; }
-@media (max-width: 900px) { section.hero { grid-template-columns: 1fr; height: auto; min-height: 560px; padding: 40px 20px; gap: 24px; } .hero-art { height: 360px; } .hero-copy h1 { font-size: clamp(32px,8vw,48px) !important; } }
-@media (max-width: 640px) { section.hero { padding: 32px 16px 24px; min-height: 520px; } .hero-art { height: 280px; } .hero-art img { max-height: 280px !important; } }
-@media (max-width: 480px) { section.hero { padding: 28px 16px 20px; } .hero-copy { gap: 12px !important; } }
+@media (max-width: 900px) { section.hero { grid-template-columns: 1fr !important; height: auto !important; min-height: 560px !important; padding: 40px 20px !important; gap: 24px !important; } .hero-art { height: 360px !important; } .hero-copy h1 { font-size: clamp(32px,8vw,48px) !important; } .hero-copy { max-width: 100% !important; } }
+@media (max-width: 640px) { section.hero { padding: 32px 16px 24px !important; min-height: 520px !important; } .hero-art { height: 280px !important; min-height: 220px !important; } .hero-art img { max-height: 280px !important; width: 100% !important; max-width: 320px !important; } }
+@media (max-width: 480px) { section.hero { padding: 28px 16px 20px !important; } .hero-copy { gap: 12px !important; } }
 
 /* ── ZUNO Fashion Homepage + Denim overrides ── */
 .hero-fashion { background: var(--dark-charcoal); color: var(--pure-white); overflow: hidden; }
@@ -232,14 +232,16 @@ section.hero { display: grid; grid-template-columns: 1fr 1.15fr; align-items: ce
 
 .studio-teaser { background: var(--dark-charcoal); color: var(--pure-white); padding: var(--sp-9) 0; margin: var(--sp-9) 0; }
 .studio-teaser-inner { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-8); align-items: center; }
-@media (max-width: 800px) { .studio-teaser-inner { grid-template-columns: 1fr; } }
+@media (max-width: 800px) { .studio-teaser-inner { grid-template-columns: 1fr !important; gap: 20px !important; } }
+@media (max-width: 640px) { .studio-teaser-inner { padding: 0 16px !important; } }
 .studio-teaser h2 { font-family: var(--font-display); font-size: clamp(2rem, 5vw, 3.5rem); line-height: 0.9; letter-spacing: -0.03em; }
 .studio-preview { display: flex; align-items: center; justify-content: center; }
 .studio-shirt { width: 280px; height: 360px; background: var(--pure-white); border-radius: var(--r-lg); display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--dark-charcoal); position: relative; }
 .studio-shirt-label { font-size: var(--fs-xs); letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-400); border: 1px dashed var(--ink-300); padding: 6px 12px; border-radius: var(--r-full); }
 
 .trust-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--sp-6); text-align: center; padding: var(--sp-6) 0; border-top: 1px solid var(--light-indigo); border-bottom: 1px solid var(--light-indigo); }
-@media (max-width: 700px) { .trust-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 700px) { .trust-grid { grid-template-columns: repeat(2, 1fr) !important; } }
+@media (max-width: 480px) { .trust-grid { gap: 12px !important; padding: 16px 12px !important; } }
 .trust-icon { width: 48px; height: 48px; border-radius: 50%; background: var(--light-indigo); display: flex; align-items: center; justify-content: center; margin: 0 auto var(--sp-3); font-size: 20px; }
 .trust-item h4 { font-size: var(--fs-sm); font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
 .accent-link { background: var(--dark-charcoal) !important; color: var(--pure-white) !important; border-radius: var(--r-full); padding: 8px 16px !important; }
@@ -282,6 +284,13 @@ section.hero { display: grid; grid-template-columns: 1fr 1.15fr; align-items: ce
 .stat .l { font-size: 0.875rem; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; position: relative; z-index: 1; }
 @media (max-width: 768px) { .stat { min-width: 150px; padding: 20px; } .stat .v { font-size: 1.75rem; } .tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; } .tab { flex-shrink: 0; } .table { font-size: 0.875rem; } .table td, .table th { padding: 12px 8px; } }
 
+/* Shop mobile filter button */
+.filter-mobile-btn { display: none !important; }
+@media (max-width: 900px) {
+  .filter-mobile-btn { display: inline-flex !important; }
+  .shop-sidebar { display: none !important; }
+  .split[style*="260px"] { grid-template-columns: 1fr !important; }
+}
 /* Drawer (cart) — 0.2s ease-in for CTA */
 .drawer__panel { background: var(--pure-white); box-shadow: -8px 0 32px rgba(28,37,65,0.12); }
 

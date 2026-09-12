@@ -54,8 +54,8 @@ export async function Home() {
   productGrid.append(skeletonGrid(8));
 
   // ── CUSTOM STUDIO TEASER ──
-  const studio = h('section', { style: { background: 'var(--dark-charcoal)', color: 'var(--pure-white)', padding: '48px 20px', margin: '32px 0' } },
-    h('div', { style: { maxWidth: '1320px', margin: '0 auto', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px', alignItems: 'center' } },
+  const studio = h('section', { class: 'studio-teaser', style: { background: 'var(--dark-charcoal)', color: 'var(--pure-white)', padding: '48px 20px', margin: '32px 0' } },
+    h('div', { class: 'studio-teaser-inner', style: { maxWidth: '1320px', margin: '0 auto', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px', alignItems: 'center' } },
       h('div', {},
         h('p', { style: { fontSize: '12px', letterSpacing: '0.16em', opacity: '0.7', fontWeight: '700' } }, 'ZUNO CUSTOM STUDIO'),
         h('h2', { style: { fontFamily: 'var(--font-display)', fontSize: 'clamp(28px, 4vw, 42px)', lineHeight: '0.9', marginTop: '8px' } }, 'MAKE IT', h('br'), 'YOURS.'),
@@ -67,7 +67,7 @@ export async function Home() {
           h('div', { style: { fontSize: '48px', marginTop: '12px' } }, '✦')))));
 
   // ── TRUST ──
-  const trust = h('section', { style: { maxWidth: '1320px', margin: '32px auto', padding: '0 20px', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', textAlign: 'center', borderTop: '1px solid var(--light-indigo)', borderBottom: '1px solid var(--light-indigo)', paddingTop: '20px', paddingBottom: '20px' } },
+  const trust = h('section', { class: 'trust-grid', style: { maxWidth: '1320px', margin: '32px auto', padding: '20px', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', textAlign: 'center', borderTop: '1px solid var(--light-indigo)', borderBottom: '1px solid var(--light-indigo)' } },
     h('div', {}, h('div', { style: { width:'42px', height:'42px', borderRadius:'50%', background:'var(--light-indigo)', display:'grid', placeItems:'center', margin:'0 auto' } }, '✓'), h('div', { style: { fontWeight: '700', fontSize: '13px', marginTop: '8px' } }, 'Premium fabric'), h('div', { style: { fontSize: '12px', color: 'var(--ink-500)' } }, '240 GSM heavyweight')),
     h('div', {}, h('div', { style: { width:'42px', height:'42px', borderRadius:'50%', background:'var(--light-indigo)', display:'grid', placeItems:'center', margin:'0 auto' } }, '↺'), h('div', { style: { fontWeight: '700', fontSize: '13px', marginTop: '8px' } }, 'Easy returns'), h('div', { style: { fontSize: '12px', color: 'var(--ink-500)' } }, '7-day hassle-free')),
     h('div', {}, h('div', { style: { width:'42px', height:'42px', borderRadius:'50%', background:'var(--light-indigo)', display:'grid', placeItems:'center', margin:'0 auto' } }, '◧'), h('div', { style: { fontWeight: '700', fontSize: '13px', marginTop: '8px' } }, 'Secure payments'), h('div', { style: { fontSize: '12px', color: 'var(--ink-500)' } }, 'Razorpay protected')),
