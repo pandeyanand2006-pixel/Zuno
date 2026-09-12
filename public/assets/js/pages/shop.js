@@ -108,12 +108,13 @@ function Shop() {
   }
 
   // Mobile filter button
-  const filterBtn = h('button', { class: 'btn btn-outline filter-mobile-btn', onclick: () => openMobileFilters() }, '⚙ Filter');
+  const filterBtn = h('button', { class: 'btn btn-outline filter-mobile-btn', style: { background: 'rgb(245,247,240)', color: 'rgb(16,20,29)', borderColor: '#dde3ef' }, onclick: () => openMobileFilters() }, '⚙ Filter');
 
-  const header = h('div', { class: 'row between', style: { marginBottom: '16px', alignItems: 'center', flexWrap: 'wrap', gap: '12px' } },
-    h('div', {}, h('h1', { style: { fontFamily: 'var(--font-display)', letterSpacing: '-0.02em', margin: 0 } }, 'Shop'), countEl),
-    h('div', { class: 'row gap-3', style: { alignItems: 'center', flexWrap: 'wrap' } },
-      filterBtn, h('span', { class: 'muted text-sm desktop-only', style: { } }, 'Sort by'), sortSel));
+  sortSel.style.cssText = 'min-width:160px; border-radius:999px; background:rgb(245,247,240); color:rgb(16,20,29); border:1px solid #dde3ef; padding:10px 14px; max-width:200px;';
+  const header = h('div', { class: 'shop-header' },
+    h('div', { class: 'shop-header__left' }, h('h1', { style: { fontFamily: 'var(--font-display)', letterSpacing: '-0.02em', margin: 0, fontSize: '28px', lineHeight: '1.1', color: 'rgb(245,247,240)' } }, 'Shop'), countEl),
+    h('div', { class: 'shop-header__right' },
+      filterBtn, h('span', { class: 'muted text-sm desktop-only' }, 'Sort by'), sortSel));
 
   function openMobileFilters() {
     const { modal } = requireModal();

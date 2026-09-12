@@ -42,23 +42,35 @@ export function topBar(active) {
       ? h('a', { class: 'avatar', href: '#/profile', title: user.name, style: { textDecoration: 'none', background: 'var(--primary-denim)', color: '#fff' } }, initials(user.name))
       : h('a', { class: 'btn btn-primary btn-sm', href: '#/login', style: { background: 'var(--primary-denim)', borderColor: 'var(--primary-denim)', letterSpacing: '0.04em' } }, 'Sign in'));
 
+  // Hamburger for mobile — toggles category draw (categoryBar already visible, so just scroll hint)
+  let menuOpen = false;
+  const hamburger = h('button', { class: 'hamburger', type: 'button', 'aria-label': 'Menu', style: { color: 'rgb(245,247,240)', borderColor: 'rgba(245,247,240,0.15)' },
+    onclick: (e) => {
+      e.preventDefault();
+      const bar = document.querySelector('.category-bar');
+      if (bar) bar.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      // Also flash highlight on category bar
+      if (bar) { bar.style.background = '#e2e8f0'; setTimeout(()=> bar.style.background='rgb(245,247,240)', 300); }
+    } }, h('span', { style: { fontSize: '20px', lineHeight: '1' } }, '☰'));
+
   const announcement = h('div', { style: { background: '#0a0a0a', color: '#fff', textAlign: 'center', padding: '8px 16px', fontSize: 'var(--fs-xs)', letterSpacing: '0.08em', fontWeight: '600' } },
     'FREE SHIPPING ON ORDERS OVER ₹999  •  EASY 7-DAY RETURNS  •  MADE IN INDIA');
 
-  const categoryBar = h('div', { class: 'category-bar', style: { background: 'rgb(245,247,240)', borderTop: '1px solid #dde3ef', borderBottom: '1px solid #dde3ef', overflowX: 'auto', scrollbarWidth: 'none' } },
-    h('div', { class: 'container', style: { display: 'flex', gap: '24px', padding: '12px 20px', whiteSpace: 'nowrap', alignItems: 'center' } },
-      h('a', { href: '#/shop', style: { fontWeight: '700', color: 'rgb(16,20,29)', fontSize: 'var(--fs-sm)', textDecoration: 'none', borderBottom: active === 'shop' ? '2px solid #0a0a0a' : 'none', paddingBottom: '2px' } }, 'All T-shirts'),
-      h('a', { href: '#/shop?category=oversized', style: { color: '#23395d', fontSize: 'var(--fs-sm)', textDecoration: 'none' } }, 'Oversized'),
-      h('a', { href: '#/shop?category=graphic', style: { color: '#23395d', fontSize: 'var(--fs-sm)', textDecoration: 'none' } }, 'Graphic'),
-      h('a', { href: '#/shop?category=plain', style: { color: '#23395d', fontSize: 'var(--fs-sm)', textDecoration: 'none' } }, 'Plain'),
-      h('a', { href: '#/shop?category=polo', style: { color: '#23395d', fontSize: 'var(--fs-sm)', textDecoration: 'none' } }, 'Polo'),
-      h('a', { href: '#/shop?collection=Essentials', style: { color: '#23395d', fontSize: 'var(--fs-sm)', textDecoration: 'none' } }, 'Essentials'),
-      h('a', { href: '#/shop?collection=Street%20Form', style: { color: '#23395d', fontSize: 'var(--fs-sm)', textDecoration: 'none' } }, 'Street Form'),
-      h('a', { href: '#/customize', style: { color: 'rgb(245,247,240)', fontWeight: '700', fontSize: 'var(--fs-sm)', textDecoration: 'none', background: 'rgb(16,20,29)', padding: '6px 12px', borderRadius: '20px' } }, '✦ Custom')));
+  const categoryBar = h('div', { class: 'category-bar', style: { background: 'rgb(245,247,240)', borderTop: '1px solid #dde3ef', borderBottom: '1px solid #dde3ef', overflowX: 'auto', scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' } },
+    h('div', { class: 'container', style: { display: 'flex', gap: '20px', padding: '11px 16px', whiteSpace: 'nowrap', alignItems: 'center' } },
+      h('a', { href: '#/shop', style: { fontWeight: '700', color: 'rgb(16,20,29)', fontSize: '13px', textDecoration: 'none', borderBottom: active === 'shop' ? '2px solid #0a0a0a' : 'none', paddingBottom: '2px', flex: '0 0 auto' } }, 'All T-shirts'),
+      h('a', { href: '#/shop?category=oversized', style: { color: '#23395d', fontSize: '13px', textDecoration: 'none', flex: '0 0 auto' } }, 'Oversized'),
+      h('a', { href: '#/shop?category=graphic', style: { color: '#23395d', fontSize: '13px', textDecoration: 'none', flex: '0 0 auto' } }, 'Graphic'),
+      h('a', { href: '#/shop?category=plain', style: { color: '#23395d', fontSize: '13px', textDecoration: 'none', flex: '0 0 auto' } }, 'Plain'),
+      h('a', { href: '#/shop?category=polo', style: { color: '#23395d', fontSize: '13px', textDecoration: 'none', flex: '0 0 auto' } }, 'Polo'),
+      h('a', { href: '#/shop?collection=Essentials', style: { color: '#23395d', fontSize: '13px', textDecoration: 'none', flex: '0 0 auto' } }, 'Essentials'),
+      h('a', { href: '#/shop?collection=Street%20Form', style: { color: '#23395d', fontSize: '13px', textDecoration: 'none', flex: '0 0 auto' } }, 'Street Form'),
+      h('a', { href: '#/customize', style: { color: 'rgb(245,247,240)', fontWeight: '700', fontSize: '12px', textDecoration: 'none', background: 'rgb(16,20,29)', padding: '6px 12px', borderRadius: '20px', flex: '0 0 auto' } }, '✦ Custom')));
 
   return h('header', { class: 'topbar' },
     announcement,
     h('div', { class: 'topbar-inner' },
+      hamburger,
       h('a', { class: 'brand', href: '#/', 'aria-label': 'ZUNO home', style: { fontFamily: 'var(--font-display)', letterSpacing: '0.12em', fontWeight: '700', fontSize: '22px' } },
         'ZUNO'),
       nav,
