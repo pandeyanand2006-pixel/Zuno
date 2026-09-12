@@ -43,28 +43,53 @@ function adminShell(activeKey, contentNode) {
       h('a', { class:'admin-sidebar__link'+(activeKey==='products'?' active':''), href:'#/admin/products' }, h('span',{class:'ic'},'▭'), 'Products'),
       h('a', { class:'admin-sidebar__link'+(activeKey==='inventory'?' active':''), href:'#/admin/inventory' }, h('span',{class:'ic'},'▦'), 'Inventory'),
       h('a', { class:'admin-sidebar__link'+(activeKey==='customers'?' active':''), href:'#/admin/customers' }, h('span',{class:'ic'},'◐'), 'Customers'),
+      h('a', { class:'admin-sidebar__link'+(activeKey==='profile'?' active':''), href:'#/admin/profile' }, h('span',{class:'ic'},'👤'), 'Profile'),
+      h('a', { class:'admin-sidebar__link'+(activeKey==='password'?' active':''), href:'#/admin/password' }, h('span',{class:'ic'},'🔒'), 'Reset Password'),
       h('div', { style:{flex:'1'}}),
       h('a', { class:'admin-sidebar__link', href:'#/', style:{color:'#64748b'} }, h('span',{class:'ic'},'←'), 'Back to Store'),
       h('a', { class:'admin-sidebar__link', href:'#/admin/login', onclick:(e)=>{ e.preventDefault(); Store.setToken(null); Store.setUser(null); location.hash='#/admin/login'; } }, h('span',{class:'ic'},'↪'), 'Logout')
     ),
-    h('div', { class:'admin-sidebar__footer' },
-      h('div', { style:{fontSize:'12px', fontWeight:'700', color:'#e2e8f0'} }, user ? user.name : 'Admin'),
-      h('div', { style:{fontSize:'11px', color:'#64748b', marginTop:'2px'} }, user ? (user.email||user.mobile) : ''))
+    h('a', { href:'#/admin/profile', style:{textDecoration:'none'}, onclick:(e)=>{ /* let router handle */ } },
+      h('div', { class:'admin-sidebar__footer', style:{cursor:'pointer'} },
+        h('div', { style:{fontSize:'12px', fontWeight:'700', color:'#e2e8f0'} }, user ? user.name : 'Admin'),
+        h('div', { style:{fontSize:'11px', color:'#64748b', marginTop:'2px'} }, user ? (user.email||user.mobile) : ''),
+        h('div', { style:{fontSize:'10px', color:'#1e40af', marginTop:'4px', fontWeight:'700'} }, 'View profile →')
+      )
+    )
   );
 
   const overlay = h('div', { class:'admin-overlay', id:'adminOverlay', onclick:()=>{ sidebar.classList.remove('open'); overlay.classList.remove('open'); } });
 
-  const topTitleMap = { overview:'Dashboard', orders:'Orders', products:'Products', inventory:'Inventory', customers:'Customers' };
+  const topTitleMap = { overview:'Dashboard', orders:'Orders', products:'Products', inventory:'Inventory', customers:'Customers', profile:'Profile', password:'Reset Password' };
   const searchInput = h('input', { placeholder:'Search orders, products…', onkeydown:(e)=>{ if(e.key==='Enter'){ const v=e.target.value.trim(); if(!v) return; if(activeKey==='orders') location.hash='#/admin/orders?q='+encodeURIComponent(v); else if(activeKey==='products') location.hash='#/admin/products?q='+encodeURIComponent(v); else location.hash='#/admin/orders?q='+encodeURIComponent(v); } } });
+
+  // Admin profile dropdown
+  const profileMenu = h('div', { style:{position:'absolute', right:'0', top:'42px', background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', boxShadow:'0 10px 30px rgba(0,0,0,0.12)', minWidth:'200px', display:'none', zIndex:'50', overflow:'hidden'} },
+    h('div', { style:{padding:'12px 14px', borderBottom:'1px solid #f1f5f9'} },
+      h('div', { style:{fontWeight:'700', fontSize:'13px', color:'#0f172a'} }, user?user.name:'Admin'),
+      h('div', { style:{fontSize:'11px', color:'#64748b'} }, user? (user.email||user.mobile) : ''),
+      h('div', { style:{fontSize:'11px', color:'#1e40af', fontWeight:'700', marginTop:'4px'} }, '● ADMIN')
+    ),
+    h('a', { href:'#/admin/profile', style:{display:'flex', gap:'10px', padding:'10px 14px', fontSize:'13px', color:'#334155', textDecoration:'none'}, onmouseenter:(e)=>e.currentTarget.style.background='#f8fafc', onmouseleave:(e)=>e.currentTarget.style.background='#fff' }, '👤', 'My Profile'),
+    h('a', { href:'#/admin/password', style:{display:'flex', gap:'10px', padding:'10px 14px', fontSize:'13px', color:'#334155', textDecoration:'none'}, onmouseenter:(e)=>e.currentTarget.style.background='#f8fafc', onmouseleave:(e)=>e.currentTarget.style.background='#fff' }, '🔒', 'Reset Password'),
+    h('a', { href:'#/admin/orders', style:{display:'flex', gap:'10px', padding:'10px 14px', fontSize:'13px', color:'#334155', textDecoration:'none'}, onmouseenter:(e)=>e.currentTarget.style.background='#f8fafc', onmouseleave:(e)=>e.currentTarget.style.background='#fff' }, '📦', 'Orders'),
+    h('div', { style:{borderTop:'1px solid #f1f5f9', marginTop:'4px'} }),
+    h('a', { href:'#/admin/login', style:{display:'flex', gap:'10px', padding:'10px 14px', fontSize:'13px', color:'#dc2626', textDecoration:'none'}, onclick:(e)=>{ e.preventDefault(); Store.setToken(null); Store.setUser(null); location.hash='#/admin/login'; }, onmouseenter:(e)=>e.currentTarget.style.background='#fef2f2', onmouseleave:(e)=>e.currentTarget.style.background='#fff' }, '↪', 'Logout')
+  );
+  let menuOpen = false;
+  const profileBtn = h('button', { style:{display:'flex', gap:'8px', alignItems:'center', background:'#fff', border:'1px solid #e2e8f0', borderRadius:'999px', padding:'4px 10px 4px 4px', cursor:'pointer'}, onclick:(e)=>{ menuOpen=!menuOpen; profileMenu.style.display=menuOpen?'block':'none'; e.stopPropagation(); } },
+    h('span', { style:{width:'28px', height:'28px', borderRadius:'50%', background:'#1e40af', color:'#fff', display:'grid', placeItems:'center', fontSize:'11px', fontWeight:'700'} }, (user?.name||'A').slice(0,2).toUpperCase()),
+    h('span', { style:{fontSize:'12px', color:'#334155', fontWeight:'600'} }, user?user.name.split(' ')[0]:'Admin'),
+    h('span', { style:{fontSize:'10px', color:'#64748b'} }, '▾')
+  );
+  // close on outside click
+  setTimeout(()=> document.addEventListener('click', ()=>{ if(menuOpen){ menuOpen=false; profileMenu.style.display='none'; } }, { once: true }), 100);
 
   const topbar = h('div', { class:'admin-topbar' },
     h('button', { class:'admin-mobile-toggle', onclick:()=>{ sidebar.classList.toggle('open'); overlay.classList.toggle('open'); } }, '☰'),
     h('div', { class:'admin-topbar__title' }, topTitleMap[activeKey]||'Admin'),
     h('div', { class:'admin-topbar__search' }, h('span',{class:'s-ic'},'⌕'), searchInput),
-    h('div', { style:{marginLeft:'auto', display:'flex', gap:'8px', alignItems:'center'} },
-      h('span', { style:{fontSize:'12px', color:'#64748b'} }, user?user.name:''),
-      h('span', { style:{width:'32px', height:'32px', borderRadius:'50%', background:'#1e40af', color:'#fff', display:'grid', placeItems:'center', fontSize:'12px', fontWeight:'700'} }, (user?.name||'A').slice(0,2).toUpperCase())
-    )
+    h('div', { style:{marginLeft:'auto', position:'relative'} }, profileBtn, profileMenu)
   );
 
   return h('div', { class:'admin-shell' }, sidebar, overlay, h('div', { class:'admin-main' }, topbar, h('div', { class:'admin-content' }, contentNode)));
@@ -983,6 +1008,98 @@ async function loadCustomers(){
   return adminShell('customers', wrap);
 }
 
+// ── Admin Profile ──
+async function loadAdminProfile(){
+  const guard = await guardOrRedirect();
+  if (guard && guard.nodeType) return adminShell('profile', guard);
+  if (!guard) return h('div',{},'Redirecting…');
+  const user = Store.getUser();
+  const nameI = h('input', { class:'admin-input', value:user.name||'', style:{width:'100%'} });
+  const emailI = h('input', { class:'admin-input', value:user.email||'', style:{width:'100%'} });
+  const mobileI = h('input', { class:'admin-input', value:user.mobile||'', style:{width:'100%'} });
+  const msg = h('div', { style:{fontSize:'13px', minHeight:'18px', marginTop:'8px'} });
+  const saveBtn = h('button', { class:'admin-btn admin-btn-primary', style:{padding:'10px 18px'} }, 'Save Changes');
+  saveBtn.onclick = async ()=>{
+    msg.textContent=''; msg.style.color='#64748b';
+    const name = nameI.value.trim(); const email = emailI.value.trim(); const mobile = mobileI.value.trim();
+    if (!name || name.length<2){ msg.textContent='Name must be at least 2 characters'; msg.style.color='#dc2626'; return; }
+    saveBtn.disabled=true; saveBtn.textContent='Saving…';
+    try{
+      const { user: updated } = await api.put('/users/profile', { name, email: email||undefined, mobile: mobile||undefined });
+      Store.setUser(updated);
+      toast('Profile updated','success');
+      msg.textContent='✓ Profile updated successfully'; msg.style.color='#16a34a';
+      setTimeout(()=> location.hash='#/admin', 600);
+    }catch(e){ msg.textContent=e.message; msg.style.color='#dc2626'; toast(e.message,'error'); }
+    saveBtn.disabled=false; saveBtn.textContent='Save Changes';
+  };
+  const content = h('div', { style:{maxWidth:'560px'} },
+    h('div', { class:'admin-card', style:{padding:'24px'} },
+      h('div', { style:{display:'flex', gap:'16px', alignItems:'center', marginBottom:'20px'} },
+        h('div', { style:{width:'64px', height:'64px', borderRadius:'50%', background:'#1e40af', color:'#fff', display:'grid', placeItems:'center', fontSize:'22px', fontWeight:'800'} }, (user.name||'A').slice(0,2).toUpperCase()),
+        h('div', {},
+          h('div', { style:{fontWeight:'800', fontSize:'16px', color:'#0f172a'} }, user.name),
+          h('div', { style:{fontSize:'12px', color:'#64748b'} }, user.email||user.mobile),
+          h('span', { class:'admin-badge admin-badge-confirmed', style:{marginTop:'6px'} }, user.role||'ADMIN')
+        )
+      ),
+      h('div', { style:{display:'flex', flexDirection:'column', gap:'14px'} },
+        h('div', {}, h('label', { style:{fontSize:'12px', fontWeight:'700', color:'#334155'} }, 'Full Name'), nameI),
+        h('div', {}, h('label', { style:{fontSize:'12px', fontWeight:'700', color:'#334155'} }, 'Email (official)'), emailI, h('div',{style:{fontSize:'11px', color:'#64748b', marginTop:'4px'}}, 'Use your official email like zunoworld3121@gmail.com')),
+        h('div', {}, h('label', { style:{fontSize:'12px', fontWeight:'700', color:'#334155'} }, 'Mobile'), mobileI),
+        msg,
+        h('div', { style:{display:'flex', gap:'10px', marginTop:'8px'} }, saveBtn, h('a', { href:'#/admin', class:'admin-btn admin-btn-ghost' }, 'Cancel'), h('a', { href:'#/admin/password', class:'admin-btn admin-btn-ghost' }, 'Change Password →'))
+      ),
+      h('div', { style:{marginTop:'20px', padding:'12px', background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:'10px', fontSize:'12px', color:'#64748b'} },
+        h('div',{style:{fontWeight:'700', color:'#0f172a'}}, 'Account Info'),
+        h('div',{style:{marginTop:'6px'}}, `ID: ${user.id} • Status: ${user.status} • Role: ${user.role}`),
+        h('div',{style:{marginTop:'4px'}}, `Created: ${formatDate(user.created_at||user.createdAt||new Date())}`)
+      )
+    )
+  );
+  return adminShell('profile', content);
+}
+async function loadAdminPassword(){
+  const guard = await guardOrRedirect();
+  if (guard && guard.nodeType) return adminShell('password', guard);
+  if (!guard) return h('div',{},'Redirecting…');
+  const curI = h('input', { class:'admin-input', type:'password', placeholder:'Current password', style:{width:'100%'} });
+  const newI = h('input', { class:'admin-input', type:'password', placeholder:'New password (min 8 chars)', style:{width:'100%'} });
+  const confI = h('input', { class:'admin-input', type:'password', placeholder:'Confirm new password', style:{width:'100%'} });
+  const msg = h('div', { style:{fontSize:'13px', minHeight:'18px', marginTop:'8px'} });
+  const btn = h('button', { class:'admin-btn admin-btn-primary', style:{padding:'10px 18px', width:'100%', justifyContent:'center'} }, 'Update Password');
+  btn.onclick = async ()=>{
+    msg.textContent=''; msg.style.color='#64748b';
+    const cur = curI.value; const nw = newI.value; const cf = confI.value;
+    if (!cur || !nw || !cf){ msg.textContent='Fill all fields'; msg.style.color='#dc2626'; return; }
+    if (nw.length<8){ msg.textContent='New password must be at least 8 characters'; msg.style.color='#dc2626'; return; }
+    if (nw!==cf){ msg.textContent='New passwords do not match'; msg.style.color='#dc2626'; return; }
+    btn.disabled=true; btn.textContent='Updating…';
+    try{
+      await api.post('/users/change-password', { currentPassword: cur, newPassword: nw });
+      toast('Password updated — please login again','success');
+      msg.textContent='✓ Password updated! Please login again with new password.'; msg.style.color='#16a34a';
+      curI.value=''; newI.value=''; confI.value='';
+      setTimeout(()=>{ Store.setToken(null); Store.setUser(null); location.hash='#/admin/login'; }, 1200);
+    }catch(e){ msg.textContent=e.message; msg.style.color='#dc2626'; toast(e.message,'error'); }
+    btn.disabled=false; btn.textContent='Update Password';
+  };
+  const content = h('div', { style:{maxWidth:'520px'} },
+    h('div', { class:'admin-card', style:{padding:'24px'} },
+      h('h2', { style:{margin:'0 0 6px', color:'#0f172a'} }, 'Reset Password'),
+      h('p', { class:'muted', style:{fontSize:'13px', marginBottom:'16px'} }, 'Change your admin password. Use a strong password with 8+ characters.'),
+      h('div', { style:{display:'flex', flexDirection:'column', gap:'12px'} },
+        h('div', {}, h('label',{style:{fontSize:'12px', fontWeight:'700', color:'#334155'}}, 'Current Password'), curI),
+        h('div', {}, h('label',{style:{fontSize:'12px', fontWeight:'700', color:'#334155'}}, 'New Password'), newI),
+        h('div', {}, h('label',{style:{fontSize:'12px', fontWeight:'700', color:'#334155'}}, 'Confirm New Password'), confI),
+        msg, btn,
+        h('a', { href:'#/admin/profile', class:'admin-btn admin-btn-ghost', style:{justifyContent:'center'} }, '← Back to Profile')
+      )
+    )
+  );
+  return adminShell('password', content);
+}
+
 // ── Routed entry points ──
 export async function Admin() {
   // Compatibility: old #/admin without subroute → overview
@@ -1011,3 +1128,5 @@ export async function AdminInventory(ctx){
   return loadInventory(parsed);
 }
 export async function AdminCustomers(){ return loadCustomers(); }
+export async function AdminProfile(){ return loadAdminProfile(); }
+export async function AdminPassword(){ return loadAdminPassword(); }
