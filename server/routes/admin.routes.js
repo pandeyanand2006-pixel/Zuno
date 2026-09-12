@@ -69,6 +69,26 @@ router.post('/users/:id/activate', async (req, res) => {
   db.prepare("UPDATE users SET status = 'active' WHERE id = ?").run(req.params.id);
   return ok(res, null, 'Activated');
 });
+router.post('/promote', async (req, res) => {
+  const { email } = req.body || {};
+  if (!email) return fail(res, 'email required', 400);
+  if (useMongo()) {
+    const { User, Role } = await import('../models/index.js');
+    const role = await Role.findOne({ name: 'ADMIN' });
+    if (!role) return fail(res, 'ADMIN role not found', 500);
+    const user = await User.findOne({ email: email.toLowerCase().trim() });
+    if (!user) return fail(res, 'User not found: ' + email, 404);
+    user.role_id = role._id;
+    user.role_name = 'ADMIN';
+    await user.save();
+    return ok(res, { id: String(user._id), email: user.email, role: 'ADMIN' }, 'Promoted to ADMIN');
+  }
+  const role = db.prepare("SELECT id FROM roles WHERE name = 'ADMIN'").get();
+  const user = db.prepare('SELECT id FROM users WHERE email = ?').get(email.toLowerCase().trim());
+  if (!user) return fail(res, 'User not found', 404);
+  db.prepare('UPDATE users SET role_id = ? WHERE id = ?').run(role.id, user.id);
+  return ok(res, { id: user.id, email, role: 'ADMIN' }, 'Promoted');
+});
 
 // ─── Dashboard Overview ───
 router.get('/dashboard', async (req, res) => {
