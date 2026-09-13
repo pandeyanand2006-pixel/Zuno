@@ -58,15 +58,16 @@ export const adminAuthService = {
       db.prepare('UPDATE users SET reset_otp_hash = ?, reset_otp_expires = ?, reset_password_token = NULL, reset_password_expires = NULL WHERE id = ?').run(hashed, expiresIso, adminUser.id);
     }
 
-    let emailResult = null;
-    try {
-      emailResult = await sendAdminOtpEmail({ to: normalized, otp, expiresMinutes: OTP_EXPIRES_MINUTES });
-    } catch (err) {
-      logger.error('Admin forgot OTP email failed for ' + normalized, err.message);
-    }
+    // Fire-and-forget email so API returns instantly (~50ms) — OTP already stored, Gmail delivers in background (pooled)
+    // Log OTP immediately for dev, then send async
+    if (!env.isProduction) logger.info(`[DEV OTP] for ${normalized}: ${otp} (expires ${OTP_EXPIRES_MINUTES}m)`);
 
-    logger.info(`[ADMIN OTP] generated for ${normalized} — expires ${OTP_EXPIRES_MINUTES}m — email ${emailResult?.messageId ? 'sent '+emailResult.messageId : emailResult?.mocked ? 'mocked' : 'attempted'}`);
-    if (!env.isProduction) logger.info(`[DEV OTP] for ${normalized}: ${otp}`);
+    // Don't await — pool will deliver in ~1-2s, API stays instant
+    void sendAdminOtpEmail({ to: normalized, otp, expiresMinutes: OTP_EXPIRES_MINUTES })
+      .then((r) => logger.info(`[ADMIN OTP] email delivered to ${normalized} — ${r.messageId || 'mocked'} (${r.mocked ? 'mock' : 'smtp'})`))
+      .catch((err) => logger.error('Admin forgot OTP email failed for ' + normalized, err.message));
+
+    logger.info(`[ADMIN OTP] generated for ${normalized} — expires ${OTP_EXPIRES_MINUTES}m — queued for delivery`);
 
     return { message: genericMessage, _devOtp: env.isProduction ? undefined : otp };
   },

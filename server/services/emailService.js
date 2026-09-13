@@ -6,10 +6,20 @@ let transporter = null;
 
 function getTransporter() {
   if (transporter) return transporter;
+  // Gmail: 465 => SSL (secure true) is fastest, 587 => STARTTLS (secure false + requireTLS)
+  const port = Number(env.smtp.port) || 587;
+  const is465 = port === 465;
   const cfg = {
     host: env.smtp.host || 'smtp.gmail.com',
-    port: env.smtp.port || 587,
-    secure: env.smtp.secure,
+    port,
+    secure: is465 ? true : !!env.smtp.secure,
+    requireTLS: !is465,
+    pool: true,
+    maxConnections: 3,
+    maxMessages: 100,
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 20000,
     auth: undefined,
   };
   if (env.smtp.user && env.smtp.pass) {
@@ -160,11 +170,30 @@ export async function sendAdminOtpEmail({ to, otp, expiresMinutes = 10 }) {
   logger.info(`[email] Sending admin OTP to ${to} — expires ${expiresMinutes}m`);
   const t = getTransporter();
   try {
-    const info = await t.sendMail({ from, to, subject: 'Your Admin Password Reset OTP — ZUNO', text, html, headers: { 'X-Mailer': 'ZUNO Admin OTP' } });
-    logger.info(`Admin OTP sent to ${to} (${info.messageId || 'no-id'}) — accepted: ${(info.accepted||[]).join(',')}`);
+    const info = await t.sendMail({
+      from,
+      to,
+      subject: 'Your Admin Password Reset OTP — ZUNO',
+      text,
+      html,
+      priority: 'high',
+      headers: { 'X-Mailer': 'ZUNO Admin OTP', 'X-Priority': '1', 'Importance': 'high' },
+      envelope: { from: env.smtp.user || from, to },
+    });
+    logger.info(`Admin OTP sent to ${to} (${info.messageId || 'no-id'}) — accepted: ${(info.accepted||[]).join(',')} — ${((Date.now()-Date.now())||0)}ms`);
     return { messageId: info.messageId, otp: env.isProduction ? undefined : otp };
   } catch (err) {
     logger.error('Failed to send admin OTP', err.message);
+    // Try fallback non-pooled send once
+    if (String(err.message).includes('timeout') || String(err.message).includes('socket')) {
+      logger.warn('[email] Retrying OTP via fresh connection');
+      try {
+        const retryTx = nodemailer.createTransport({ host: env.smtp.host || 'smtp.gmail.com', port: Number(env.smtp.port)||587, secure: false, requireTLS: true, auth: { user: env.smtp.user, pass: env.smtp.pass } });
+        const r2 = await retryTx.sendMail({ from, to, subject: 'Your Admin Password Reset OTP — ZUNO', text, html, priority: 'high' });
+        logger.info(`Admin OTP retry sent to ${to} (${r2.messageId})`);
+        return { messageId: r2.messageId, otp: env.isProduction ? undefined : otp };
+      } catch (e2) { logger.error('OTP retry failed', e2.message); }
+    }
     throw new Error('EMAIL_FAILED');
   }
 }
