@@ -1,6 +1,14 @@
 import nodemailer from 'nodemailer';
+import dns from 'node:dns';
 import { env } from '../config/env.js';
 import { logger } from '../utils/logger.js';
+
+// Render IPv6 ENETUNREACH → force IPv4 lookup for smtp.gmail.com
+function ipv4Lookup(hostname, options, callback) {
+  // Node 20: options can be number or object; normalize
+  if (typeof options === 'function') { callback = options; options = {}; }
+  dns.lookup(hostname, { family: 4, hints: dns.ADDRCONFIG, all: false, ...options }, callback);
+}
 
 let transporter = null;
 
@@ -14,8 +22,8 @@ function getTransporter() {
     port,
     secure: is465 ? true : !!env.smtp.secure,
     requireTLS: !is465,
-    // Render free tier: IPv6 ENETUNREACH (2607:f8b0::) → force IPv4
-    family: 4,
+    // Render free tier: IPv6 ENETUNREACH (2607:f8b0::) → force IPv4 via custom lookup
+    lookup: ipv4Lookup,
     // Render free tier can have socket issues with pooling — disable pool in production for reliability
     pool: env.isProduction ? false : true,
     maxConnections: 3,
@@ -57,7 +65,7 @@ function getFreshTransporter() {
     port,
     secure: is465 ? true : false,
     requireTLS: !is465,
-    family: 4,
+    lookup: ipv4Lookup,
     pool: false,
     connectionTimeout: 12000,
     greetingTimeout: 12000,
@@ -215,7 +223,7 @@ export async function sendAdminOtpEmail({ to, otp, expiresMinutes = 10 }) {
     if (String(err.message).includes('timeout') || String(err.message).includes('socket') || String(err.message).includes('ENETUNREACH') || String(err.message).includes('ETIMEDOUT')) {
       logger.warn('[email] Retrying OTP via fresh IPv4 connection');
       try {
-        const retryTx = nodemailer.createTransport({ host: env.smtp.host || 'smtp.gmail.com', port: Number(env.smtp.port)||587, secure: false, requireTLS: true, family: 4, auth: { user: env.smtp.user, pass: env.smtp.pass }, tls: { rejectUnauthorized: true, minVersion: 'TLSv1.2' } });
+        const retryTx = nodemailer.createTransport({ host: env.smtp.host || 'smtp.gmail.com', port: Number(env.smtp.port)||587, secure: false, requireTLS: true, lookup: ipv4Lookup, auth: { user: env.smtp.user, pass: env.smtp.pass }, tls: { rejectUnauthorized: true, minVersion: 'TLSv1.2' } });
         const r2 = await retryTx.sendMail({ from, to, subject: 'Your Admin Password Reset OTP — ZUNO', text, html, priority: 'high' });
         logger.info(`Admin OTP retry sent to ${to} (${r2.messageId})`);
         return { messageId: r2.messageId, otp: env.isProduction ? undefined : otp };
