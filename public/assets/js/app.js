@@ -74,11 +74,15 @@ app.append(top, main, bot, foot);
 // Theme toggle reflects in nav icon automatically via re-render.
 Store.on(() => { /* re-render handled by router on navigation */ });
 
+// Start routing immediately so first paint is never blocked on the API.
+// Auth/config/cart/wishlist hydrate in the background in parallel.
+startRouter({ main, top, bottom: bot });
 (async () => {
-  await Store.loadMe().catch(() => {});
-  const cfg = await api.get('/config').catch(() => null);
-  if (cfg) Store.setConfig(cfg);
-  await refreshCart().catch(() => {});
-  await Store.loadWishlist().catch(() => {});
-  startRouter({ main, top, bottom: bot });
+  try { await Store.loadMe().catch(() => {}); } catch {}
+  try {
+    const cfg = await api.get('/config').catch(() => null);
+    if (cfg) Store.setConfig(cfg);
+  } catch {}
+  try { await refreshCart().catch(() => {}); } catch {}
+  try { await Store.loadWishlist().catch(() => {}); } catch {}
 })();

@@ -48,7 +48,20 @@ let mainEl, topEl, botEl;
 export function startRouter({ main, top, bottom }) {
   mainEl = main; topEl = top; botEl = bottom;
   window.addEventListener('hashchange', render);
-  refreshCart().finally(() => render());
+  // Render first paint immediately; refresh the bag count in the background
+  // (previously first paint waited on the cart API).
+  render();
+  refreshCart().catch(() => {}).finally(() => {
+    // Re-mount nav chrome so the bag count picks up the fresh cart
+    // without requiring another navigation. Page content is untouched.
+    try {
+      const { path } = parseHash();
+      if (!isAdminPath(path)) {
+        mount(topEl, topBar(activeKey(path)));
+        mount(botEl, bottomNav(activeKey(path)));
+      }
+    } catch {}
+  });
 }
 
 function isAdminPath(p){ return p.startsWith('/admin'); }

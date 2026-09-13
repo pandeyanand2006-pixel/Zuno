@@ -45,8 +45,39 @@ async function request(method, path, { body, auth = true, query } = {}) {
   return data ? data.data : null;
 }
 
+// Tiny in-memory GET cache for safe, idempotent catalog endpoints only.
+// Never caches auth/cart/wishlist/orders — those must stay real-time.
+const GET_CACHE = new Map();
+const CACHE_TTL = 30 * 1000;
+function cacheable(path) {
+  return path === '/config'
+    || path === '/categories'
+    || path === '/products'
+    || path === '/products/suggestions'
+    || path.startsWith('/products/');
+}
+function cacheKey(path, query) {
+  const qs = query ? new URLSearchParams(Object.entries(query).filter(([, v]) => v !== undefined && v !== '')).toString() : '';
+  return 'GET ' + path + (qs ? '?' + qs : '');
+}
+
+async function cachedGet(path, query) {
+  if (!cacheable(path)) return request('GET', path, { query });
+  const key = cacheKey(path, query);
+  const hit = GET_CACHE.get(key);
+  if (hit && (Date.now() - hit.t < CACHE_TTL)) return hit.data;
+  const data = await request('GET', path, { query });
+  GET_CACHE.set(key, { t: Date.now(), data });
+  // Bound memory: drop oldest entries past 80 keys
+  if (GET_CACHE.size > 80) {
+    const first = GET_CACHE.keys().next().value;
+    GET_CACHE.delete(first);
+  }
+  return data;
+}
+
 export const api = {
-  get: (p, q) => request('GET', p, { query: q }),
+  get: (p, q) => cachedGet(p, q),
   post: (p, b, o) => request('POST', p, { body: b, ...(o || {}) }),
   put: (p, b) => request('PUT', p, { body: b }),
   del: (p) => request('DELETE', p, {}),

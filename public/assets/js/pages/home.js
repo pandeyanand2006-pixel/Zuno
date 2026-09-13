@@ -20,7 +20,7 @@ export async function Home() {
       )
     ),
     h('div', { class: 'hero-art', style: { display: 'grid', height: '570px', position: 'relative', alignItems: 'center', justifyItems: 'center' } },
-      h('img', { src: 'https://static.prod-images.emergentagent.com/jobs/f1d81413-9ad3-4b13-b1af-776dbf9ca9c1/images/7da540be91dd7a64dfab0e50e3c6394af0022bcd8e94f44d78605248ae0f2ec0.jpeg', alt: 'ZUNO Tee', style: { maxHeight: '540px', width: 'auto', maxWidth: '90%', objectFit: 'contain', filter: 'drop-shadow(0 30px 60px rgba(0,0,0,0.5))', borderRadius: '12px' }, loading: 'eager' })
+      h('img', { src: 'https://static.prod-images.emergentagent.com/jobs/f1d81413-9ad3-4b13-b1af-776dbf9ca9c1/images/7da540be91dd7a64dfab0e50e3c6394af0022bcd8e94f44d78605248ae0f2ec0.jpeg', alt: 'ZUNO Tee', style: { maxHeight: '540px', width: 'auto', maxWidth: '90%', objectFit: 'contain', filter: 'drop-shadow(0 30px 60px rgba(0,0,0,0.5))', borderRadius: '12px' }, loading: 'eager', decoding: 'async', fetchpriority: 'high', width: '480', height: '540' })
     ),
     h('div', { class: 'hero-index', style: { display: 'none', fontFamily: '"DM Mono", monospace', color: '#555d6f', position: 'absolute', top: '28px', right: 'clamp(22px,7vw,120px)', fontSize: '11px', letterSpacing: '0.08em' } }, 'INDEX 01 / 04')
   );
@@ -40,7 +40,7 @@ export async function Home() {
     ...categories.map(c => {
       const href = c.href || (c.collection ? '#/shop?collection=' + encodeURIComponent(c.collection) : c.q ? '#/shop?category=' + encodeURIComponent(c.q) : '#/shop');
       return h('a', { href, class: 'cat-bubble', 'aria-label': c.label },
-        h('div', { class: 'cat-bubble__circle', 'aria-hidden': 'true' }, h('img', { src: c.img, alt: c.label, loading: 'lazy' })),
+        h('div', { class: 'cat-bubble__circle', 'aria-hidden': 'true' }, h('img', { src: c.img, alt: c.label, loading: 'lazy', decoding: 'async', width: '176', height: '176' })),
         h('span', { class: 'cat-bubble__label' }, c.label));
     }));
 

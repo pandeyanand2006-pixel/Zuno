@@ -10,17 +10,13 @@ export async function Product({ params }) {
     const { product } = await api.get('/products/' + params.slug);
     root.innerHTML = '';
 
-    // ── Gallery ─────────────────────────────────────────────────
-    const mainImg = h('img', { class: 'pdp-img', src: (product.images && product.images[0]) || productImage(product), alt: product.name });
-    const thumbs = h('div', { class: 'pdp-thumbs', style: { display: 'flex', gap: '8px', marginTop: '12px' } });
-    // Generate variant color thumbs if available
-    (product.colors || []).slice(0, 6).forEach(col => {
-      const sw = h('button', { type: 'button', class: 'color-swatch', style: { background: col === 'white' ? '#fff' : col, borderColor: col === 'white' ? '#e5e5e5' : col, width: '44px', height: '44px' }, title: col,
-        onclick: () => { selectColor(col); } });
-      thumbs.append(sw);
-    });
+    // ── Gallery (image only) ────────────────────────────────────
+    // NOTE: color variant selection lives in the info panel (colorRow
+    // below). Do NOT render swatches inside the gallery — they appeared as
+    // stray white/beige circles beside the product image.
+    const mainImg = h('img', { class: 'pdp-img', src: (product.images && product.images[0]) || productImage(product), alt: product.name, loading: 'eager', decoding: 'async' });
 
-    const gallery = h('div', { class: 'pdp-gallery' }, mainImg, thumbs.childNodes.length ? thumbs : null);
+    const gallery = h('div', { class: 'pdp-gallery' }, mainImg);
 
     // ── Variant state ────────────────────────────────────────────
     let selColor = (product.colors && product.colors[0]) || null;

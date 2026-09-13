@@ -56,8 +56,8 @@ export function topBar(active) {
   const announcement = h('div', { style: { background: '#0a0a0a', color: '#fff', textAlign: 'center', padding: '8px 16px', fontSize: 'var(--fs-xs)', letterSpacing: '0.08em', fontWeight: '600' } },
     'FREE SHIPPING ON ORDERS OVER ₹999  •  EASY 7-DAY RETURNS  •  MADE IN INDIA');
 
-  const categoryBar = h('div', { class: 'category-bar', style: { background: 'rgb(245,247,240)', borderTop: '1px solid #dde3ef', borderBottom: '1px solid #dde3ef', overflowX: 'auto', scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' } },
-    h('div', { class: 'container', style: { display: 'flex', gap: '20px', padding: '11px 16px', whiteSpace: 'nowrap', alignItems: 'center' } },
+  const categoryBar = h('div', { class: 'category-bar', style: { background: 'rgb(245,247,240)', borderTop: '1px solid #dde3ef', borderBottom: '1px solid #dde3ef' } },
+    h('div', { class: 'category-bar__track' },
       h('a', { href: '#/shop', style: { fontWeight: '700', color: 'rgb(16,20,29)', fontSize: '13px', textDecoration: 'none', borderBottom: active === 'shop' ? '2px solid #0a0a0a' : 'none', paddingBottom: '2px', flex: '0 0 auto' } }, 'All T-shirts'),
       h('a', { href: '#/shop?category=oversized', style: { color: '#23395d', fontSize: '13px', textDecoration: 'none', flex: '0 0 auto' } }, 'Oversized'),
       h('a', { href: '#/shop?category=graphic', style: { color: '#23395d', fontSize: '13px', textDecoration: 'none', flex: '0 0 auto' } }, 'Graphic'),
@@ -66,6 +66,35 @@ export function topBar(active) {
       h('a', { href: '#/shop?collection=Essentials', style: { color: '#23395d', fontSize: '13px', textDecoration: 'none', flex: '0 0 auto' } }, 'Essentials'),
       h('a', { href: '#/shop?collection=Street%20Form', style: { color: '#23395d', fontSize: '13px', textDecoration: 'none', flex: '0 0 auto' } }, 'Street Form'),
       h('a', { href: '#/customize', style: { color: 'rgb(245,247,240)', fontWeight: '700', fontSize: '12px', textDecoration: 'none', background: 'rgb(16,20,29)', padding: '6px 12px', borderRadius: '20px', flex: '0 0 auto' } }, '✦ Custom')));
+
+  // Keep the active category tab visible: if it is outside the viewport,
+  // bring it into view with native scrolling (no fake animation).
+  requestAnimationFrame(() => {
+    try {
+      const hash = location.hash || '#/shop';
+      const links = categoryBar.querySelectorAll('a[href]');
+      let target = null;
+      // Exact match first (e.g. #/shop?category=oversized)
+      for (const a of links) {
+        if (a.getAttribute('href') === hash) { target = a; break; }
+      }
+      // Fallback: match category/collection query value
+      if (!target) {
+        const q = (hash.split('?')[1] || '');
+        const params = new URLSearchParams(q);
+        const cat = params.get('category') || params.get('collection');
+        if (cat) {
+          for (const a of links) {
+            const href = a.getAttribute('href') || '';
+            if (href.includes(encodeURIComponent(cat)) || href.includes(cat)) { target = a; break; }
+          }
+        }
+      }
+      if (target && typeof target.scrollIntoView === 'function') {
+        target.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'auto' });
+      }
+    } catch {}
+  });
 
   return h('header', { class: 'topbar' },
     announcement,
