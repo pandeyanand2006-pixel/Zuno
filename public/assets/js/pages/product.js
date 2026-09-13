@@ -1,4 +1,4 @@
-import { h, money, toast, emptyState, errorState, productImage, modal } from '../ui.js';
+import { h, money, toast, emptyState, errorState, productImage, resolveImageUrl, imgFallback, modal } from '../ui.js';
 import { api } from '../api.js';
 import { Store } from '../store.js';
 import { ProductCard, refreshCart } from '../components.js';
@@ -14,7 +14,8 @@ export async function Product({ params }) {
     // NOTE: color variant selection lives in the info panel (colorRow
     // below). Do NOT render swatches inside the gallery — they appeared as
     // stray white/beige circles beside the product image.
-    const mainImg = h('img', { class: 'pdp-img', src: (product.images && product.images[0]) || productImage(product), alt: product.name, loading: 'eager', decoding: 'async' });
+    const mainSrc = (product.images && product.images[0]) ? resolveImageUrl(product.images[0]) : productImage(product);
+    const mainImg = h('img', { class: 'pdp-img', src: mainSrc, alt: product.name, loading: 'eager', decoding: 'async', onerror: (e) => imgFallback(e.currentTarget, product) });
 
     const gallery = h('div', { class: 'pdp-gallery' }, mainImg);
 

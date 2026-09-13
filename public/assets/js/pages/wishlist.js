@@ -1,4 +1,4 @@
-import { h, toast, emptyState, money, productImage } from '../ui.js';
+import { h, toast, emptyState, money, productImage, resolveImageUrl, imgFallback } from '../ui.js';
 import { api } from '../api.js';
 import { Store } from '../store.js';
 import { refreshCart } from '../components.js';
@@ -38,7 +38,7 @@ export async function Wishlist() {
     }));
     detailed.forEach((it) => {
       const prod = it.product || it;
-      const img = it.image || productImage({ name: it.name, module: 'shop' });
+      const img = it.image ? resolveImageUrl(it.image) : productImage({ name: it.name, module: 'shop' });
       const hasDiscount = prod.mrp && prod.mrp > prod.price;
       const card = h('div', { class: 'product-card', style: { textDecoration: 'none', color: 'inherit', position: 'relative' } },
         h('div', { class: 'product-thumb', style: { background: '#f5f5f3' } },
@@ -46,7 +46,7 @@ export async function Wishlist() {
             e.preventDefault(); const btn = e.currentTarget; btn.style.transform = 'scale(0.9)'; setTimeout(async () => { await Store.toggleWish(it.productId); toast('Removed', 'success'); location.reload(); }, 120);
           } }, '♥'),
           hasDiscount ? h('span', { class: 'product-badge', style: { background: '#0a0a0a' } }, Math.round(((prod.mrp - prod.price) / prod.mrp) * 100) + '% OFF') : null,
-          h('a', { href: '#/product/' + it.slug, style: { display: 'block', width: '100%', height: '100%' } }, h('img', { class: 'product-img', src: img, alt: it.name, loading: 'lazy' }))),
+          h('a', { href: '#/product/' + it.slug, style: { display: 'block', width: '100%', height: '100%' } }, h('img', { class: 'product-img', src: img, alt: it.name, loading: 'lazy', decoding: 'async', onerror: (e) => imgFallback(e.currentTarget, { name: it.name, module: 'shop' }) }))),
         h('div', { class: 'product-body' },
           h('a', { href: '#/product/' + it.slug, style: { color: 'inherit', textDecoration: 'none' } }, h('div', { class: 'product-name', style: { fontWeight: '700' } }, it.name)),
           h('div', { class: 'muted text-xs', style: { marginTop: '4px' } }, (prod.colors || []).slice(0, 3).join(' · ') || 'Premium cotton'),

@@ -1,4 +1,4 @@
-import { h, money, toast, emptyState, productImage } from '../ui.js';
+import { h, money, toast, emptyState, productImage, resolveImageUrl, imgFallback } from '../ui.js';
 import { api } from '../api.js';
 import { Store } from '../store.js';
 import { refreshCart } from '../components.js';
@@ -452,7 +452,7 @@ export async function Customize() {
     summary.append(
       h('h3', { class: 'tee-h' }, 'Your Design'),
       selectedProduct ? h('div', { class: 'row gap-3 tee-prod' },
-        h('img', { src: productImage({ name: selectedProduct.name, module: 'shop' }), alt: selectedProduct.name, class: 'tee-prod-img' }),
+        h('img', { src: (selectedProduct.images && selectedProduct.images[0]) ? resolveImageUrl(selectedProduct.images[0]) : productImage({ name: selectedProduct.name, module: 'shop' }), alt: selectedProduct.name, class: 'tee-prod-img', loading: 'lazy', decoding: 'async', onerror: (e) => imgFallback(e.currentTarget, { name: selectedProduct.name, module: 'shop' }) }),
         h('div', { style: { minWidth: '0' } }, h('div', { class: 'fw-600 tee-ellipsis' }, selectedProduct.name), h('div', { class: 'muted text-sm' }, `${color} · ${size} · ${fit}`))) : null,
       h('div', { class: 'divider', style: { margin: '14px 0' } }),
       h('div', { class: 'row between' }, h('span', { class: 'muted text-sm' }, 'Base price'), h('span', {}, money(base))),

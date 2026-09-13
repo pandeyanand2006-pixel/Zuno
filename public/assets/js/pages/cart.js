@@ -1,4 +1,4 @@
-import { h, money, toast, emptyState, productImage } from '../ui.js';
+import { h, money, toast, emptyState, productImage, resolveImageUrl, imgFallback } from '../ui.js';
 import { api } from '../api.js';
 import { Store } from '../store.js';
 import { refreshCart } from '../components.js';
@@ -66,7 +66,7 @@ function renderAuthed(root) {
 
     return h('div', { class: 'card', style: { display: 'flex', gap: '16px', padding: '16px', alignItems: 'flex-start' } },
       h('div', { class: 'product-thumb', style: { width: '96px', aspectRatio: '1/1', flexShrink: '0', background: '#f5f5f3' } },
-        h('img', { class: 'product-img', src: it.image || productImage({ name: it.name, module: 'shop' }), alt: it.name })),
+        h('img', { class: 'product-img', src: it.image ? resolveImageUrl(it.image) : productImage({ name: it.name, module: 'shop' }), alt: it.name, loading: 'lazy', decoding: 'async', onerror: (e) => imgFallback(e.currentTarget, { name: it.name, module: 'shop' }) })),
       h('div', { class: 'grow', style: { minWidth: '0' } },
         h('a', { href: '#/product/' + it.slug, style: { fontWeight: '700', color: 'var(--ink-900)', fontSize: 'var(--fs-md)' } }, it.name),
         variantLabel ? h('div', { class: 'muted text-sm', style: { marginTop: '4px' } }, variantLabel) : null,
@@ -125,7 +125,7 @@ function renderGuest(root) {
     qty.addEventListener('change', () => { Store.setGuestQty(it.productId, Math.max(1, Number(qty.value) || 1)); render(); });
     return h('div', { class: 'card', style: { display: 'flex', gap: '16px', padding: '16px', alignItems: 'flex-start' } },
       h('div', { class: 'product-thumb', style: { width: '96px', aspectRatio: '1/1', flexShrink: '0', background: '#f5f5f3' } },
-        h('img', { class: 'product-img', src: it.image || productImage({ name: it.name, module: 'shop' }), alt: it.name })),
+        h('img', { class: 'product-img', src: it.image ? resolveImageUrl(it.image) : productImage({ name: it.name, module: 'shop' }), alt: it.name, loading: 'lazy', decoding: 'async', onerror: (e) => imgFallback(e.currentTarget, { name: it.name, module: 'shop' }) })),
       h('div', { class: 'grow' },
         h('a', { href: '#/product/' + it.slug, style: { fontWeight: '700', color: 'var(--ink-900)' } }, it.name),
         variantLabel ? h('div', { class: 'muted text-sm' }, variantLabel) : null,

@@ -82,4 +82,8 @@ export const api = {
   put: (p, b) => request('PUT', p, { body: b }),
   del: (p) => request('DELETE', p, {}),
   raw: request,
+  // Call after admin mutations so the storefront shows new/edited
+  // products (and their images) immediately instead of serving the
+  // 30s catalog cache.
+  clearCache: () => GET_CACHE.clear(),
 };

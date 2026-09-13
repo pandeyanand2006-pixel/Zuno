@@ -99,6 +99,11 @@ app.get('/api/config', (_req, res) => {
 // Razorpay webhook (signature verified inside handler).
 app.use('/api/webhooks/razorpay', razorpayWebhook);
 
+// Serve admin-uploaded product images/video. Stored as "/uploads/products/..."
+// by the admin routes below (multer disk storage under public/uploads).
+const uploadsDir = path.resolve(__dirname, '../public/uploads');
+app.use('/uploads', express.static(uploadsDir, { maxAge: '7d', etag: true }));
+
 // Serve frontend
 const publicDir = path.resolve(__dirname, '../public');
 // Always send fresh assets (ES modules shouldn't be cached during development).

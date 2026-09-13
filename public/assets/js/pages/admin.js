@@ -1,4 +1,4 @@
-import { h, money, toast, emptyState, modal, confirmDialog } from '../ui.js';
+import { h, money, toast, emptyState, modal, confirmDialog, productImage, resolveImageUrl, imgFallback } from '../ui.js';
 import { api } from '../api.js';
 import { Store } from '../store.js';
 
@@ -641,7 +641,7 @@ async function loadProducts(qp){
         ...products.map(p=> h('tr',{},
           h('td',{},
             h('div', { style:{display:'flex', gap:'10px', alignItems:'center'} },
-              h('img', { src:(p.images&&p.images[0])||'', alt:p.name, style:{width:'40px', height:'40px', borderRadius:'8px', objectFit:'cover', background:'#f1f5f9'}, onerror:(e)=>{ e.target.style.display='none'; } }),
+              h('img', { src:(p.images&&p.images[0])?resolveImageUrl(p.images[0]):productImage({name:p.name}), alt:p.name, style:{width:'40px', height:'40px', borderRadius:'8px', objectFit:'cover', background:'#f1f5f9'}, onerror:(e)=>imgFallback(e.currentTarget, {name:p.name}) }),
               h('div',{},
                 h('div',{style:{fontWeight:'700', fontSize:'13px'}}, p.name),
                 h('div',{style:{fontSize:'11px', color:'#64748b'}}, (p.collection||'') + (p.colors?.length?' • '+p.colors.join(', '):''))
@@ -707,7 +707,7 @@ async function loadProducts(qp){
       // Existing images
       existingImages.forEach((src, idx)=>{
         const wrap = h('div', { style:{position:'relative', width:'70px', height:'70px', borderRadius:'8px', overflow:'hidden', border:'1px solid #e2e8f0'} },
-          h('img', { src, style:{width:'100%', height:'100%', objectFit:'cover'} }),
+          h('img', { src:resolveImageUrl(src), style:{width:'100%', height:'100%', objectFit:'cover'}, onerror:(e)=>imgFallback(e.currentTarget, {name:'product'}) }),
           h('button', { style:{position:'absolute', top:'2px', right:'2px', background:'rgba(0,0,0,0.6)', color:'#fff', border:'none', borderRadius:'50%', width:'18px', height:'18px', fontSize:'10px', cursor:'pointer'}, onclick:()=>{ existingImages.splice(idx,1); refreshImagePreview(); } }, '×')
         );
         imagePreview.append(wrap);
@@ -885,7 +885,8 @@ async function loadProducts(qp){
         saveBtn.disabled=true; saveBtn.textContent= isEdit?'Saving…':'Creating…';
         if(!isEdit){
           await api.post('/admin/products', fd);
-          toast('Product created','success'); m.close(); location.hash='#/admin/products'; setTimeout(()=> location.reload(),400);
+          try { api.clearCache && api.clearCache(); } catch {}
+          toast('Product created — now visible in shop','success'); m.close(); location.hash='#/admin/products'; setTimeout(()=> location.reload(),400);
         } else {
           // Use raw fetch for PUT with FormData to avoid JSON header
           const token = Store.getToken();
@@ -894,7 +895,8 @@ async function loadProducts(qp){
           const res = await fetch(base + '/admin/products/'+existing.id, { method:'PUT', headers: token ? { 'Authorization':'Bearer '+token } : {}, body: fd });
           let data=null; try{ data=await res.json(); }catch{}
           if(!res.ok || data.success===false) throw new Error(data?.message || 'Update failed');
-          toast('Updated','success'); m.close(); render();
+          try { api.clearCache && api.clearCache(); } catch {}
+          toast('Updated — changes visible in shop','success'); m.close(); render();
         }
       }catch(e){ errEl.textContent=e.message; saveBtn.disabled=false; saveBtn.textContent= isEdit?'Update Product':'Create Product'; }
     };
@@ -958,7 +960,7 @@ async function loadInventory(qp){
           return h('tr',{},
             h('td',{},
               h('div', { style:{display:'flex', gap:'10px', alignItems:'center'} },
-                h('img', { src:(p.images&&p.images[0])||'', style:{width:'36px', height:'36px', borderRadius:'8px', background:'#f1f5f9', objectFit:'cover'}, onerror:(e)=>e.target.style.display='none'} ),
+                h('img', { src:(p.images&&p.images[0])?resolveImageUrl(p.images[0]):productImage({name:p.name}), style:{width:'36px', height:'36px', borderRadius:'8px', background:'#f1f5f9', objectFit:'cover'}, onerror:(e)=>imgFallback(e.currentTarget, {name:p.name})} ),
                 h('div',{}, h('div',{style:{fontWeight:'700', fontSize:'13px'}}, p.name), h('div',{style:{fontSize:'11px', color:'#64748b'}}, (p.colors||[]).slice(0,3).join(', ')||''))
               )
             ),

@@ -94,6 +94,48 @@ function emojiForProduct(p = {}) {
   return MODULE_FALLBACK[p.module] || MODULE_FALLBACK.default;
 }
 
+// Resolve a backend-stored file URL to a loadable absolute URL.
+// Admin uploads are saved on the API server as "/uploads/products/xxx.jpg".
+// In split deploys (static Vercel frontend + Render backend) a bare
+// "/uploads/..." path would resolve against the FRONTEND origin and 404.
+// This maps such paths onto the API origin (same logic as api.js base
+// resolution). Absolute http(s)/data/blob URLs pass through untouched.
+export function apiOrigin() {
+  try {
+    const ls = (typeof localStorage !== 'undefined') ? localStorage.getItem('ZUNO_API_BASE') : null;
+    if (ls !== null) {
+      const v = String(ls).trim();
+      if (v === '' || v.toLowerCase() === 'local' || v === '/api') return '';
+      const full = v.replace(/\/$/, '') + (v.replace(/\/$/, '').endsWith('/api') ? '' : '/api');
+      return full.replace(/\/api$/, '');
+    }
+  } catch {}
+  try {
+    const win = (typeof window !== 'undefined' && window.ZUNO_API_BASE) ? String(window.ZUNO_API_BASE).trim() : '';
+    if (win) {
+      const full = win.replace(/\/$/, '') + (win.replace(/\/$/, '').endsWith('/api') ? '' : '/api');
+      return full.replace(/\/api$/, '');
+    }
+  } catch {}
+  return '';
+}
+export function resolveImageUrl(src) {
+  if (!src || typeof src !== 'string') return src;
+  if (/^(data:|blob:|https?:\/\/)/i.test(src)) return src;
+  if (src.startsWith('/uploads/') || src.startsWith('uploads/')) {
+    const path = src.startsWith('/') ? src : '/' + src;
+    const origin = apiOrigin();
+    return origin ? origin + path : path;
+  }
+  return src;
+}
+// Attach a safe fallback so a missing upload never renders as a broken box.
+export function imgFallback(imgEl, product) {
+  if (!imgEl || imgEl.dataset.fb) return;
+  imgEl.dataset.fb = '1';
+  try { imgEl.src = productImage(product || {}); } catch {}
+}
+
 // Deterministic, offline-safe image (data-URI SVG) for any product/service.
 export function productImage(p = {}, opts = {}) {
   const label = p.name || 'Product';

@@ -1,4 +1,4 @@
-import { h, money, initials, productImage, toast } from './ui.js';
+import { h, money, initials, productImage, resolveImageUrl, imgFallback, toast } from './ui.js';
 import { Store } from './store.js';
 import { api } from './api.js';
 
@@ -183,8 +183,8 @@ export function ProductCard(p) {
   const discounted = p.discountPercent > 0;
   const isNew = p.newArrival;
   const isBestseller = p.ratingCount > 200;
-  const img = p.images && p.images[0] ? p.images[0] : productImage(p);
-  const img2 = p.images && p.images[1] ? p.images[1] : null;
+  const img = p.images && p.images[0] ? resolveImageUrl(p.images[0]) : productImage(p);
+  const img2 = p.images && p.images[1] ? resolveImageUrl(p.images[1]) : null;
   const wished = Store.isWished(p.id);
   const heart = h('button', { class: 'wish-btn' + (wished ? ' active' : ''), type: 'button', title: wished ? 'Remove from wishlist' : 'Add to wishlist', 'aria-label': wished ? 'Remove from wishlist' : 'Add to wishlist', 'aria-pressed': wished ? 'true' : 'false', onclick: async (e) => {
     e.preventDefault(); e.stopPropagation();
@@ -201,8 +201,8 @@ export function ProductCard(p) {
 
   const thumb = h('div', { class: 'product-thumb' },
     badge, heart,
-    h('img', { class: 'product-img', src: img, alt: p.name, loading: 'lazy' }),
-    img2 ? h('img', { class: 'product-img-hover', src: img2, alt: p.name, loading: 'lazy' }) : null);
+    h('img', { class: 'product-img', src: img, alt: p.name, loading: 'lazy', decoding: 'async', onerror: (e) => imgFallback(e.currentTarget, p) }),
+    img2 ? h('img', { class: 'product-img-hover', src: img2, alt: p.name, loading: 'lazy', decoding: 'async', onerror: (e) => { e.currentTarget.style.display = 'none'; } }) : null);
 
   // Body — bold title, subtle category subtext, price (mrp crossed + discounted in secondary-wash)
   const categoryLabel = p.category || p.collection || 'ZUNO';
