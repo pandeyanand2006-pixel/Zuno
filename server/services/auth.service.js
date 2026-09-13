@@ -229,7 +229,7 @@ export const authService = {
     try {
       const result = await Promise.race([
         sendPasswordResetOtpEmail({ to: normalized, otp, expiresMinutes: OTP_EXPIRES_MINUTES, isAdmin: false }),
-        new Promise((_, rej) => setTimeout(() => rej(new Error('EMAIL_TIMEOUT')), 12000)),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('EMAIL_TIMEOUT')), 30000)),
       ]);
       if (result && result.mocked) {
         logger.warn(`[USER OTP] SMTP not configured — OTP for ${normalized} logged as mock (set Render SMTP env to deliver via email)`);

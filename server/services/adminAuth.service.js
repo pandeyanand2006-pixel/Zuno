@@ -64,7 +64,7 @@ export const adminAuthService = {
     try {
       const result = await Promise.race([
         sendAdminOtpEmail({ to: normalized, otp, expiresMinutes: OTP_EXPIRES_MINUTES }),
-        new Promise((_, rej) => setTimeout(() => rej(new Error('EMAIL_TIMEOUT')), 12000)),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('EMAIL_TIMEOUT')), 30000)),
       ]);
       if (result && result.mocked) logger.warn(`[ADMIN OTP] SMTP not configured — mock OTP for ${normalized}: ${otp} (set Render SMTP env)`);
       else logger.info(`[ADMIN OTP] email delivered to ${normalized} — ${result.messageId || 'ok'} (${result.mocked ? 'mock' : 'smtp'})`);
