@@ -1096,8 +1096,9 @@ export function AdminForgotPassword() {
   const msg = h('div', { style:{fontSize:'13px', minHeight:'18px', marginTop:'8px'} });
   const btn = h('button', { class:'admin-btn admin-btn-primary', style:{width:'100%', justifyContent:'center', padding:'12px', fontSize:'14px'} }, 'Send Reset Link');
 
+  const previewBox = h('div', { style:{display:'none', marginTop:'10px', padding:'12px', background:'#f0fdf4', border:'1px solid #bbf7d0', borderRadius:'10px', fontSize:'12px', lineHeight:'1.5'} });
   btn.onclick = async () => {
-    msg.textContent=''; msg.style.color='#64748b';
+    msg.textContent=''; msg.style.color='#64748b'; previewBox.style.display='none'; previewBox.innerHTML='';
     const email = emailI.value.trim();
     if (!email) { msg.textContent='Email is required'; msg.style.color='#dc2626'; return; }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { msg.textContent='Enter a valid email address'; msg.style.color='#dc2626'; return; }
@@ -1107,6 +1108,16 @@ export function AdminForgotPassword() {
       msg.textContent = data?.message || 'If an admin account exists with this email, a password reset link has been sent.';
       msg.style.color='#16a34a';
       toast(msg.textContent,'success');
+      // Dev helper: if previewUrl returned (non-prod), show clickable link for instant testing when inbox delayed
+      const preview = data && data.previewUrl;
+      if (preview) {
+        previewBox.style.display='block';
+        previewBox.append(
+          h('div', { style:{fontWeight:'700', color:'#166534', marginBottom:'6px'} }, 'Dev preview link (use if mail delayed):'),
+          h('a', { href: preview.startsWith('http') ? preview : preview, style:{wordBreak:'break-all', color:'#1e40af', fontWeight:'600', fontSize:'11px'} }, preview),
+          h('div', { style:{color:'#64748b', fontSize:'11px', marginTop:'6px'} }, 'This link expires in 30 min and is one-time use. Check Spam/Promotions if inbox empty.')
+        );
+      }
     } catch(e){ msg.textContent=e.message; msg.style.color='#dc2626'; toast(e.message,'error'); }
     btn.disabled=false; btn.textContent='Send Reset Link';
   };
@@ -1117,7 +1128,7 @@ export function AdminForgotPassword() {
     h('p', { class:'muted', style:{textAlign:'center', fontSize:'13px', marginBottom:'16px', lineHeight:'1.5'} }, "Enter your admin email address and we'll send you a secure password reset link."),
     h('div', { style:{display:'flex', flexDirection:'column', gap:'12px'} },
       h('div', {}, h('label', { style:{fontSize:'12px', fontWeight:'700', color:'#334155'} }, 'Admin Email'), emailI),
-      msg, btn,
+      msg, btn, previewBox,
       h('div', { style:{textAlign:'center', marginTop:'4px'} }, h('a', { href:'#/admin/login', style:{fontSize:'13px', color:'#64748b'} }, '← Back to Login'))
     )
   );

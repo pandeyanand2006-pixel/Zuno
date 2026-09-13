@@ -6,7 +6,10 @@ export async function forgotPassword(req, res) {
   try {
     const { email } = req.validated;
     const result = await adminAuthService.forgotPassword(email);
-    return ok(res, null, result.message);
+    // In dev, include previewUrl so tester can click even if inbox delayed/spam
+    const data = result._previewUrl ? { previewUrl: result._previewUrl } : null;
+    // Never expose raw token; previewUrl is only in non-production
+    return ok(res, data, result.message);
   } catch (err) {
     logger.error('admin forgotPassword', err);
     return serverError(res);

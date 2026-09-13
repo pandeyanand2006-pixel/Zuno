@@ -58,27 +58,23 @@ export const adminAuthService = {
     }
 
     // Send email — do not throw email failures to user enumeration; log and still return generic success
+    let emailResult = null;
     try {
-      await sendAdminPasswordResetEmail({ to: normalized, rawToken, expiresMinutes: EXPIRES_MINUTES });
+      emailResult = await sendAdminPasswordResetEmail({ to: normalized, rawToken, expiresMinutes: EXPIRES_MINUTES });
     } catch (err) {
       if (err.message === 'EMAIL_FAILED') {
-        logger.error('Admin forgot-password email failed', err);
-        // Still return generic success but inform that email could not be sent (generic)
-        // For security we don't expose SMTP error details to client
+        logger.error('Admin forgot-password email failed for ' + normalized, err.message);
       } else {
-        logger.error('Admin forgot-password email unexpected error', err);
+        logger.error('Admin forgot-password email unexpected error', err.message);
       }
-      // In dev, log token location if SMTP not configured, emailService already handles mock
     }
 
-    // In non-production, include debug info via logger (never in response)
-    // For dev convenience, if SMTP not configured, log reset URL
-    if (!env.smtp.user || !env.smtp.pass) {
-      const frontendUrl = (env.frontendUrl || 'http://localhost:5500').split(',')[0].trim();
-      logger.info(`[DEV] Admin reset link for ${normalized}: ${frontendUrl}/#/admin/reset-password?token=${rawToken}`);
-    }
+    // Always log preview link for server-side debugging (never expose token in prod response)
+    const frontendUrl = (env.frontendUrl || 'http://localhost:5500').split(',')[0].trim();
+    const previewUrl = `${frontendUrl}/#/admin/reset-password?token=${rawToken}`;
+    logger.info(`[ADMIN RESET] token generated for ${normalized} — preview: ${previewUrl} — email ${emailResult?.messageId ? 'sent '+emailResult.messageId : emailResult?.mocked ? 'mocked' : 'attempted'}`);
 
-    return { message: genericMessage, _devToken: env.isProduction ? undefined : rawToken };
+    return { message: genericMessage, _devToken: env.isProduction ? undefined : rawToken, _previewUrl: env.isProduction ? undefined : previewUrl };
   },
 
   async resetPassword(token, newPassword) {

@@ -81,13 +81,20 @@ If you did not request this, you can safely ignore this email.
 
 — ZUNO Admin`;
 
-  const from = env.smtp.from || env.smtp.user || 'noreply@zuno.app';
+  // Properly format From: allow "ZUNO <email>" or plain email, ensure Gmail alignment
+  const rawFrom = env.smtp.from || env.smtp.user || 'noreply@zuno.app';
+  // If from already contains <>, keep as is, else wrap with display name if NOTIFY_EMAIL_FROM has it
+  const from = rawFrom.includes('<') ? rawFrom : rawFrom;
 
   // If SMTP not configured, log and return without failing the flow
   if (!env.smtp.user || !env.smtp.pass) {
     logger.info(`[email mock] Would send admin reset to ${to} — link: ${resetUrl}`);
+    logger.info(`[email mock] Preview URL for dev: ${resetUrl}`);
     return { mocked: true, resetUrl };
   }
+
+  // Always log preview URL for debugging (without exposing to client)
+  logger.info(`[email] Preparing admin reset for ${to} — link expires in ${expiresMinutes}m: ${resetUrl}`);
 
   const t = getTransporter();
   try {
@@ -97,11 +104,16 @@ If you did not request this, you can safely ignore this email.
       subject: 'Reset Your Admin Password — ZUNO',
       text,
       html,
+      // Ensure Gmail treats as transactional
+      headers: { 'X-Mailer': 'ZUNO Admin Reset' },
     });
-    logger.info(`Admin reset email sent to ${to} (${info.messageId || 'no-id'})`);
-    return { messageId: info.messageId, resetUrl };
+    logger.info(`Admin reset email sent to ${to} (${info.messageId || 'no-id'}) — accepted: ${(info.accepted||[]).join(',')} rejected: ${(info.rejected||[]).join(',')}`);
+    if (info.rejected && info.rejected.length) logger.warn(`[email] Rejected recipients: ${info.rejected.join(',')}`);
+    return { messageId: info.messageId, resetUrl, accepted: info.accepted, rejected: info.rejected };
   } catch (err) {
-    logger.error('Failed to send admin reset email', err);
+    logger.error('Failed to send admin reset email', err.message);
+    // Log safe diagnostic without password
+    logger.error(`[email] SMTP host=${env.smtp.host} port=${env.smtp.port} user=${env.smtp.user ? env.smtp.user.slice(0,3)+'***' : 'none'}`);
     throw new Error('EMAIL_FAILED');
   }
 }
