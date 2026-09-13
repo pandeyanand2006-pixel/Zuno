@@ -75,3 +75,39 @@ export async function googleLogin(req, res) {
     return serverError(res);
   }
 }
+
+export async function forgotPassword(req, res) {
+  try {
+    const { email } = req.validated;
+    const result = await authService.forgotPassword(email);
+    const data = result._devOtp ? { devOtp: result._devOtp } : null;
+    return ok(res, data, result.message);
+  } catch (err) {
+    logger.error('user forgotPassword', err);
+    return serverError(res);
+  }
+}
+export async function verifyForgotOtp(req, res) {
+  try {
+    const { email, otp } = req.validated;
+    const result = await authService.verifyForgotOtp(email, otp);
+    return ok(res, { token: result.token }, result.message);
+  } catch (err) {
+    if (err.message === 'OTP_INVALID') return fail(res, 'Invalid OTP. Please check and try again.', 400, 'OTP_INVALID');
+    if (err.message === 'OTP_EXPIRED') return fail(res, 'OTP has expired. Please request a new one.', 400, 'OTP_EXPIRED');
+    logger.error('user verifyForgotOtp', err);
+    return serverError(res);
+  }
+}
+export async function resetPassword(req, res) {
+  try {
+    const { token, password } = req.validated;
+    const result = await authService.resetPasswordWithToken(token, password);
+    return ok(res, null, result.message);
+  } catch (err) {
+    if (err.message === 'TOKEN_INVALID') return fail(res, 'This reset token is invalid.', 400, 'TOKEN_INVALID');
+    if (err.message === 'TOKEN_EXPIRED') return fail(res, 'This reset token has expired. Please request a new OTP.', 400, 'TOKEN_EXPIRED');
+    logger.error('user resetPassword', err);
+    return serverError(res);
+  }
+}

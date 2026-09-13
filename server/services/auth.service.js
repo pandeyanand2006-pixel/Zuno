@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import { db } from '../config/db.js';
 import { hashPassword, comparePassword } from '../utils/password.js';
 import { signToken } from '../utils/jwt.js';
@@ -6,8 +7,14 @@ import { env } from '../config/env.js';
 import { logger } from '../utils/logger.js';
 import { isMongoConnected } from '../config/mongo.js';
 import { User, Role, OtpCode } from '../models/index.js';
+import { sendPasswordResetOtpEmail } from './emailService.js';
 
 function useMongo() { return !!env.mongoUri && isMongoConnected(); }
+
+function hashToken(raw) { return crypto.createHash('sha256').update(String(raw).trim()).digest('hex'); }
+const OTP_EXPIRES_MINUTES = 10;
+const TOKEN_EXPIRES_MINUTES = 15;
+function generateOtp() { return String(crypto.randomInt(100000, 1000000)); }
 
 async function getRoleDoc(name = 'USER') {
   if (useMongo()) return await Role.findOne({ name });
@@ -184,5 +191,109 @@ export const authService = {
     if (!payload.email) throw new Error('GOOGLE_NO_EMAIL');
     const user = await this.findOrCreateByEmail(payload.email, payload.name || payload.email.split('@')[0]);
     return this.issueTokenForUser(user);
+  },
+
+  // --- User Forgot Password (email OTP flow, live) ---
+  async forgotPassword(email) {
+    const normalized = String(email).toLowerCase().trim();
+    const genericMessage = 'If an account exists with this email, an OTP has been sent.';
+    let user = null;
+    if (useMongo()) {
+      user = await User.findOne({ email: normalized });
+    } else {
+      user = db.prepare('SELECT id, email FROM users WHERE email = ?').get(normalized);
+    }
+    if (!user) return { message: genericMessage };
+
+    const otp = generateOtp();
+    const hashed = hashToken(otp);
+    const expiresAt = new Date(Date.now() + OTP_EXPIRES_MINUTES * 60 * 1000);
+    const expiresIso = expiresAt.toISOString();
+
+    if (useMongo()) {
+      const u = await User.findOne({ email: normalized });
+      u.resetOtpHash = hashed;
+      u.resetOtpExpires = expiresAt;
+      u.resetPasswordToken = null;
+      u.resetPasswordExpires = null;
+      await u.save();
+    } else {
+      db.prepare('UPDATE users SET reset_otp_hash = ?, reset_otp_expires = ?, reset_password_token = NULL, reset_password_expires = NULL WHERE id = ?').run(hashed, expiresIso, user.id);
+    }
+
+    if (!env.isProduction) logger.info(`[DEV USER OTP] for ${normalized}: ${otp} (expires ${OTP_EXPIRES_MINUTES}m)`);
+    void sendPasswordResetOtpEmail({ to: normalized, otp, expiresMinutes: OTP_EXPIRES_MINUTES, isAdmin: false })
+      .then((r) => logger.info(`[USER OTP] email delivered to ${normalized} — ${r.messageId || 'mocked'}`))
+      .catch((err) => logger.error('User forgot OTP email failed for ' + normalized, err.message));
+    logger.info(`[USER OTP] generated for ${normalized} — queued`);
+    return { message: genericMessage, _devOtp: env.isProduction ? undefined : otp };
+  },
+
+  async verifyForgotOtp(email, otp) {
+    const normalized = String(email).toLowerCase().trim();
+    const rawOtp = String(otp).trim();
+    if (!rawOtp) throw new Error('OTP_REQUIRED');
+    const hashed = hashToken(rawOtp);
+    const now = new Date();
+    let user = null;
+    if (useMongo()) {
+      user = await User.findOne({ email: normalized });
+      if (!user) throw new Error('OTP_INVALID');
+      if (!user.resetOtpHash || user.resetOtpHash !== hashed) throw new Error('OTP_INVALID');
+      if (!user.resetOtpExpires || new Date(user.resetOtpExpires).getTime() < now.getTime()) throw new Error('OTP_EXPIRED');
+      const rawToken = crypto.randomBytes(32).toString('hex');
+      const tokenHashed = hashToken(rawToken);
+      const tokenExpires = new Date(Date.now() + TOKEN_EXPIRES_MINUTES * 60 * 1000);
+      user.resetPasswordToken = tokenHashed;
+      user.resetPasswordExpires = tokenExpires;
+      user.resetOtpHash = null;
+      user.resetOtpExpires = null;
+      await user.save();
+      logger.info(`[USER OTP] verified for ${normalized}`);
+      return { token: rawToken, message: 'OTP verified successfully.' };
+    } else {
+      user = db.prepare('SELECT id, reset_otp_hash, reset_otp_expires FROM users WHERE email = ?').get(normalized);
+      if (!user) throw new Error('OTP_INVALID');
+      if (!user.reset_otp_hash || user.reset_otp_hash !== hashed) throw new Error('OTP_INVALID');
+      if (!user.reset_otp_expires || new Date(user.reset_otp_expires).getTime() < now.getTime()) throw new Error('OTP_EXPIRED');
+      const rawToken = crypto.randomBytes(32).toString('hex');
+      const tokenHashed = hashToken(rawToken);
+      const tokenExpiresIso = new Date(Date.now() + TOKEN_EXPIRES_MINUTES * 60 * 1000).toISOString();
+      db.prepare('UPDATE users SET reset_password_token = ?, reset_password_expires = ?, reset_otp_hash = NULL, reset_otp_expires = NULL WHERE id = ?').run(tokenHashed, tokenExpiresIso, user.id);
+      logger.info(`[USER OTP] verified for ${normalized} (SQLite)`);
+      return { token: rawToken, message: 'OTP verified successfully.' };
+    }
+  },
+
+  async resetPasswordWithToken(token, newPassword) {
+    if (!token || !newPassword) throw new Error('VALIDATION');
+    const hashed = hashToken(String(token).trim());
+    const now = new Date();
+    let user = null;
+    if (useMongo()) {
+      user = await User.findOne({ resetPasswordToken: hashed, resetPasswordExpires: { $gt: now } });
+      if (!user) {
+        const expired = await User.findOne({ resetPasswordToken: hashed });
+        if (expired) throw new Error('TOKEN_EXPIRED');
+        throw new Error('TOKEN_INVALID');
+      }
+    } else {
+      user = db.prepare('SELECT id, reset_password_token, reset_password_expires FROM users WHERE reset_password_token = ?').get(hashed);
+      if (!user) throw new Error('TOKEN_INVALID');
+      if (!user.reset_password_expires || new Date(user.reset_password_expires).getTime() < now.getTime()) throw new Error('TOKEN_EXPIRED');
+    }
+    const newHash = await hashPassword(String(newPassword));
+    if (useMongo()) {
+      user.password_hash = newHash;
+      user.resetPasswordToken = null;
+      user.resetPasswordExpires = null;
+      user.resetOtpHash = null;
+      user.resetOtpExpires = null;
+      await user.save();
+    } else {
+      db.prepare('UPDATE users SET password_hash = ?, reset_password_token = NULL, reset_password_expires = NULL, reset_otp_hash = NULL, reset_otp_expires = NULL WHERE id = ?').run(newHash, user.id);
+    }
+    logger.audit('user.password.reset', { tokenHash: hashed.slice(0, 8) + '...' });
+    return { message: 'Your password has been reset successfully. You can now log in with your new password.' };
   },
 };

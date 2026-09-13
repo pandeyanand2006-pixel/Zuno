@@ -33,6 +33,21 @@ export const adminResetSchema = z.object({
     .regex(/[0-9]/, 'Password must contain at least one number'),
 });
 
+export const userForgotSchema = z.object({
+  email: z.string().email('Enter a valid email address'),
+});
+export const userVerifyOtpSchema = z.object({
+  email: z.string().email('Enter a valid email address'),
+  otp: z.string().regex(/^\d{6}$/, 'OTP must be a 6-digit code'),
+});
+export const userResetSchema = z.object({
+  token: z.string().min(10, 'Reset token is required'),
+  password: z.string().min(8, 'Password must be at least 8 characters').max(128)
+    .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
+    .regex(/[a-z]/, 'Password must contain at least one lowercase letter')
+    .regex(/[0-9]/, 'Password must contain at least one number'),
+});
+
 export const otpRequestSchema = z.object({
   mobile: z.string().regex(/^[6-9]\d{9}$/, 'Enter a valid 10-digit Indian mobile number'),
 });
