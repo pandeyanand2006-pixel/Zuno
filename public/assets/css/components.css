@@ -54,39 +54,8 @@
 .accent-dot.lime { background: #a3ff00; } .accent-dot.cyan { background: #00e5ff; } .accent-dot.orange { background: #ff6b00; } .accent-dot.pink { background: #ff2d95; }
 .product-meta small { font-family: "DM Mono", monospace; font-size: 10px; letter-spacing: 0.06em; color: #8a94a8; text-transform: uppercase; }
 
-/* Quick Add Size panel — slides up from bottom on hover */
-.quick-add-panel {
-  position: absolute; bottom: 0; left: 0; right: 0;
-  background: rgba(255,255,255,0.96); backdrop-filter: blur(8px);
-  border-top: 1px solid var(--light-indigo);
-  padding: 10px 10px 12px;
-  display: flex; flex-direction: column; gap: 8px; align-items: center;
-  transform: translateY(100%); opacity: 0;
-  transition: transform 0.32s cubic-bezier(0.22,1,0.36,1), opacity 0.2s ease-in;
-  z-index: 3;
-}
-.product-card:hover .quick-add-panel { transform: translateY(0); opacity: 1; }
-.quick-add-panel__label { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--dark-charcoal); }
-.quick-add-panel__pills { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
-.size-pill {
-  min-width: 36px; height: 32px; padding: 0 10px;
-  border-radius: var(--r-full);
-  border: 1px solid var(--light-indigo);
-  background: var(--light-indigo);
-  color: var(--dark-charcoal);
-  font-size: 12px; font-weight: 700;
-  display: inline-flex; align-items: center; justify-content: center;
-  cursor: pointer;
-  transition: background 0.2s ease-in, color 0.2s ease-in, border-color 0.2s ease-in, transform 0.2s ease-in;
-}
-.size-pill:hover { border-color: var(--secondary-wash); transform: translateY(-1px); }
-.size-pill.selected, .size-pill:active { background: var(--primary-denim); color: var(--pure-white); border-color: var(--primary-denim); }
-.size-pill:focus-visible { outline: 2px solid var(--primary-denim); outline-offset: 2px; }
-
-/* Legacy quick-add fallback (kept for compat) */
-.quick-add { position: absolute; bottom: 10px; left: 10px; right: 10px; background: var(--dark-charcoal); color: var(--pure-white); border: none; border-radius: var(--r-full); padding: 10px; font-size: var(--fs-sm); font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; cursor: pointer; opacity: 0; transform: translateY(8px); transition: opacity 0.2s ease-in, transform 0.2s ease-in, background 0.2s ease-in; z-index: 2; }
-.product-card:hover .quick-add { opacity: 1; transform: translateY(0); }
-.quick-add:hover { background: var(--secondary-wash); }
+/* Quick Add removed — clean tee-only cards. Keep hidden for compat. */
+.quick-add-panel, .quick-add { display: none !important; }
 
 .wish-btn { position: absolute; top: 10px; right: 10px; width: 34px; height: 34px; border: none; border-radius: 50%; background: rgba(255, 255, 255, 0.92); color: var(--ink-500); font-size: 18px; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 8px rgba(28,37,65,0.18); transition: transform 0.2s ease-in, color 0.2s ease-in, background 0.2s ease-in; z-index: 2; }
 .wish-btn:hover { transform: scale(1.08); }
@@ -196,13 +165,16 @@
 .drawer__panel { background: var(--pure-white); }
 .drawer__backdrop { background: rgba(28,37,65,0.4); }
 
-/* ── Mobile polish: touch targets, bottom nav, product cards ── */
+/* ── Mobile polish: touch targets, bottom nav, product cards (tee-only) ── */
 @media (max-width: 640px){
   .btn{ min-height:44px; }
   .icon-btn{ min-width:44px; min-height:44px; }
-  .product-badge{ font-size:9px; padding:3px 7px; top:8px; left:8px; }
+  .product-badge{ font-size:9px; padding:3px 7px; top:8px; left:8px; max-width: calc(100% - 52px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .wish-btn{ width:32px; height:32px; font-size:16px; top:8px; right:8px; }
-  .quick-add-panel__label{ font-size:10px; }
+  .product-thumb{ aspect-ratio: 4 / 5; overflow: hidden; }
+  .product-img, .product-img-hover{ width: 100%; height: 100%; object-fit: cover; }
+  .product-body{ padding: 10px !important; min-width: 0; }
+  .product-name{ overflow: hidden; text-overflow: ellipsis; }
 }
 @media (max-width: 480px){
   .bottom-nav a{ font-size:10px; gap:1px; padding:6px 2px; }

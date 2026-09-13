@@ -170,40 +170,10 @@ export function ProductCard(p) {
 
   const badge = discounted ? h('span', { class: 'product-badge' }, p.discountPercent + '% OFF') : isNew ? h('span', { class: 'product-badge', style: { background: 'var(--dark-charcoal)' } }, 'NEW') : isBestseller ? h('span', { class: 'product-badge', style: { background: 'var(--secondary-wash)' } }, 'BESTSELLER') : null;
 
-  // ── Quick Add Size panel — slides up on hover (Denim spec) ──
-  const SIZES = ['S', 'M', 'L', 'XL'];
-  let selectedSize = null;
-  const pills = SIZES.map(sz => h('button', {
-    class: 'size-pill',
-    type: 'button',
-    'aria-label': 'Select size ' + sz,
-    onclick: async (e) => {
-      e.preventDefault(); e.stopPropagation();
-      // toggle selected visual
-      selectedSize = sz;
-      panel.querySelectorAll('.size-pill').forEach(el => el.classList.toggle('selected', el.textContent === sz));
-      // add to cart with selected size
-      const variant = { color: (p.colors && p.colors[0]) || 'black', size: sz };
-      if (Store.isAuthed()) {
-        try { await api.post('/cart/items?module=shop', { productId: p.id, quantity: 1, variant }); await refreshCart(); toast('Added size ' + sz + ' to bag', 'success'); }
-        catch (err) { toast(err.message, 'error'); }
-      } else {
-        Store.addGuestItem({ productId: p.id, name: p.name, price: p.price, mrp: p.mrp, slug: p.slug, image: img, module: 'shop', quantity: 1, variant });
-        toast('Added size ' + sz + ' to bag', 'success');
-      }
-    }
-  }, sz));
-
-  const panel = h('div', { class: 'quick-add-panel', 'aria-hidden': 'false' },
-    h('span', { class: 'quick-add-panel__label' }, 'Quick Add'),
-    h('div', { class: 'quick-add-panel__pills' }, ...pills)
-  );
-
   const thumb = h('div', { class: 'product-thumb' },
     badge, heart,
     h('img', { class: 'product-img', src: img, alt: p.name, loading: 'lazy' }),
-    img2 ? h('img', { class: 'product-img-hover', src: img2, alt: p.name, loading: 'lazy' }) : null,
-    panel);
+    img2 ? h('img', { class: 'product-img-hover', src: img2, alt: p.name, loading: 'lazy' }) : null);
 
   // Body — bold title, subtle category subtext, price (mrp crossed + discounted in secondary-wash)
   const categoryLabel = p.category || p.collection || 'ZUNO';

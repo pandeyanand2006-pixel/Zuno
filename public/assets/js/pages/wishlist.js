@@ -19,16 +19,19 @@ export async function Wishlist() {
         await refreshCart(); toast('Moved all to bag', 'success'); location.reload();
       } }, 'Move all to bag')));
   root.append(header);
-  const grid = h('div', { class: 'grid grid-products' });
-  root.append(grid);
+  const wrap = h('div', { class: 'wish-wrap' });
+  root.append(wrap);
   try {
     const { items } = await api.get('/wishlist');
     const countEl = header.querySelector('#wish-count');
     if (countEl) countEl.textContent = items.length ? `${items.length} saved` : '';
     if (!items.length) {
-      grid.append(emptyState({ icon: '♡', title: 'Your wishlist is empty', desc: 'Tap the heart on any T-shirt to save it here. Your wishlist is saved to your account.', action: h('a', { class: 'btn btn-primary', href: '#/shop' }, 'Discover T-shirts') }));
+      wrap.append(h('div', { class: 'wish-empty-center' },
+        emptyState({ icon: '♡', title: 'Your wishlist is empty', desc: 'Tap the heart on any T-shirt to save it here. Your wishlist is saved to your account.', action: h('a', { class: 'btn btn-primary', href: '#/shop' }, 'Discover T-shirts') })));
       return root;
     }
+    const grid = h('div', { class: 'grid grid-products' });
+    wrap.append(grid);
     // Fetch full product details for richer cards (price, MRP, colors)
     const detailed = await Promise.all(items.map(async (it) => {
       try { const { product } = await api.get('/products/' + it.slug); return { ...it, product }; } catch { return it; }
