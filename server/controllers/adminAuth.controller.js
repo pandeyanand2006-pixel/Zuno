@@ -6,12 +6,24 @@ export async function forgotPassword(req, res) {
   try {
     const { email } = req.validated;
     const result = await adminAuthService.forgotPassword(email);
-    // In dev, include previewUrl so tester can click even if inbox delayed/spam
-    const data = result._previewUrl ? { previewUrl: result._previewUrl } : null;
-    // Never expose raw token; previewUrl is only in non-production
+    const data = result._devOtp ? { devOtp: result._devOtp } : null;
     return ok(res, data, result.message);
   } catch (err) {
     logger.error('admin forgotPassword', err);
+    return serverError(res);
+  }
+}
+
+export async function verifyOtp(req, res) {
+  try {
+    const { email, otp } = req.validated;
+    const result = await adminAuthService.verifyOtp(email, otp);
+    return ok(res, { token: result.token }, result.message);
+  } catch (err) {
+    if (err.message === 'OTP_INVALID') return fail(res, 'Invalid OTP. Please check and try again.', 400, 'OTP_INVALID');
+    if (err.message === 'OTP_EXPIRED') return fail(res, 'OTP has expired. Please request a new one.', 400, 'OTP_EXPIRED');
+    if (err.message === 'OTP_REQUIRED') return fail(res, 'OTP is required', 400);
+    logger.error('admin verifyOtp', err);
     return serverError(res);
   }
 }

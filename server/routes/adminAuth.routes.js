@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { validate } from '../middleware/validate.js';
-import { adminForgotSchema, adminResetSchema } from '../validators/auth.validators.js';
-import { forgotPassword, resetPassword } from '../controllers/adminAuth.controller.js';
+import { adminForgotSchema, adminVerifyOtpSchema, adminResetSchema } from '../validators/auth.validators.js';
+import { forgotPassword, verifyOtp, resetPassword } from '../controllers/adminAuth.controller.js';
 
 const router = Router();
 
@@ -24,6 +24,7 @@ const resetLimiter = rateLimit({
 });
 
 router.post('/forgot-password', forgotLimiter, validate(adminForgotSchema), forgotPassword);
+router.post('/verify-otp', forgotLimiter, validate(adminVerifyOtpSchema), verifyOtp);
 router.post('/reset-password', resetLimiter, validate(adminResetSchema), resetPassword);
 
 export default router;

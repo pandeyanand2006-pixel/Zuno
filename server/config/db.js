@@ -457,6 +457,8 @@ export function initializeSchema() {
   addColumn('products', 'video_url', 'TEXT');
   addColumn('users', 'reset_password_token', 'TEXT');
   addColumn('users', 'reset_password_expires', 'TEXT');
+  addColumn('users', 'reset_otp_hash', 'TEXT');
+  addColumn('users', 'reset_otp_expires', 'TEXT');
 }
 
 export default db;

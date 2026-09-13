@@ -20,6 +20,11 @@ export const adminForgotSchema = z.object({
   email: z.string().email('Enter a valid email address'),
 });
 
+export const adminVerifyOtpSchema = z.object({
+  email: z.string().email('Enter a valid email address'),
+  otp: z.string().regex(/^\d{6}$/, 'OTP must be a 6-digit code'),
+});
+
 export const adminResetSchema = z.object({
   token: z.string().min(10, 'Reset token is required'),
   password: z.string().min(8, 'Password must be at least 8 characters').max(128)

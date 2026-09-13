@@ -1088,13 +1088,13 @@ async function loadAdminPassword(){
   return adminShell('password', content);
 }
 
-// ── Admin Forgot Password ──
+// ── Admin Forgot Password (OTP flow) ──
 export function AdminForgotPassword() {
   const root = h('div', { class:'admin-login-wrap' });
   const card = h('div', { class:'admin-login-card' });
   const emailI = h('input', { class:'admin-input', type:'email', placeholder:'admin@zuno.app', style:{width:'100%'} });
   const msg = h('div', { style:{fontSize:'13px', minHeight:'18px', marginTop:'8px'} });
-  const btn = h('button', { class:'admin-btn admin-btn-primary', style:{width:'100%', justifyContent:'center', padding:'12px', fontSize:'14px'} }, 'Send Reset Link');
+  const btn = h('button', { class:'admin-btn admin-btn-primary', style:{width:'100%', justifyContent:'center', padding:'12px', fontSize:'14px'} }, 'Send OTP');
 
   const previewBox = h('div', { style:{display:'none', marginTop:'10px', padding:'12px', background:'#f0fdf4', border:'1px solid #bbf7d0', borderRadius:'10px', fontSize:'12px', lineHeight:'1.5'} });
   btn.onclick = async () => {
@@ -1105,27 +1105,28 @@ export function AdminForgotPassword() {
     btn.disabled=true; btn.textContent='Sending…';
     try {
       const data = await api.post('/admin/forgot-password', { email }, { auth:false });
-      msg.textContent = data?.message || 'If an admin account exists with this email, a password reset link has been sent.';
+      // Generic success - but for UX navigate to verify page
+      msg.textContent = data?.message || 'If an admin account exists with this email, an OTP has been sent.';
       msg.style.color='#16a34a';
-      toast(msg.textContent,'success');
-      // Dev helper: if previewUrl returned (non-prod), show clickable link for instant testing when inbox delayed
-      const preview = data && data.previewUrl;
-      if (preview) {
+      toast('OTP sent — check your email (and Spam)','success');
+      // Dev helper: show OTP if returned (non-prod)
+      if (data && data.devOtp) {
         previewBox.style.display='block';
         previewBox.append(
-          h('div', { style:{fontWeight:'700', color:'#166534', marginBottom:'6px'} }, 'Dev preview link (use if mail delayed):'),
-          h('a', { href: preview.startsWith('http') ? preview : preview, style:{wordBreak:'break-all', color:'#1e40af', fontWeight:'600', fontSize:'11px'} }, preview),
-          h('div', { style:{color:'#64748b', fontSize:'11px', marginTop:'6px'} }, 'This link expires in 30 min and is one-time use. Check Spam/Promotions if inbox empty.')
+          h('div', { style:{fontWeight:'700', color:'#166534', marginBottom:'6px'} }, 'Dev OTP (if mail delayed): ' + data.devOtp),
+          h('div', { style:{color:'#64748b', fontSize:'11px', marginTop:'6px'} }, 'Expires in 10 min • One-time use • Check Spam/Promotions')
         );
       }
+      // Navigate to verify page after short delay
+      setTimeout(()=> { location.hash = '#/admin/verify-otp?email=' + encodeURIComponent(email); }, 900);
     } catch(e){ msg.textContent=e.message; msg.style.color='#dc2626'; toast(e.message,'error'); }
-    btn.disabled=false; btn.textContent='Send Reset Link';
+    btn.disabled=false; btn.textContent='Send OTP';
   };
 
   card.append(
     h('div', { class:'admin-login-brand' }, h('div',{class:'logo'},'Z'), h('div',{style:{fontWeight:'800'}},'ZUNO ADMIN')),
     h('h2', { style:{textAlign:'center', marginBottom:'4px'} }, 'Forgot your password?'),
-    h('p', { class:'muted', style:{textAlign:'center', fontSize:'13px', marginBottom:'16px', lineHeight:'1.5'} }, "Enter your admin email address and we'll send you a secure password reset link."),
+    h('p', { class:'muted', style:{textAlign:'center', fontSize:'13px', marginBottom:'16px', lineHeight:'1.5'} }, "Enter your admin email address and we'll send you a 6-digit OTP to reset your password."),
     h('div', { style:{display:'flex', flexDirection:'column', gap:'12px'} },
       h('div', {}, h('label', { style:{fontSize:'12px', fontWeight:'700', color:'#334155'} }, 'Admin Email'), emailI),
       msg, btn, previewBox,
@@ -1134,6 +1135,81 @@ export function AdminForgotPassword() {
   );
   root.append(card);
   emailI.addEventListener('keydown', (e)=>{ if(e.key==='Enter') btn.click(); });
+  return root;
+}
+
+// ── Admin Verify OTP ──
+export function AdminVerifyOtp() {
+  const hashQ = location.hash.split('?')[1]||'';
+  const params = new URLSearchParams(hashQ);
+  let email = params.get('email') || '';
+  try { if(!email) email = new URLSearchParams(location.search).get('email') || ''; } catch {}
+  email = decodeURIComponent(email||'').trim();
+
+  const root = h('div', { class:'admin-login-wrap' });
+  const card = h('div', { class:'admin-login-card' });
+
+  const emailI = h('input', { class:'admin-input', type:'email', value: email, placeholder:'admin@zuno.app', style:{width:'100%'} });
+  const otpI = h('input', { class:'admin-input', type:'text', inputmode:'numeric', maxlength:'6', placeholder:'6-digit OTP', style:{width:'100%', letterSpacing:'0.3em', textAlign:'center', fontSize:'18px', fontWeight:'700'} });
+  const msg = h('div', { style:{fontSize:'13px', minHeight:'18px', marginTop:'8px'} });
+  const btn = h('button', { class:'admin-btn admin-btn-primary', style:{width:'100%', justifyContent:'center', padding:'12px', fontSize:'14px'} }, 'Verify OTP');
+  const resendBtn = h('button', { class:'admin-btn admin-btn-ghost', style:{width:'100%', justifyContent:'center', fontSize:'12px'} }, 'Resend OTP');
+
+  btn.onclick = async () => {
+    msg.textContent=''; msg.style.color='#64748b';
+    const em = emailI.value.trim();
+    const otp = otpI.value.trim();
+    if (!em) { msg.textContent='Email is required'; msg.style.color='#dc2626'; return; }
+    if (!/^\d{6}$/.test(otp)) { msg.textContent='Enter a valid 6-digit OTP'; msg.style.color='#dc2626'; return; }
+    btn.disabled=true; btn.textContent='Verifying…';
+    try {
+      const data = await api.post('/admin/verify-otp', { email: em, otp }, { auth:false });
+      toast('OTP verified — set new password','success');
+      const token = data && data.token;
+      if (token) {
+        location.hash = '#/admin/reset-password?token=' + encodeURIComponent(token);
+      } else {
+        msg.textContent='Verified. Redirecting…'; msg.style.color='#16a34a';
+        setTimeout(()=> location.hash='#/admin/reset-password', 600);
+      }
+    } catch(e){
+      const m = e.message||'Verification failed';
+      msg.textContent=m; msg.style.color='#dc2626';
+      if(m.toLowerCase().includes('expired')) msg.textContent='OTP has expired. Please request a new one.';
+      if(m.toLowerCase().includes('invalid')) msg.textContent='Invalid OTP. Please check and try again.';
+      toast(msg.textContent,'error');
+    }
+    btn.disabled=false; btn.textContent='Verify OTP';
+  };
+
+  resendBtn.onclick = async () => {
+    const em = emailI.value.trim();
+    if (!em || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) { toast('Enter valid email first','error'); return; }
+    resendBtn.disabled=true; resendBtn.textContent='Sending…';
+    try {
+      await api.post('/admin/forgot-password', { email: em }, { auth:false });
+      toast('OTP resent — check email','success');
+      msg.textContent='A new OTP has been sent.'; msg.style.color='#16a34a';
+    } catch(e){ toast(e.message,'error'); }
+    resendBtn.disabled=false; resendBtn.textContent='Resend OTP';
+  };
+
+  card.append(
+    h('div', { class:'admin-login-brand' }, h('div',{class:'logo'},'Z'), h('div',{style:{fontWeight:'800'}},'ZUNO ADMIN')),
+    h('h2', { style:{textAlign:'center', marginBottom:'4px'} }, 'Verify OTP'),
+    h('p', { class:'muted', style:{textAlign:'center', fontSize:'13px', marginBottom:'16px', lineHeight:'1.5'} }, 'Enter the 6-digit code sent to your email. Expires in 10 minutes.'),
+    h('div', { style:{display:'flex', flexDirection:'column', gap:'12px'} },
+      h('div', {}, h('label', { style:{fontSize:'12px', fontWeight:'700', color:'#334155'} }, 'Admin Email'), emailI),
+      h('div', {}, h('label', { style:{fontSize:'12px', fontWeight:'700', color:'#334155'} }, 'OTP Code'), otpI, h('div',{style:{fontSize:'11px', color:'#64748b', marginTop:'4px'}}, 'Check inbox & Spam folder')),
+      msg, btn, resendBtn,
+      h('div', { style:{textAlign:'center', marginTop:'4px', display:'flex', gap:'12px', justifyContent:'center'} },
+        h('a', { href:'#/admin/forgot-password', style:{fontSize:'13px', color:'#64748b'} }, '← Back'),
+        h('a', { href:'#/admin/login', style:{fontSize:'13px', color:'#64748b'} }, 'Login')
+      )
+    )
+  );
+  root.append(card);
+  otpI.addEventListener('keydown', (e)=>{ if(e.key==='Enter') btn.click(); });
   return root;
 }
 

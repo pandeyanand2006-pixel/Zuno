@@ -19,7 +19,7 @@ import { Search } from './pages/search.js';
 import { SellerDashboard, RestaurantDashboard, ProviderDashboard } from './pages/partner.js';
 import { Customize } from './pages/customize.js';
 import { About } from './pages/about.js';
-import { Admin, AdminLogin, AdminDashboard, AdminOrders, AdminProducts, AdminInventory, AdminCustomers, AdminOrderDetail, AdminProfile, AdminPassword, AdminForgotPassword, AdminResetPassword } from './pages/admin.js';
+import { Admin, AdminLogin, AdminDashboard, AdminOrders, AdminProducts, AdminInventory, AdminCustomers, AdminOrderDetail, AdminProfile, AdminPassword, AdminForgotPassword, AdminVerifyOtp, AdminResetPassword } from './pages/admin.js';
 
 // Register routes
 route('/', Home);
@@ -51,6 +51,7 @@ route('/provider-admin', ProviderDashboard);
 route('/admin', AdminDashboard);
 route('/admin/login', AdminLogin);
 route('/admin/forgot-password', AdminForgotPassword);
+route('/admin/verify-otp', AdminVerifyOtp);
 route('/admin/reset-password', AdminResetPassword);
 route('/admin/orders', AdminOrders);
 route('/admin/orders/:id', AdminOrderDetail);
