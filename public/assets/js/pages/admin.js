@@ -679,9 +679,10 @@ async function loadProducts(qp){
 
   function showProductModal(existing){
     const isEdit = !!existing;
+    const toRupees = (paise) => (paise != null && paise !== '') ? String((Number(paise)/100).toString()) : '';
     const name = h('input', { class:'admin-input', placeholder:'ZUNO Essential Tee', value:existing?.name||'' });
-    const price = h('input', { class:'admin-input', type:'number', placeholder:'Price in paise (129900 = ₹1299)', value:existing?.price||'' });
-    const mrp = h('input', { class:'admin-input', type:'number', placeholder:'MRP paise', value:existing?.mrp||'' });
+    const price = h('input', { class:'admin-input', type:'number', step:'0.01', min:'0', placeholder:'e.g. 1299', value: toRupees(existing?.price) });
+    const mrp = h('input', { class:'admin-input', type:'number', step:'0.01', min:'0', placeholder:'e.g. 1799', value: toRupees(existing?.mrp) });
     const stock = h('input', { class:'admin-input', type:'number', placeholder:'Stock', value:existing?.stock??'' });
     const desc = h('textarea', { class:'admin-input', placeholder:'Description', style:{minHeight:'70px'} }, existing?.description||'');
     const colors = h('input', { class:'admin-input', placeholder:'Colors comma-separated (black,white,beige)', value:(existing?.colors||[]).join(', ') });
@@ -691,7 +692,7 @@ async function loadProducts(qp){
     const collection = h('input', { class:'admin-input', placeholder:'Collection (Essentials)', value:existing?.collection||'' });
     const fit = h('input', { class:'admin-input', placeholder:'Fit (regular, oversized)', value:existing?.fit||'' });
 
-    // Image upload — 4 required, preview
+    // Image upload — 1 to 10, preview (min 1 required)
     const imageInput = h('input', { type:'file', accept:'image/*', multiple:true, style:{display:'none'} });
     const imagePreview = h('div', { style:{display:'flex', gap:'8px', flexWrap:'wrap', marginTop:'8px'} });
     let selectedImages = []; // File objects
@@ -724,7 +725,8 @@ async function loadProducts(qp){
       });
       const total = existingImages.length + selectedImages.length;
       const countInfo = imagePreview.parentNode ? imagePreview.parentNode.querySelector('[data-count]') : null;
-      if (countInfo) countInfo.textContent = `${total} / 10 images (min 4 required)`;
+      if (countInfo) countInfo.textContent = `${total} / 10 images (min 1 required)`;
+      if (countInfo) countInfo.style.color = total >= 1 ? '#16a34a' : '#dc2626';
     }
 
     imageInput.onchange = (e)=>{
@@ -762,13 +764,35 @@ async function loadProducts(qp){
     const saveBtn = h('button', { class:'admin-btn admin-btn-primary', style:{width:'100%', justifyContent:'center', padding:'12px'} }, isEdit?'Update Product':'Create Product');
     const errEl = h('div', { style:{color:'#dc2626', fontSize:'13px', minHeight:'18px', marginTop:'8px'} });
 
+    const priceHint = h('div', { style:{fontSize:'11px', color:'#16a34a', marginTop:'4px', minHeight:'14px'} }, '');
+    const mrpHint = h('div', { style:{fontSize:'11px', color:'#64748b', marginTop:'4px', minHeight:'14px'} }, '');
+    const updatePriceHints = () => {
+      const p = parseFloat(price.value);
+      const m = parseFloat(mrp.value);
+      if (!isNaN(p) && p > 0) {
+        priceHint.textContent = `→ ₹${p.toLocaleString('en-IN')} = ${Math.round(p*100)} paise`;
+        if (!isNaN(m) && m > 0 && m < p) { mrpHint.textContent = '⚠ MRP should be ≥ Price'; mrpHint.style.color='#dc2626'; } else { mrpHint.textContent=''; }
+        if (!isNaN(m) && m > p) {
+          const off = Math.round(((m-p)/m)*100);
+          priceHint.textContent += ` • ${off}% OFF`;
+        }
+      } else priceHint.textContent = '';
+      if (!isNaN(m) && m > 0) mrpHint.textContent = mrpHint.textContent || `→ ₹${m.toLocaleString('en-IN')}`;
+    };
+    price.addEventListener('input', updatePriceHints);
+    mrp.addEventListener('input', updatePriceHints);
+    setTimeout(updatePriceHints, 120);
+
     const form = h('div', { style:{maxHeight:'85vh', overflowY:'auto', paddingRight:'4px'} },
-      h('h3',{}, isEdit?'Edit Product':'Add Product'),
+      h('div', { style:{background:'linear-gradient(135deg,#0f172a,#1e293b)', color:'#fff', padding:'16px', borderRadius:'12px', marginBottom:'14px'} },
+        h('h3',{style:{margin:'0', color:'#fff'}}, isEdit?'✏️ Edit Product':'✨ Add New Product'),
+        h('p',{style:{margin:'6px 0 0', color:'#94a3b8', fontSize:'12px'}}, isEdit?'Update details — changes go live instantly in the shop.':'Create a premium ZUNO product — images go live instantly.')
+      ),
       h('div', { class:'admin-form-grid', style:{marginTop:'12px'} },
-        h('div', {}, h('label',{style:{fontSize:'11px', fontWeight:'700'}},'Name *'), name),
-        h('div', {}, h('label',{style:{fontSize:'11px', fontWeight:'700'}},'Category *'), catSel),
-        h('div', {}, h('label',{style:{fontSize:'11px', fontWeight:'700'}},'Price (paise) *'), price),
-        h('div', {}, h('label',{style:{fontSize:'11px', fontWeight:'700'}},'MRP (paise) *'), mrp),
+        h('div', {}, h('label',{style:{fontSize:'11px', fontWeight:'700', letterSpacing:'0.04em', textTransform:'uppercase', color:'#1e40af'}},'Product Name *'), name),
+        h('div', {}, h('label',{style:{fontSize:'11px', fontWeight:'700', letterSpacing:'0.04em', textTransform:'uppercase', color:'#1e40af'}},'Category *'), catSel),
+        h('div', {}, h('label',{style:{fontSize:'11px', fontWeight:'700', letterSpacing:'0.04em', textTransform:'uppercase'}},'Price (₹) *'), price, priceHint),
+        h('div', {}, h('label',{style:{fontSize:'11px', fontWeight:'700', letterSpacing:'0.04em', textTransform:'uppercase'}},'MRP (₹) *'), mrp, mrpHint),
         h('div', {}, h('label',{style:{fontSize:'11px', fontWeight:'700'}},'Stock *'), stock),
         h('div', {}, h('label',{style:{fontSize:'11px', fontWeight:'700'}},'Fabric'), fabric),
         h('div', {}, h('label',{style:{fontSize:'11px', fontWeight:'700'}},'Fit'), fit),
@@ -779,10 +803,10 @@ async function loadProducts(qp){
       h('div', { style:{marginTop:'8px'} }, h('label',{style:{fontSize:'11px', fontWeight:'700'}},'Sizes'), sizes),
       h('div', { style:{marginTop:'12px', padding:'12px', background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:'10px'} },
         h('div', { style:{display:'flex', justifyContent:'space-between', alignItems:'center'} },
-          h('label',{style:{fontSize:'11px', fontWeight:'700'}},'Product Images * (min 4, all side views)'),
-          h('span', { 'data-count': true, style:{fontSize:'11px', color:'#64748b'} }, `${existingImages.length} / 10 images (min 4 required)`)
+          h('label',{style:{fontSize:'11px', fontWeight:'700'}},'Product Images * (1–10)'),
+          h('span', { 'data-count': true, style:{fontSize:'11px', color:'#64748b', fontWeight:'700'} }, `${existingImages.length} / 10 images (min 1 required)`)
         ),
-        h('p', { style:{fontSize:'11px', color:'#64748b', marginTop:'4px'} }, 'Upload 4+ images: front, back, left side, right side. JPG/PNG, max 5MB each.'),
+        h('p', { style:{fontSize:'11px', color:'#64748b', marginTop:'4px'} }, 'Add 1–10 images: front, back, side views. JPG/PNG/WebP, max 5MB each. At least 1 image required. Images are visible instantly on the ZUNO store.'),
         h('div', { style:{display:'flex', gap:'8px', marginTop:'8px'} },
           h('button', { class:'admin-btn admin-btn-ghost', type:'button', onclick:()=> imageInput.click() }, '📷 Choose Images'),
           h('button', { class:'admin-btn admin-btn-ghost', type:'button', onclick:()=>{ selectedImages=[]; existingImages = existing?.images ? [...existing.images] : []; refreshImagePreview(); } }, 'Reset')
@@ -807,64 +831,25 @@ async function loadProducts(qp){
     setTimeout(refreshImagePreview, 50);
 
     const m = modal(form);
+    // single handler: rupees → paise conversion + min 1 image
     saveBtn.onclick = async ()=>{
       errEl.textContent='';
       if(!name.value.trim()){ errEl.textContent='Name required'; return; }
       if(!catSel.value){ errEl.textContent='Category required'; return; }
-      const pVal = Number(price.value), mVal = Number(mrp.value), sVal = Number(stock.value);
-      if(!pVal || !mVal || isNaN(sVal) || sVal < 0){ errEl.textContent='Check price/mrp/stock'; return; }
+      const priceRupees = parseFloat(price.value);
+      const mrpRupees = parseFloat(mrp.value);
+      const sVal = Number(stock.value);
+      if(isNaN(priceRupees) || priceRupees <= 0){ errEl.textContent='Enter valid Price in rupees (e.g. 1299)'; return; }
+      if(isNaN(mrpRupees) || mrpRupees <= 0){ errEl.textContent='Enter valid MRP in rupees (e.g. 1799)'; return; }
+      if(mrpRupees < priceRupees){ errEl.textContent='MRP must be ≥ Price'; return; }
+      if(isNaN(sVal) || sVal < 0){ errEl.textContent='Enter valid Stock'; return; }
+      const pVal = Math.round(priceRupees * 100);
+      const mVal = Math.round(mrpRupees * 100);
       const totalImages = existingImages.length + selectedImages.length;
-      if (!isEdit && totalImages < 4) { errEl.textContent='At least 4 images required'; toast('Upload at least 4 images', 'error'); return; }
-      if (isEdit && totalImages > 0 && totalImages < 4) { errEl.textContent='At least 4 images required'; return; }
+      if (!isEdit && totalImages < 1) { errEl.textContent='At least 1 image required'; toast('Upload at least 1 image', 'error'); return; }
+      if (isEdit && totalImages < 1) { errEl.textContent='At least 1 image required — add an image or keep existing'; toast('At least 1 image required', 'error'); return; }
+      if (totalImages > 10) { errEl.textContent='Maximum 10 images allowed'; return; }
 
-      const fd = new FormData();
-      fd.append('name', name.value.trim());
-      fd.append('categoryId', catSel.value);
-      fd.append('price', String(pVal));
-      fd.append('mrp', String(mVal));
-      fd.append('stock', String(sVal));
-      fd.append('description', desc.value.trim());
-      fd.append('colors', colors.value);
-      fd.append('sizes', sizes.value);
-      fd.append('fabric', fabric.value.trim());
-      fd.append('collection', collection.value.trim());
-      fd.append('fit', fit.value.trim());
-      if (existingImages.length) fd.append('imageUrls', JSON.stringify(existingImages));
-      selectedImages.forEach(f => fd.append('images', f));
-      if (selectedVideo) fd.append('video', selectedVideo);
-      else if (existing?.video_url) fd.append('videoUrl', existing.video_url);
-
-      try{
-        saveBtn.disabled=true; saveBtn.textContent= isEdit?'Saving…':'Creating…';
-        if(!isEdit){
-          await api.post('/admin/products', fd);
-          toast('Product created','success'); m.close(); location.hash='#/admin/products'; setTimeout(()=> location.reload(),300);
-        } else {
-          // For edit, use PUT with FormData
-          await api.raw('PUT', '/admin/products/'+existing.id, { body: fd });
-          // api.raw will handle FormData without JSON stringify (need to ensure it doesn't set JSON header) - we use fetch directly
-          // Actually api.raw expects JSON, so we use direct fetch for FormData
-          // Workaround: use fetch with FormData
-          // But we already sent via api.post for create; for edit we need PUT
-          // Let's use direct fetch to handle FormData for PUT
-          toast('Updated','success'); m.close(); render();
-        }
-      }catch(e){
-        errEl.textContent=e.message; saveBtn.disabled=false; saveBtn.textContent= isEdit?'Update Product':'Create Product';
-      }
-    };
-    // Patch for edit: use direct fetch for PUT with FormData
-    const origOnClick = saveBtn.onclick;
-    // We'll override to handle PUT correctly
-    saveBtn.onclick = async ()=>{
-      errEl.textContent='';
-      if(!name.value.trim()){ errEl.textContent='Name required'; return; }
-      if(!catSel.value){ errEl.textContent='Category required'; return; }
-      const pVal = Number(price.value), mVal = Number(mrp.value), sVal = Number(stock.value);
-      if(!pVal || !mVal || isNaN(sVal) || sVal < 0){ errEl.textContent='Check price/mrp/stock'; return; }
-      const totalImages = existingImages.length + selectedImages.length;
-      if (!isEdit && totalImages < 4) { errEl.textContent='At least 4 images required'; return; }
-      if (isEdit && totalImages > 0 && totalImages < 4) { errEl.textContent='At least 4 images required'; return; }
       const fd = new FormData();
       fd.append('name', name.value.trim());
       fd.append('categoryId', catSel.value);

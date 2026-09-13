@@ -301,7 +301,7 @@ router.post('/products', upload.fields([{ name: 'images', maxCount: 10 }, { name
       const extra = parseArray(body.imageUrls);
       images = images.concat(extra);
     }
-    if (images.length < 4) return fail(res, 'At least 4 images required (front, back, side views)', 400);
+    if (images.length < 1) return fail(res, 'At least 1 image required', 400);
     if (images.length > 10) return fail(res, 'Maximum 10 images allowed', 400);
 
     let videoUrl = null;
@@ -413,7 +413,8 @@ router.put('/products/:id', upload.fields([{ name: 'images', maxCount: 10 }, { n
       if (mrp !== undefined) existing.mrp = mrp;
       if (stock !== undefined) existing.stock = stock;
       if (newImages) {
-        if (newImages.length < 4) return fail(res, 'At least 4 images required', 400);
+        if (newImages.length < 1) return fail(res, 'At least 1 image required', 400);
+        if (newImages.length > 10) return fail(res, 'Maximum 10 images allowed', 400);
         existing.images = newImages;
       }
       if (newVideo !== null) existing.video_url = newVideo;
@@ -439,9 +440,10 @@ router.put('/products/:id', upload.fields([{ name: 'images', maxCount: 10 }, { n
     if (stock !== undefined && (isNaN(stock) || stock < 0)) return fail(res, 'Invalid stock', 400);
     let imagesJson = null;
     if (newImages) {
-      if (newImages.length < 4) return fail(res, 'At least 4 images required', 400);
-      imagesJson = JSON.stringify(newImages);
-    }
+       if (newImages.length < 1) return fail(res, 'At least 1 image required', 400);
+       if (newImages.length > 10) return fail(res, 'Maximum 10 images allowed', 400);
+       imagesJson = JSON.stringify(newImages);
+     }
     let videoVal = newVideo !== null ? newVideo : null;
     const colors = parseArray(body.colors);
     const sizes = parseArray(body.sizes);

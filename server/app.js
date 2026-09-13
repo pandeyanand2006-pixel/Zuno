@@ -30,7 +30,7 @@ import { errorHandler, notFoundHandler } from './middleware/error.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 
-app.use(helmet({ contentSecurityPolicy: false }));
+app.use(helmet({ contentSecurityPolicy: false, crossOriginResourcePolicy: false, crossOriginEmbedderPolicy: false }));
 const allowedOrigins = env.frontendUrl ? env.frontendUrl.split(',').map(s => s.trim()).filter(Boolean) : [];
 app.use(cors({
   origin: env.isProduction
@@ -101,8 +101,27 @@ app.use('/api/webhooks/razorpay', razorpayWebhook);
 
 // Serve admin-uploaded product images/video. Stored as "/uploads/products/..."
 // by the admin routes below (multer disk storage under public/uploads).
+// Must allow cross-origin loads: Vercel frontend (different origin) -> Render backend.
 const uploadsDir = path.resolve(__dirname, '../public/uploads');
-app.use('/uploads', express.static(uploadsDir, { maxAge: '7d', etag: true }));
+app.use('/uploads',
+  cors({ origin: true, credentials: false }),
+  (req, res, next) => {
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    res.setHeader('Cross-Origin-Embedder-Policy', 'unsafe-none');
+    // Allow any origin to load images (public assets)
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+    next();
+  },
+  express.static(uploadsDir, {
+    maxAge: '7d',
+    etag: true,
+    setHeaders(res, filePath) {
+      if (/\.(jpg|jpeg|png|webp|gif|avif)$/i.test(filePath)) res.setHeader('Cache-Control', 'public, max-age=604800, immutable');
+      if (/\.(mp4|webm|mov)$/i.test(filePath)) res.setHeader('Cache-Control', 'public, max-age=604800');
+    }
+  })
+);
 
 // Serve frontend
 const publicDir = path.resolve(__dirname, '../public');

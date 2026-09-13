@@ -39,6 +39,8 @@ function serializeProduct(p) {
       featured: !!doc.featured,
       newArrival: !!doc.new_arrival || !!doc.newArrival,
       careInstructions: doc.care_instructions || null,
+      video_url: doc.video_url || null,
+      videoUrl: doc.video_url || null,
       variants: variants.map(v => ({ id: String(v._id || v.id), sku: v.sku, color: v.color, size: v.size, stock: v.stock, price: v.price })),
     };
   }
@@ -70,6 +72,8 @@ function serializeProduct(p) {
     featured: !!p.featured,
     newArrival: !!p.new_arrival,
     careInstructions: p.care_instructions || null,
+    video_url: p.video_url || null,
+    videoUrl: p.video_url || null,
     variants,
   };
 }
