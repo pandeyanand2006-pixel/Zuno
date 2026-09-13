@@ -199,12 +199,12 @@ export async function Product({ params }) {
       const variant = selColor && selSize ? { color: selColor, size: selSize } : null;
       const q = Math.max(1, Math.min(10, Number(qtyInput.value) || 1));
       const imageSrc = (product.images && product.images[0]) || null;
-      // Buy Now → go straight to checkout (proceed section) as requested
+      // Buy Now → go straight to checkout proceed/address section as requested
       if (buyNow) {
         if (!Store.isAuthed()) {
           Store.addGuestItem({ productId: product.id, name: product.name, price: product.price, mrp: product.mrp, slug: product.slug, image: imageSrc || productImage(product), module: 'shop', quantity: q, variant, isCustom: false });
-          toast('Added to bag — sign in to checkout', 'success');
-          location.hash = '#/cart';
+          toast('Added to bag — sign in to continue to checkout', 'success');
+          location.hash = '#/checkout?module=shop';
           return;
         }
         try {
