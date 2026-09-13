@@ -150,7 +150,8 @@ export async function AdminLogin() {
     h('p', { class:'muted', style:{textAlign:'center', fontSize:'13px', marginBottom:'16px'} }, 'Use your administrator credentials to access the dashboard'),
     h('div', { style:{display:'flex', flexDirection:'column', gap:'12px'} }, 
       h('div', {}, h('label', { style:{fontSize:'12px', fontWeight:'700', color:'#334155'} }, 'Email or Mobile'), idF),
-      h('div', {}, h('label', { style:{fontSize:'12px', fontWeight:'700', color:'#334155'} }, 'Password'), pwF),
+      h('div', {}, h('label', { style:{fontSize:'12px', fontWeight:'700', color:'#334155'} }, 'Password'), pwF,
+        h('div', { style:{textAlign:'right', marginTop:'6px'} }, h('a', { href:'#/admin/forgot-password', style:{fontSize:'12px', color:'#1e40af', fontWeight:'600', textDecoration:'none'} }, 'Forgot Password?'))),
       err, btn),
     h('div', { style:{marginTop:'16px', background:'#f8fafc', border:'1px dashed #cbd5e1', borderRadius:'10px', padding:'12px'} },
       h('div', { style:{fontSize:'12px', fontWeight:'700'} }, 'Demo Admin'),
@@ -1085,6 +1086,137 @@ async function loadAdminPassword(){
     )
   );
   return adminShell('password', content);
+}
+
+// ── Admin Forgot Password ──
+export function AdminForgotPassword() {
+  const root = h('div', { class:'admin-login-wrap' });
+  const card = h('div', { class:'admin-login-card' });
+  const emailI = h('input', { class:'admin-input', type:'email', placeholder:'admin@zuno.app', style:{width:'100%'} });
+  const msg = h('div', { style:{fontSize:'13px', minHeight:'18px', marginTop:'8px'} });
+  const btn = h('button', { class:'admin-btn admin-btn-primary', style:{width:'100%', justifyContent:'center', padding:'12px', fontSize:'14px'} }, 'Send Reset Link');
+
+  btn.onclick = async () => {
+    msg.textContent=''; msg.style.color='#64748b';
+    const email = emailI.value.trim();
+    if (!email) { msg.textContent='Email is required'; msg.style.color='#dc2626'; return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { msg.textContent='Enter a valid email address'; msg.style.color='#dc2626'; return; }
+    btn.disabled=true; btn.textContent='Sending…';
+    try {
+      const data = await api.post('/admin/forgot-password', { email }, { auth:false });
+      msg.textContent = data?.message || 'If an admin account exists with this email, a password reset link has been sent.';
+      msg.style.color='#16a34a';
+      toast(msg.textContent,'success');
+    } catch(e){ msg.textContent=e.message; msg.style.color='#dc2626'; toast(e.message,'error'); }
+    btn.disabled=false; btn.textContent='Send Reset Link';
+  };
+
+  card.append(
+    h('div', { class:'admin-login-brand' }, h('div',{class:'logo'},'Z'), h('div',{style:{fontWeight:'800'}},'ZUNO ADMIN')),
+    h('h2', { style:{textAlign:'center', marginBottom:'4px'} }, 'Forgot your password?'),
+    h('p', { class:'muted', style:{textAlign:'center', fontSize:'13px', marginBottom:'16px', lineHeight:'1.5'} }, "Enter your admin email address and we'll send you a secure password reset link."),
+    h('div', { style:{display:'flex', flexDirection:'column', gap:'12px'} },
+      h('div', {}, h('label', { style:{fontSize:'12px', fontWeight:'700', color:'#334155'} }, 'Admin Email'), emailI),
+      msg, btn,
+      h('div', { style:{textAlign:'center', marginTop:'4px'} }, h('a', { href:'#/admin/login', style:{fontSize:'13px', color:'#64748b'} }, '← Back to Login'))
+    )
+  );
+  root.append(card);
+  emailI.addEventListener('keydown', (e)=>{ if(e.key==='Enter') btn.click(); });
+  return root;
+}
+
+// ── Admin Reset Password ──
+export function AdminResetPassword() {
+  // Token from hash query ?token=xxx
+  const hashQ = location.hash.split('?')[1]||'';
+  const params = new URLSearchParams(hashQ);
+  let token = params.get('token') || '';
+  // Also support ?token in location.search for direct /admin/reset-password?token=xxx
+  if (!token) {
+    try { token = new URLSearchParams(location.search).get('token') || ''; } catch {}
+  }
+
+  const root = h('div', { class:'admin-login-wrap' });
+  const card = h('div', { class:'admin-login-card' });
+
+  if (!token) {
+    card.append(
+      h('div', { class:'admin-login-brand' }, h('div',{class:'logo'},'Z'), h('div',{style:{fontWeight:'800'}},'ZUNO ADMIN')),
+      h('h2', { style:{textAlign:'center', marginBottom:'8px', color:'#dc2626'} }, 'Invalid Reset Link'),
+      h('p', { class:'muted', style:{textAlign:'center', fontSize:'13px', marginBottom:'16px'} }, 'This password reset link is invalid.'),
+      h('div', { style:{textAlign:'center'} }, h('a', { href:'#/admin/forgot-password', class:'admin-btn admin-btn-primary', style:{justifyContent:'center'} }, 'Request a new reset link')),
+      h('div', { style:{textAlign:'center', marginTop:'12px'} }, h('a', { href:'#/admin/login', style:{fontSize:'13px', color:'#64748b'} }, '← Back to Admin Login'))
+    );
+    root.append(card);
+    return root;
+  }
+
+  const pwI = h('input', { class:'admin-input', type:'password', placeholder:'At least 8 chars, 1 upper, 1 lower, 1 number', style:{width:'100%'} });
+  const confI = h('input', { class:'admin-input', type:'password', placeholder:'Confirm new password', style:{width:'100%'} });
+  const showToggle = h('label', { style:{display:'flex', gap:'6px', alignItems:'center', fontSize:'12px', color:'#64748b', cursor:'pointer'} },
+    h('input', { type:'checkbox', onchange:(e)=>{ pwI.type = e.target.checked ? 'text' : 'password'; confI.type = e.target.checked ? 'text' : 'password'; } }), ' Show passwords');
+  const msg = h('div', { style:{fontSize:'13px', minHeight:'18px', marginTop:'8px'} });
+  const btn = h('button', { class:'admin-btn admin-btn-primary', style:{width:'100%', justifyContent:'center', padding:'12px', fontSize:'14px'} }, 'Reset Password');
+  const hint = h('div', { style:{fontSize:'11px', color:'#64748b', background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:'8px', padding:'10px', lineHeight:'1.5'} },
+    h('div',{style:{fontWeight:'700', color:'#334155'}}, 'Password requirements:'),
+    h('div',{}, '• Minimum 8 characters • At least one uppercase • One lowercase • One number'));
+
+  const successView = h('div', { style:{display:'none', textAlign:'center'} },
+    h('div', { style:{fontSize:'40px', marginBottom:'8px'} }, '✅'),
+    h('h3', { style:{color:'#16a34a', marginBottom:'8px'} }, 'Password reset successful.'),
+    h('p', { class:'muted', style:{fontSize:'13px', marginBottom:'16px'} }, 'Your password has been reset successfully. You can now log in with your new password.'),
+    h('a', { href:'#/admin/login', class:'admin-btn admin-btn-primary', style:{justifyContent:'center'} }, 'Back to Admin Login')
+  );
+
+  btn.onclick = async () => {
+    msg.textContent=''; msg.style.color='#64748b';
+    const pw = pwI.value; const cf = confI.value;
+    if (!pw) { msg.textContent='Password is required'; msg.style.color='#dc2626'; return; }
+    if (pw.length < 8) { msg.textContent='Password must be at least 8 characters'; msg.style.color='#dc2626'; return; }
+    if (!/[A-Z]/.test(pw)) { msg.textContent='Password must contain at least one uppercase letter'; msg.style.color='#dc2626'; return; }
+    if (!/[a-z]/.test(pw)) { msg.textContent='Password must contain at least one lowercase letter'; msg.style.color='#dc2626'; return; }
+    if (!/[0-9]/.test(pw)) { msg.textContent='Password must contain at least one number'; msg.style.color='#dc2626'; return; }
+    if (!cf) { msg.textContent='Confirm password is required'; msg.style.color='#dc2626'; return; }
+    if (pw !== cf) { msg.textContent='Passwords must match'; msg.style.color='#dc2626'; return; }
+    btn.disabled=true; btn.textContent='Resetting…';
+    try {
+      const data = await api.post('/admin/reset-password', { token, password: pw }, { auth:false });
+      // Hide form, show success
+      formWrap.style.display='none';
+      successView.style.display='block';
+      toast(data?.message || 'Password reset successful','success');
+    } catch(e){
+      const m = e.message || 'Reset failed';
+      if (m.toLowerCase().includes('invalid')) {
+        msg.textContent='This password reset link is invalid.'; msg.style.color='#dc2626';
+        msg.append(h('div', { style:{marginTop:'8px'} }, h('a', { href:'#/admin/forgot-password', style:{color:'#1e40af', fontWeight:'600'} }, 'Request a new reset link')));
+      } else if (m.toLowerCase().includes('expired')) {
+        msg.textContent='This password reset link has expired.'; msg.style.color='#dc2626';
+        msg.append(h('div', { style:{marginTop:'8px'} }, h('a', { href:'#/admin/forgot-password', style:{color:'#1e40af', fontWeight:'600'} }, 'Request a new reset link')));
+      } else {
+        msg.textContent=m; msg.style.color='#dc2626';
+      }
+      toast(m,'error');
+    }
+    btn.disabled=false; btn.textContent='Reset Password';
+  };
+
+  const formWrap = h('div', { style:{display:'flex', flexDirection:'column', gap:'12px'} },
+    h('div', {}, h('label', { style:{fontSize:'12px', fontWeight:'700', color:'#334155'} }, 'New Password'), pwI),
+    h('div', {}, h('label', { style:{fontSize:'12px', fontWeight:'700', color:'#334155'} }, 'Confirm New Password'), confI),
+    showToggle, hint, msg, btn,
+    h('div', { style:{textAlign:'center', marginTop:'4px'} }, h('a', { href:'#/admin/login', style:{fontSize:'13px', color:'#64748b'} }, '← Back to Admin Login'))
+  );
+
+  card.append(
+    h('div', { class:'admin-login-brand' }, h('div',{class:'logo'},'Z'), h('div',{style:{fontWeight:'800'}},'ZUNO ADMIN')),
+    h('h2', { style:{textAlign:'center', marginBottom:'4px'} }, 'Set New Password'),
+    h('p', { class:'muted', style:{textAlign:'center', fontSize:'13px', marginBottom:'16px'} }, 'Create a strong password for your admin account.'),
+    formWrap, successView
+  );
+  root.append(card);
+  return root;
 }
 
 // ── Routed entry points ──

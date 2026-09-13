@@ -455,6 +455,8 @@ export function initializeSchema() {
   addColumn('addresses', 'landmark', 'TEXT');
   addColumn('addresses', 'area', 'TEXT');
   addColumn('products', 'video_url', 'TEXT');
+  addColumn('users', 'reset_password_token', 'TEXT');
+  addColumn('users', 'reset_password_expires', 'TEXT');
 }
 
 export default db;

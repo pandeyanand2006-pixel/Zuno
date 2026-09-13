@@ -16,6 +16,8 @@ const userSchema = new mongoose.Schema({
   status: { type: String, default: 'active' },
   email_verified: { type: Boolean, default: false },
   mobile_verified: { type: Boolean, default: false },
+  resetPasswordToken: { type: String, default: null },
+  resetPasswordExpires: { type: Date, default: null },
 }, { collection: 'users', timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' } });
 userSchema.index({ email: 1 });
 userSchema.index({ mobile: 1 });
