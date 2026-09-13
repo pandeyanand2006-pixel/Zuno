@@ -39,6 +39,12 @@ export const env = {
     pass: (process.env.SMTP_PASS || '').replace(/\s+/g, '').trim(),
     from: (process.env.SMTP_FROM || process.env.NOTIFY_EMAIL_FROM || 'noreply@ZUNO.app').trim(),
   },
+  brevo: {
+    apiKey: (process.env.BREVO_API_KEY || '').trim(),
+  },
+  resend: {
+    apiKey: (process.env.RESEND_API_KEY || '').trim(),
+  },
   printrove: {
     apiUrl: (process.env.PRINTROVE_API_URL || 'https://api.printrove.com').replace(/\/$/, ''),
     email: process.env.PRINTROVE_EMAIL || '',

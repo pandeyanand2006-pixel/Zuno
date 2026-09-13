@@ -297,10 +297,20 @@ export async function sendPasswordResetOtpEmail({ to, otp, expiresMinutes = 10, 
         logger.error('User OTP failed — invalid recipient ' + to + ': ' + err.message + ' — user must register with a real Gmail address');
         throw new Error('EMAIL_FAILED');
       }
+      const isNetworkBlock = String(err.message).includes('ENETUNREACH') || String(err.message).includes('ETIMEDOUT') || String(err.message).includes('ECONNREFUSED') || String(err.message).includes('timeout');
+      if (isNetworkBlock) {
+        logger.warn('[email] SMTP blocked on Render (ENETUNREACH/ETIMEDOUT) — trying HTTPS fallback (Brevo/Resend) via port 443');
+        const httpRes = await sendViaHttp({ to, subject: mailOpts.subject, html, text });
+        if (httpRes) {
+          logger.info(`[email] HTTPS fallback succeeded via ${httpRes.via} to ${to}`);
+          return { messageId: httpRes.messageId, otp: env.isProduction ? undefined : otp };
+        }
+        logger.warn('[email] HTTPS fallback not configured — set BREVO_API_KEY or RESEND_API_KEY in Render Env to enable. See https://app.brevo.com/settings/keys/api');
+      }
       logger.error('Failed to send user OTP (pooled)', err.message);
       // Retry via fresh transporter (fixes pooled socket timeout on Render)
       try {
-        logger.warn('[email] Retrying user OTP via fresh connection');
+        logger.warn('[email] Retrying user OTP via fresh IPv4 connection');
         const fresh = getFreshTransporter();
         const r2 = await fresh.sendMail(mailOpts);
         logger.info(`User OTP retry sent to ${to} (${r2.messageId}) — accepted: ${(r2.accepted||[]).join(',')} rejected: ${(r2.rejected||[]).join(',')}`);
@@ -311,14 +321,69 @@ export async function sendPasswordResetOtpEmail({ to, otp, expiresMinutes = 10, 
           logger.error('User OTP retry: invalid recipient ' + to);
           throw new Error('EMAIL_FAILED');
         }
+        const isNet2 = String(e2.message).includes('ENETUNREACH') || String(e2.message).includes('ETIMEDOUT') || String(e2.message).includes('ECONNREFUSED');
+        if (isNet2) {
+          logger.warn('[email] Retry also ENETUNREACH — trying HTTPS fallback');
+          const httpRes2 = await sendViaHttp({ to, subject: mailOpts.subject, html, text });
+          if (httpRes2) {
+            logger.info(`[email] HTTPS fallback succeeded (retry) via ${httpRes2.via} to ${to}`);
+            return { messageId: httpRes2.messageId, otp: env.isProduction ? undefined : otp };
+          }
+        }
         logger.error('User OTP retry failed', e2.message);
-        logger.error(`[email] SMTP host=${env.smtp.host} port=${env.smtp.port} user=${env.smtp.user ? env.smtp.user.slice(0,3)+'***' : 'none'} — check Gmail App Password (16 chars, no spaces) and Render env vars`);
+        logger.error(`[email] SMTP host=${env.smtp.host} port=${env.smtp.port} user=${env.smtp.user ? env.smtp.user.slice(0,3)+'***' : 'none'} — check Gmail App Password (16 chars, no spaces) and Render env vars. If Render blocks SMTP 587, set BREVO_API_KEY (free at app.brevo.com) and redeploy.`);
         throw new Error('EMAIL_FAILED');
       }
     }
   }
   // Admin path delegates to admin sender for consistency
   return sendAdminOtpEmail({ to, otp, expiresMinutes });
+}
+
+// HTTPS fallback for Render free tier where SMTP 587 is blocked (ENETUNREACH)
+// Uses Brevo (https://api.brevo.com) or Resend (https://api.resend.com) via port 443
+async function sendViaHttp({ to, subject, html, text }) {
+  const from = env.smtp.from || env.smtp.user || 'ZUNO <zunoworld3121@gmail.com>';
+  // Brevo API (preferred — 300/day free)
+  if (env.brevo.apiKey) {
+    try {
+      const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'api-key': env.brevo.apiKey },
+        body: JSON.stringify({
+          sender: { email: env.smtp.user || 'zunoworld3121@gmail.com', name: 'ZUNO' },
+          to: [{ email: to }],
+          subject,
+          htmlContent: html,
+          textContent: text,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(`Brevo ${res.status}: ${JSON.stringify(data)}`);
+      logger.info(`User OTP sent via Brevo HTTPS to ${to} (${data.messageId || 'ok'})`);
+      return { messageId: data.messageId || 'brevo-' + Date.now(), via: 'brevo' };
+    } catch (e) {
+      logger.warn('Brevo HTTPS failed: ' + e.message);
+      // fall through to Resend
+    }
+  }
+  // Resend API fallback
+  if (env.resend.apiKey) {
+    try {
+      const res = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${env.resend.apiKey}` },
+        body: JSON.stringify({ from, to, subject, html, text }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(`Resend ${res.status}: ${JSON.stringify(data)}`);
+      logger.info(`User OTP sent via Resend HTTPS to ${to} (${data.id || 'ok'})`);
+      return { messageId: data.id || 'resend-' + Date.now(), via: 'resend' };
+    } catch (e) {
+      logger.warn('Resend HTTPS failed: ' + e.message);
+    }
+  }
+  return null;
 }
 
 // Dev/test helper — never expose credentials

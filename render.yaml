@@ -45,6 +45,12 @@ services:
         value: yyedxjileoszzsfz
       - key: SMTP_FROM
         value: ZUNO <zunoworld3121@gmail.com>
+      # HTTPS fallback for Render free tier where SMTP 587 is blocked (ENETUNREACH 2607:f8b0::)
+      # Create free key at https://app.brevo.com/settings/keys/api (300/day) or https://resend.com/api-keys (100/day) and set here:
+      - key: BREVO_API_KEY
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
       # If you rotate Gmail App Password, update SMTP_PASS above and redeploy
       # Alternative: set SMTP_USER/SMTP_PASS as sync:false and configure manually in Dashboard → Environment (more secure)
       # Optional — fill in Render dashboard > Environment after deploy:
