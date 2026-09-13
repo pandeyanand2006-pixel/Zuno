@@ -278,6 +278,11 @@ router.post('/products', upload.fields([{ name: 'images', maxCount: 10 }, { name
     const featured = parseBool(body.featured);
     const newArrival = parseBool(body.newArrival || body.new_arrival);
     const module = body.module || 'shop';
+    // Printrove POD mapping
+    const printroveEnabled = parseBool(body.printroveEnabled || body.printrove_enabled);
+    const printroveProductId = body.printroveProductId || body.printrove_product_id || body.printroveProductID || null;
+    const printroveVariantId = body.printroveVariantId || body.printrove_variant_id || null;
+    const printroveSku = body.printroveSku || body.printrove_sku || null;
 
     if (!name || name.length < 2) return fail(res, 'Name is required (min 2)', 400);
     if (!categoryId) return fail(res, 'Category is required', 400);
@@ -322,7 +327,7 @@ router.post('/products', upload.fields([{ name: 'images', maxCount: 10 }, { name
         catId = cat._id;
       }
       const slug = slugify(name) + '-' + Math.random().toString(36).slice(2, 6);
-      const prod = await Product.create({ category_id: catId, name, slug, description, price, mrp, stock, images, video_url: videoUrl, module, colors, sizes, fit, fabric, collection, customizable, featured, new_arrival: newArrival, care_instructions: 'Machine wash cold', active: true });
+      const prod = await Product.create({ category_id: catId, name, slug, description, price, mrp, stock, images, video_url: videoUrl, module, colors, sizes, fit, fabric, collection, customizable, featured, new_arrival: newArrival, care_instructions: 'Machine wash cold', active: true, printroveEnabled, printroveProductId, printroveVariantId, printroveSku });
       if (colors.length && sizes.length) {
         for (const color of colors) for (const size of sizes) {
           const sku = `ZUNO-${prod._id}-${color.toUpperCase().replace(/[^A-Z0-9]/g, '')}-${size}`;
@@ -338,8 +343,8 @@ router.post('/products', upload.fields([{ name: 'images', maxCount: 10 }, { name
       if (!row) return fail(res, 'Category not found', 404);
       catIdNum = row.id;
     }
-    const info = db.prepare('INSERT INTO products (seller_id, category_id, name, slug, description, price, mrp, stock, images, video_url, module, colors, sizes, fit, fabric, collection, customizable, featured, new_arrival, care_instructions) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-      .run(null, catIdNum, name, slug, description, price, mrp, stock, JSON.stringify(images), videoUrl, module, JSON.stringify(colors), JSON.stringify(sizes), fit, fabric, collection, customizable ? 1 : 0, featured ? 1 : 0, newArrival ? 1 : 0, 'Machine wash cold');
+    const info = db.prepare('INSERT INTO products (seller_id, category_id, name, slug, description, price, mrp, stock, images, video_url, module, colors, sizes, fit, fabric, collection, customizable, featured, new_arrival, care_instructions, printrove_enabled, printrove_product_id, printrove_variant_id, printrove_sku) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(null, catIdNum, name, slug, description, price, mrp, stock, JSON.stringify(images), videoUrl, module, JSON.stringify(colors), JSON.stringify(sizes), fit, fabric, collection, customizable ? 1 : 0, featured ? 1 : 0, newArrival ? 1 : 0, 'Machine wash cold', printroveEnabled ? 1 : 0, printroveProductId || null, printroveVariantId || null, printroveSku || null);
     if (colors.length && sizes.length) {
       const varIns = db.prepare('INSERT INTO product_variants (product_id, sku, color, size, stock, price) VALUES (?, ?, ?, ?, ?, ?)');
       for (const color of colors) for (const size of sizes) {
@@ -429,6 +434,10 @@ router.put('/products/:id', upload.fields([{ name: 'images', maxCount: 10 }, { n
       if (body.customizable !== undefined) existing.customizable = body.customizable === 'true' || body.customizable === true;
       if (body.featured !== undefined) existing.featured = body.featured === 'true' || body.featured === true;
       if (body.newArrival !== undefined || body.new_arrival !== undefined) existing.new_arrival = (body.newArrival === 'true' || body.newArrival === true || body.new_arrival === 'true');
+      if (body.printroveEnabled !== undefined || body.printrove_enabled !== undefined) existing.printroveEnabled = body.printroveEnabled === 'true' || body.printroveEnabled === true || body.printrove_enabled === 'true' || body.printrove_enabled === true;
+      if (body.printroveProductId !== undefined || body.printrove_product_id !== undefined) existing.printroveProductId = body.printroveProductId || body.printrove_product_id || null;
+      if (body.printroveVariantId !== undefined || body.printrove_variant_id !== undefined) existing.printroveVariantId = body.printroveVariantId || body.printrove_variant_id || null;
+      if (body.printroveSku !== undefined || body.printrove_sku !== undefined) existing.printroveSku = body.printroveSku || body.printrove_sku || null;
       await existing.save();
       if (price) try { await ProductVariant.updateMany({ product_id: req.params.id }, { price }); } catch {}
       return ok(res, null, 'Product updated');
@@ -465,7 +474,11 @@ router.put('/products/:id', upload.fields([{ name: 'images', maxCount: 10 }, { n
         collection = COALESCE(?, collection),
         customizable = COALESCE(?, customizable),
         featured = COALESCE(?, featured),
-        new_arrival = COALESCE(?, new_arrival)
+        new_arrival = COALESCE(?, new_arrival),
+        printrove_enabled = COALESCE(?, printrove_enabled),
+        printrove_product_id = COALESCE(?, printrove_product_id),
+        printrove_variant_id = COALESCE(?, printrove_variant_id),
+        printrove_sku = COALESCE(?, printrove_sku)
       WHERE id = ?
     `).run(
       body.name ? body.name.trim() : null,
@@ -485,6 +498,10 @@ router.put('/products/:id', upload.fields([{ name: 'images', maxCount: 10 }, { n
       body.customizable !== undefined ? (body.customizable === 'true' || body.customizable === true || body.customizable === '1' ? 1 : 0) : null,
       body.featured !== undefined ? (body.featured === 'true' || body.featured === true ? 1 : 0) : null,
       (body.newArrival !== undefined || body.new_arrival !== undefined) ? ((body.newArrival === 'true' || body.newArrival === true || body.new_arrival === 'true') ? 1 : 0) : null,
+      body.printroveEnabled !== undefined || body.printrove_enabled !== undefined ? (body.printroveEnabled === 'true' || body.printroveEnabled === true || body.printrove_enabled === 'true' || body.printrove_enabled === true ? 1 : 0) : null,
+      body.printroveProductId || body.printrove_product_id || null,
+      body.printroveVariantId || body.printrove_variant_id || null,
+      body.printroveSku || body.printrove_sku || null,
       req.params.id
     );
     if (price) { try { db.prepare('UPDATE product_variants SET price = ? WHERE product_id = ?').run(price, req.params.id); } catch {} }

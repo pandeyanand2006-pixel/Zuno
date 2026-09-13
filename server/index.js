@@ -172,6 +172,9 @@ const server = app.listen(env.port, () => {
   logger.info(`ZUNO API listening on http://localhost:${env.port}`); // eslint-disable-line
 });
 
+// Start Printrove fulfillment sync scheduler (after DB ready)
+import('./services/printrove/scheduler.js').then(m => m.startPrintroveSyncScheduler()).catch(e => logger.error('printrove scheduler start failed', e.message));
+
 process.on('unhandledRejection', (reason) => logger.error('unhandledRejection', reason));
 process.on('uncaughtException', (err) => { logger.error('uncaughtException', err); process.exit(1); });
 

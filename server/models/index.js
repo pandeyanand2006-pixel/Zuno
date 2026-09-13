@@ -94,6 +94,10 @@ const productSchema = new mongoose.Schema({
   new_arrival: Boolean,
   care_instructions: String,
   video_url: String,
+  printroveEnabled: { type: Boolean, default: false },
+  printroveProductId: { type: String, default: null },
+  printroveVariantId: { type: String, default: null },
+  printroveSku: { type: String, default: null },
 }, { collection: 'products', timestamps: { createdAt: 'created_at', updatedAt: false } });
 productSchema.index({ category_id: 1 });
 productSchema.index({ module: 1 });
@@ -109,6 +113,8 @@ const variantSchema = new mongoose.Schema({
   stock: Number,
   price: Number,
   images: [String],
+  printroveVariantId: { type: String, default: null },
+  printroveSku: { type: String, default: null },
 }, { collection: 'product_variants', timestamps: false });
 variantSchema.index({ product_id: 1 });
 export const ProductVariant = mongoose.models.ProductVariant || mongoose.model('ProductVariant', variantSchema);
@@ -161,6 +167,14 @@ const orderSchema = new mongoose.Schema({
   restaurant_id: { type: mongoose.Schema.Types.ObjectId },
   customer_notes: String,
   admin_notes: String,
+  printroveOrderId: { type: String, default: null },
+  printroveReference: { type: String, default: null },
+  printroveStatus: { type: String, default: null },
+  printroveTrackingNumber: { type: String, default: null },
+  printroveCourier: { type: String, default: null },
+  printroveCreatedAt: { type: Date, default: null },
+  printroveLastSyncedAt: { type: Date, default: null },
+  printroveError: { type: String, default: null },
 }, { collection: 'orders', timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' } });
 orderSchema.index({ user_id: 1 });
 orderSchema.index({ status: 1 });

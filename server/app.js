@@ -20,6 +20,7 @@ import couponRoutes from './routes/coupon.routes.js';
 import notificationRoutes from './routes/notification.routes.js';
 import adminRoutes from './routes/admin.routes.js';
 import adminAuthRoutes from './routes/adminAuth.routes.js';
+import printroveRoutes from './routes/printrove.routes.js';
 import sellerRoutes from './routes/seller.routes.js';
 import restaurantAdminRoutes from './routes/restaurant.admin.routes.js';
 import providerAdminRoutes from './routes/provider.admin.routes.js';
@@ -83,6 +84,7 @@ app.use('/api/notifications', notificationRoutes);
 // Public admin password-reset routes (no auth) — must be before protected adminRoutes
 app.use('/api/admin', adminAuthRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/printrove', printroveRoutes);
 app.use('/api/seller', sellerRoutes);
 app.use('/api/restaurant-admin', restaurantAdminRoutes);
 app.use('/api/provider-admin', providerAdminRoutes);

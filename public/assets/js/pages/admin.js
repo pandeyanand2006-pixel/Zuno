@@ -313,7 +313,7 @@ async function loadOrders(queryParams) {
         return;
       }
       const table = h('table', { class:'admin-table' },
-        h('thead',{}, h('tr',{}, h('th',{},'Order / Customer'), h('th',{},'Total'), h('th',{},'Status'), h('th',{},'Date'), h('th',{},'Action'))),
+        h('thead',{}, h('tr',{}, h('th',{},'Order / Customer'), h('th',{},'Total'), h('th',{},'Status'), h('th',{},'Fulfillment'), h('th',{},'Date'), h('th',{},'Action'))),
         ...orders.map(o=> {
           const fullAddr = getAddr(o);
           const shortAddr = fullAddr.length>60 ? fullAddr.slice(0,60)+'…' : fullAddr;
@@ -332,6 +332,7 @@ async function loadOrders(queryParams) {
             o.payment_status? h('div', { style:{fontSize:'11px', color:o.payment_status==='captured'?'#16a34a':'#64748b'} }, (o.payment_method||'')+' '+o.payment_status) : null
           ),
           h('td', {}, statusBadge(o.status)),
+          h('td', {}, (()=>{ const prId=o.printroveOrderId||o.printrove_order_id; const prSt=o.printroveStatus||o.printrove_status; if(prId) return h('div', { style:{display:'flex', flexDirection:'column', gap:'2px'} }, h('span', { style:{fontSize:'11px', fontWeight:'700', color:'#166534', background:'#f0fdf4', padding:'2px 6px', borderRadius:'6px', display:'inline-block'} }, 'Printrove'), h('span', { style:{fontSize:'10px', color:'#334155'} }, prSt||'submitted'), prSt==='failed' ? h('span', { style:{fontSize:'10px', color:'#dc2626'} }, 'Failed') : null, o.printroveTrackingNumber||o.printrove_tracking_number ? h('span', { style:{fontSize:'10px', color:'#1e40af'} }, '↗ '+(o.printroveTrackingNumber||o.printrove_tracking_number)) : null); if(o.printroveError||o.printrove_error) return h('span', { style:{fontSize:'11px', color:'#dc2626', background:'#fef2f2', padding:'2px 6px', borderRadius:'6px'} }, 'Failed'); return h('span', { style:{fontSize:'11px', color:'#94a3b8'} }, '—'); })()),
           h('td', {}, h('div', { style:{fontSize:'12px'} }, formatDate(o.created_at))),
           h('td', {},
             h('div', { style:{display:'flex', gap:'6px', alignItems:'center'} },
@@ -551,6 +552,27 @@ export async function AdminOrderDetail(ctx){
             )
           )
         ),
+        // Printrove Fulfillment
+        h('div', { style:{marginTop:'16px', padding:'16px', background: order.printroveOrderId || order.printrove_order_id ? '#f0fdf4' : '#f8fafc', border: order.printroveOrderId || order.printrove_order_id ? '1px solid #bbf7d0' : '1px solid #e2e8f0', borderRadius:'12px'} },
+          h('div', { style:{fontSize:'11px', fontWeight:'700', letterSpacing:'.06em', color: order.printroveOrderId || order.printrove_order_id ? '#166534' : '#64748b'} }, 'FULFILLMENT — PRINTROVE'),
+          order.printroveOrderId || order.printrove_order_id ? h('div', { style:{marginTop:'10px', display:'flex', flexDirection:'column', gap:'6px', fontSize:'13px'} },
+            h('div', {}, h('strong', {}, 'Provider: '), 'Printrove'),
+            h('div', {}, h('strong', {}, 'Status: '), order.printroveStatus || order.printrove_status || 'pending'),
+            h('div', {}, h('strong', {}, 'Printrove Order ID: '), order.printroveOrderId || order.printrove_order_id),
+            h('div', {}, h('strong', {}, 'Reference: '), order.printroveReference || order.printrove_reference || order.order_number),
+            (order.printroveTrackingNumber || order.printrove_tracking_number) ? h('div', {}, h('strong', {}, 'Tracking: '), h('span', { style:{fontWeight:'700', color:'#1e40af'} }, order.printroveTrackingNumber || order.printrove_tracking_number), order.printroveCourier || order.printrove_courier ? ` (${order.printroveCourier || order.printrove_courier})` : '') : h('div', { style:{color:'#64748b'} }, 'Tracking: not yet available'),
+            h('div', { style:{fontSize:'11px', color:'#64748b'} }, `Last synced: ${order.printroveLastSyncedAt || order.printrove_last_synced_at ? formatDateTime(order.printroveLastSyncedAt || order.printrove_last_synced_at) : 'never'}${order.printroveCreatedAt || order.printrove_created_at ? ' • Created: '+formatDateTime(order.printroveCreatedAt || order.printrove_created_at) : ''}`),
+            order.printroveError || order.printrove_error ? h('div', { style:{color:'#dc2626', background:'#fef2f2', padding:'8px', borderRadius:'6px', fontSize:'12px'} }, `Error: ${order.printroveError || order.printrove_error}`) : null,
+            h('div', { style:{display:'flex', gap:'8px', marginTop:'8px'} },
+              h('button', { class:'admin-btn admin-btn-ghost', style:{fontSize:'11px'}, onclick: async (e)=>{ e.currentTarget.textContent='Syncing…'; e.currentTarget.disabled=true; try{ const r=await api.post('/printrove/sync/'+order.id, {}); toast('Synced: '+(r.status||'ok'),'success'); setTimeout(()=> location.reload(), 600);}catch(err){ toast(err.message,'error'); e.currentTarget.textContent='Sync'; e.currentTarget.disabled=false; } } }, 'Sync Status'),
+              h('button', { class:'admin-btn admin-btn-ghost', style:{fontSize:'11px'}, onclick: async (e)=>{ e.currentTarget.textContent='Retrying…'; e.currentTarget.disabled=true; try{ const r=await api.post('/printrove/retry/'+order.id, {}); toast('Retry: '+(r.success?'sent':'check'),'success'); setTimeout(()=> location.reload(), 600);}catch(err){ toast(err.message,'error'); e.currentTarget.textContent='Retry'; e.currentTarget.disabled=false; } } }, 'Retry Fulfillment')
+            )
+          ) : h('div', { style:{marginTop:'8px', fontSize:'13px', color:'#64748b'} },
+            order.printroveError || order.printrove_error ? h('div', { style:{color:'#dc2626', background:'#fef2f2', padding:'8px', borderRadius:'6px', fontSize:'12px', marginBottom:'8px'} }, `Fulfillment failed: ${order.printroveError || order.printrove_error}`) : h('div', {}, 'No Printrove fulfillment yet.'),
+            h('div', { style:{fontSize:'11px', marginTop:'6px'} }, 'If this order contains Printrove-enabled products, fulfillment is automatic after payment. Mixed carts send only Printrove subset. Use Retry if mapping was fixed.'),
+            h('button', { class:'admin-btn admin-btn-ghost', style:{fontSize:'11px', marginTop:'8px'}, onclick: async (e)=>{ e.currentTarget.textContent='Retrying…'; e.currentTarget.disabled=true; try{ await api.post('/printrove/retry/'+order.id, {}); toast('Retry sent','success'); setTimeout(()=> location.reload(), 600);}catch(err){ toast(err.message,'error'); e.currentTarget.textContent='Retry'; e.currentTarget.disabled=false; } } }, 'Retry Printrove')
+          )
+        ),
         h('div', { style:{marginTop:'20px'} },
           h('h3', { style:{color:'#0f172a', marginBottom:'12px'} }, `Items (${items.length})`),
           ...items.map(it=>{
@@ -644,8 +666,8 @@ async function loadProducts(qp){
             h('div', { style:{display:'flex', gap:'10px', alignItems:'center'} },
               h('img', { src:(p.images&&p.images[0])?resolveImageUrl(p.images[0]):productImage({name:p.name}), alt:p.name, style:{width:'40px', height:'40px', borderRadius:'8px', objectFit:'cover', background:'#f1f5f9'}, onerror:(e)=>imgFallback(e.currentTarget, {name:p.name}) }),
               h('div',{},
-                h('div',{style:{fontWeight:'700', fontSize:'13px'}}, p.name),
-                h('div',{style:{fontSize:'11px', color:'#64748b'}}, (p.collection||'') + (p.colors?.length?' • '+p.colors.join(', '):''))
+                h('div',{style:{fontWeight:'700', fontSize:'13px'}}, p.name, (p.printroveEnabled||p.printrove_enabled) ? h('span', { style:{marginLeft:'6px', fontSize:'10px', background:'#f0fdf4', color:'#166534', padding:'2px 6px', borderRadius:'999px', border:'1px solid #bbf7d0'} }, 'Printrove') : null),
+                h('div',{style:{fontSize:'11px', color:'#64748b'}}, (p.collection||'') + (p.colors?.length?' • '+p.colors.join(', '):'') + ((p.printroveProductId||p.printrove_product_id) ? ' • PR:'+(p.printroveProductId||p.printrove_product_id) : ''))
               )
             )
           ),
@@ -692,6 +714,10 @@ async function loadProducts(qp){
     const fabric = h('input', { class:'admin-input', placeholder:'Fabric (100% Cotton)', value:existing?.fabric||'' });
     const collection = h('input', { class:'admin-input', placeholder:'Collection (Essentials)', value:existing?.collection||'' });
     const fit = h('input', { class:'admin-input', placeholder:'Fit (regular, oversized)', value:existing?.fit||'' });
+    // Printrove POD mapping inputs
+    const printProductId = h('input', { class:'admin-input', placeholder:'e.g. 12345', value: existing?.printroveProductId || existing?.printrove_product_id || '' });
+    const printVariantId = h('input', { class:'admin-input', placeholder:'e.g. 67890', value: existing?.printroveVariantId || existing?.printrove_variant_id || '' });
+    const printSku = h('input', { class:'admin-input', placeholder:'SKU if any', value: existing?.printroveSku || existing?.printrove_sku || '' });
 
     // Image upload — 1 to 10, preview (min 1 required)
     const imageInput = h('input', { type:'file', accept:'image/*', multiple:true, style:{display:'none'} });
@@ -825,6 +851,32 @@ async function loadProducts(qp){
         videoInput,
         videoPreview
       ),
+      // Printrove POD mapping
+      h('div', { style:{marginTop:'12px', padding:'12px', background: (existing?.printroveEnabled || existing?.printrove_enabled) ? '#f0fdf4' : '#fffbeb', border:'1px solid '+(existing?.printroveEnabled || existing?.printrove_enabled ? '#bbf7d0' : '#fde68a'), borderRadius:'10px'} },
+        h('div', { style:{display:'flex', justifyContent:'space-between', alignItems:'center'} },
+          h('label',{style:{fontSize:'11px', fontWeight:'700'}},'Printrove Fulfillment'),
+          h('label', { style:{display:'flex', gap:'6px', alignItems:'center', fontSize:'12px', cursor:'pointer'} },
+            h('input', { type:'checkbox', id:'printEnabledChk', checked: !!(existing?.printroveEnabled || existing?.printrove_enabled), onchange:(e)=>{ const box=document.getElementById('printroveBox'); if(box) box.style.display=e.target.checked?'':'none'; } }),
+            ' Enabled'
+          )
+        ),
+        h('p', { style:{fontSize:'11px', color:'#64748b', marginTop:'4px'} }, 'Enable to auto-fulfill via Printrove. Map to Printrove Product/Variant IDs. If disabled, order is handled normally by Zuno.'),
+        h('div', { style:{display: (existing?.printroveEnabled || existing?.printrove_enabled) ? '' : 'none', marginTop:'8px'}, id:'printroveBox' },
+          h('div', { style:{display:'flex', gap:'8px', flexWrap:'wrap'} },
+            h('div', { style:{flex:'1', minWidth:'160px'} }, h('label',{style:{fontSize:'11px'}},'Printrove Product ID'), printProductId),
+            h('div', { style:{flex:'1', minWidth:'160px'} }, h('label',{style:{fontSize:'11px'}},'Variant ID'), printVariantId)
+          ),
+          h('div', { style:{marginTop:'8px'} }, h('label',{style:{fontSize:'11px'}},'Printrove SKU (optional)'), printSku),
+          h('button', { class:'admin-btn admin-btn-ghost', type:'button', style:{marginTop:'8px', fontSize:'11px'}, onclick: async (e)=>{
+            e.currentTarget.textContent='Loading…'; e.currentTarget.disabled=true;
+            try{ const {products}=await api.get('/printrove/products'); const list=Array.isArray(products)?products:products.data||[]; if(!list.length) toast('No Printrove products — create on Printrove dashboard first','info'); else toast(list.length+' Printrove products found — check console','success'); console.log('Printrove products',list);
+              // Auto-fill first product for demo if empty
+              if(list[0] && !printProductId.value) { printProductId.value = String(list[0].id||list[0].product_id||''); if(list[0].variants && list[0].variants[0]) printVariantId.value = String(list[0].variants[0].id||''); }
+            }catch(err){ toast(err.message,'error'); }
+            e.currentTarget.textContent='Load Printrove products'; e.currentTarget.disabled=false;
+          } }, 'Load Printrove products')
+        )
+      ),
       errEl,
       h('div', { style:{marginTop:'12px'} }, saveBtn)
     );
@@ -863,6 +915,13 @@ async function loadProducts(qp){
       fd.append('fabric', fabric.value.trim());
       fd.append('collection', collection.value.trim());
       fd.append('fit', fit.value.trim());
+      // Printrove mapping
+      const printEnabledChk = document.getElementById('printEnabledChk');
+      const printEnabledVal = printEnabledChk ? printEnabledChk.checked : false;
+      fd.append('printroveEnabled', printEnabledVal ? 'true' : 'false');
+      fd.append('printroveProductId', printProductId.value.trim());
+      fd.append('printroveVariantId', printVariantId.value.trim());
+      fd.append('printroveSku', printSku.value.trim());
       if (existingImages.length) fd.append('imageUrls', JSON.stringify(existingImages));
       selectedImages.forEach(f => fd.append('images', f));
       if (selectedVideo) fd.append('video', selectedVideo);

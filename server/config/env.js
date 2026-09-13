@@ -38,5 +38,10 @@ export const env = {
     pass: process.env.SMTP_PASS || '',
     from: process.env.SMTP_FROM || process.env.NOTIFY_EMAIL_FROM || 'noreply@ZUNO.app',
   },
+  printrove: {
+    apiUrl: (process.env.PRINTROVE_API_URL || 'https://api.printrove.com').replace(/\/$/, ''),
+    email: process.env.PRINTROVE_EMAIL || '',
+    password: process.env.PRINTROVE_PASSWORD || '',
+  },
   isProduction: (process.env.NODE_ENV || 'development') === 'production',
 };

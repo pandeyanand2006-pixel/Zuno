@@ -459,6 +459,25 @@ export function initializeSchema() {
   addColumn('users', 'reset_password_expires', 'TEXT');
   addColumn('users', 'reset_otp_hash', 'TEXT');
   addColumn('users', 'reset_otp_expires', 'TEXT');
+  // Printrove POD mapping
+  addColumn('products', 'printrove_enabled', 'INTEGER NOT NULL DEFAULT 0');
+  addColumn('products', 'printrove_product_id', 'TEXT');
+  addColumn('products', 'printrove_variant_id', 'TEXT');
+  addColumn('products', 'printrove_sku', 'TEXT');
+  addColumn('product_variants', 'printrove_variant_id', 'TEXT');
+  addColumn('product_variants', 'printrove_sku', 'TEXT');
+  // Printrove order fulfillment
+  addColumn('orders', 'printrove_order_id', 'TEXT');
+  addColumn('orders', 'printrove_reference', 'TEXT');
+  addColumn('orders', 'printrove_status', 'TEXT');
+  addColumn('orders', 'printrove_tracking_number', 'TEXT');
+  addColumn('orders', 'printrove_courier', 'TEXT');
+  addColumn('orders', 'printrove_created_at', 'TEXT');
+  addColumn('orders', 'printrove_last_synced_at', 'TEXT');
+  addColumn('orders', 'printrove_error', 'TEXT');
+  try { db.exec('CREATE INDEX IF NOT EXISTS idx_orders_printrove_id ON orders(printrove_order_id)'); } catch {}
+  try { db.exec('CREATE INDEX IF NOT EXISTS idx_orders_printrove_ref ON orders(printrove_reference)'); } catch {}
+  try { db.exec('CREATE INDEX IF NOT EXISTS idx_products_printrove ON products(printrove_enabled)'); } catch {}
 }
 
 export default db;

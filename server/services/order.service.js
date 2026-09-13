@@ -3,6 +3,7 @@ import { env } from '../config/env.js';
 import { isMongoConnected } from '../config/mongo.js';
 import { generateOrderNumber } from '../utils/id.js';
 import { ok, fail } from '../utils/response.js';
+import { logger } from '../utils/logger.js';
 
 const TAX_RATE = 0.05;
 const DELIVERY_FEE = 0;
@@ -91,6 +92,11 @@ export const orderService = {
       await OrderStatusHistory.create({ order_id: order._id, from_status: null, to_status: initialStatus, changed_by: userId, note: isCod ? 'Order placed — COD' : 'Order placed' });
       if (couponCode && totals.couponValid) await Coupon.updateOne({ code: couponCode }, { $inc: { used_count: 1 } });
       try { await Notification.create({ user_id: userId, type: 'order', title: isCod ? 'Order confirmed — COD' : 'Order placed', body: isCod ? `Order ${orderNumber} confirmed — Cash on Delivery` : `Order ${orderNumber} placed` }); } catch {}
+      // Trigger Printrove for COD orders (already CONFIRMED) — fire-and-forget
+      if (isCod) {
+        const oid = String(order._id);
+        import('./printrove/order.js').then(m => m.enqueuePrintroveOrder(oid).catch(e => logger.error('[PRINTROVE] COD enqueue failed', e.message))).catch(()=>{});
+      }
       return { orderId: String(order._id), orderNumber, total: totals.total, totals, paymentMethod: isCod ? 'cod' : 'online', status: initialStatus };
     }
 
@@ -125,6 +131,9 @@ export const orderService = {
       }
     };
     const orderId = tx();
+    if (isCod) {
+      import('./printrove/order.js').then(m => m.enqueuePrintroveOrder(orderId).catch(e => logger.error('[PRINTROVE] COD enqueue failed', e.message))).catch(()=>{});
+    }
     return { orderId, orderNumber, total: totals.total, totals, paymentMethod: isCod ? 'cod' : 'online', status: initialStatus };
   },
 
@@ -140,6 +149,8 @@ export const orderService = {
       await order.save();
       await OrderStatusHistory.create({ order_id: orderId, from_status: prev, to_status: 'PAID', changed_by: order.user_id, note: 'Payment verified' });
       try { await Notification.create({ user_id: order.user_id, type: 'order', title: 'Payment successful', body: `Payment received for order ${order.order_number}` }); } catch {}
+      // Trigger Printrove — fire-and-forget (outside transaction, after PAID)
+      import('./printrove/order.js').then(m => m.enqueuePrintroveOrder(String(order._id)).catch(e => logger.error('[PRINTROVE] markPaid enqueue failed', e.message))).catch(()=>{});
       return order;
     }
     const prev = db.prepare('SELECT status FROM orders WHERE id = ?').get(orderId);
@@ -153,6 +164,8 @@ export const orderService = {
         .run(order.user_id, `Payment received for order ${order.order_number}`);
       try { db.prepare("INSERT INTO notifications (user_id, type, title, body) VALUES (?, 'order', 'Order confirmed', ?)").run(order.user_id, `Order ${order.order_number} confirmed — printing will start soon`); } catch {}
       db.exec('COMMIT');
+      // Enqueue Printrove after commit — PAID is now durable
+      import('./printrove/order.js').then(m => m.enqueuePrintroveOrder(orderId).catch(e => logger.error('[PRINTROVE] markPaid enqueue failed', e.message))).catch(()=>{});
       return order;
     } catch (e) {
       db.exec('ROLLBACK');
@@ -194,7 +207,19 @@ export const orderService = {
     const isMongo = !!order._id;
     if (isMongo || useMongo()) {
       const { OrderItem, Address, Payment, OrderStatusHistory, User } = await import('../models/index.js');
-      const out = { ...order, id: String(oid), totals: { subtotal: order.subtotal, discount: order.discount, deliveryFee: order.delivery_fee, serviceFee: order.service_fee, tax: order.tax, total: order.total } };
+      const out = { ...order, id: String(oid),
+        // normalize Printrove fields for both naming conventions
+        printroveOrderId: order.printroveOrderId || order.printrove_order_id || null,
+        printroveReference: order.printroveReference || order.printrove_reference || null,
+        printroveStatus: order.printroveStatus || order.printrove_status || null,
+        printroveTrackingNumber: order.printroveTrackingNumber || order.printrove_tracking_number || null,
+        printroveCourier: order.printroveCourier || order.printrove_courier || null,
+        printroveCreatedAt: order.printroveCreatedAt || order.printrove_created_at || null,
+        printroveLastSyncedAt: order.printroveLastSyncedAt || order.printrove_last_synced_at || null,
+        printroveError: order.printroveError || order.printrove_error || null,
+        printrove_order_id: order.printroveOrderId || order.printrove_order_id || null,
+        printrove_status: order.printroveStatus || order.printrove_status || null,
+        totals: { subtotal: order.subtotal, discount: order.discount, deliveryFee: order.delivery_fee, serviceFee: order.service_fee, tax: order.tax, total: order.total } };
       if (withItems) {
         const rawItems = await OrderItem.find({ order_id: oid }).lean();
         out.items = rawItems.map((it) => ({
@@ -211,7 +236,16 @@ export const orderService = {
       }
       return out;
     }
-    const out = { ...order, totals: { subtotal: order.subtotal, discount: order.discount, deliveryFee: order.delivery_fee, serviceFee: order.service_fee, tax: order.tax, total: order.total } };
+     const out = { ...order,
+       printroveOrderId: order.printrove_order_id || order.printroveOrderId || null,
+       printroveReference: order.printrove_reference || order.printroveReference || null,
+       printroveStatus: order.printrove_status || order.printroveStatus || null,
+       printroveTrackingNumber: order.printrove_tracking_number || order.printroveTrackingNumber || null,
+       printroveCourier: order.printrove_courier || order.printroveCourier || null,
+       printroveCreatedAt: order.printrove_created_at || order.printroveCreatedAt || null,
+       printroveLastSyncedAt: order.printrove_last_synced_at || order.printroveLastSyncedAt || null,
+       printroveError: order.printrove_error || order.printroveError || null,
+       totals: { subtotal: order.subtotal, discount: order.discount, deliveryFee: order.delivery_fee, serviceFee: order.service_fee, tax: order.tax, total: order.total } };
     if (withItems) {
       const rawItems = db.prepare('SELECT * FROM order_items WHERE order_id = ?').all(order.id);
       out.items = rawItems.map((it) => ({
