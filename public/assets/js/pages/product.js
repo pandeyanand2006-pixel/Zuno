@@ -11,12 +11,12 @@ export async function Product({ params }) {
     root.innerHTML = '';
 
     // ── Breadcrumb ──
-    const crumb = h('div', { style:{display:'flex', gap:'6px', alignItems:'center', fontSize:'12px', color:'#64748b', marginBottom:'16px', flexWrap:'wrap'} },
-      h('a',{href:'#/', style:{color:'#64748b', textDecoration:'none'}},'Home'),
-      h('span',{},'›'),
-      h('a',{href:'#/shop', style:{color:'#64748b', textDecoration:'none'}},'Shop'),
-      h('span',{},'›'),
-      h('span',{style:{color:'#0f172a', fontWeight:'700'}}, product.name.slice(0,32))
+    const crumb = h('div', { style:{display:'flex', gap:'6px', alignItems:'center', fontSize:'12px', color:'#94a3b8', marginBottom:'16px', flexWrap:'wrap'} },
+      h('a',{href:'#/', style:{color:'#cbd5e1', textDecoration:'none'}},'Home'),
+      h('span',{style:{color:'#64748b'}},'›'),
+      h('a',{href:'#/shop', style:{color:'#cbd5e1', textDecoration:'none'}},'Shop'),
+      h('span',{style:{color:'#64748b'}},'›'),
+      h('span',{style:{color:'#f1f5f9', fontWeight:'700'}}, product.name.slice(0,32))
     );
 
     // ── Gallery with thumbnails (1–10 images) ──
@@ -92,23 +92,39 @@ export async function Product({ params }) {
     let qty = 1;
 
     const colorRow = h('div', { class: 'row gap-2 wrap', style: { marginTop: '10px' } });
+    const LIGHT_COLORS = new Set(['white','beige','light-blue','light blue','cream','off-white','offwhite','sage','grey','gray','washed-grey','sand']);
     (product.colors || []).forEach(col => {
+      const bg = colorToBg(col);
+      const isLight = LIGHT_COLORS.has(String(col).toLowerCase()) || bg==='#ffffff' || bg==='#e8e6e1' || bg==='#93c5fd' || bg==='#9caf88';
       const btn = h('button', {
         type: 'button',
         class: 'color-swatch' + (col === selColor ? ' active' : ''),
-        style: { background: colorToBg(col), borderColor: colorToBg(col), width: '38px', height: '38px', boxShadow: col==='white'?'inset 0 0 0 1px #e2e8f0':'' },
+        style: {
+          background: bg,
+          width: '40px', height: '40px', borderRadius:'50%',
+          border: isLight ? '1.5px solid #cbd5e1' : '1.5px solid rgba(15,23,42,0.12)',
+          boxShadow: col.toLowerCase()==='white' ? 'inset 0 0 0 1px #e2e8f0, 0 1px 4px rgba(15,23,42,0.08)' : '0 1px 4px rgba(15,23,42,0.10), inset 0 0 0 1px rgba(255,255,255,0.6)',
+          outline: selColor===col ? '2px solid #0f172a' : 'none',
+          outlineOffset: '2px',
+          cursor:'pointer'
+        },
         title: col,
         onclick: () => selectColor(col)
       });
       colorRow.append(btn);
     });
     function colorToBg(c) {
-      const map = { black: '#0a0a0a', white: '#ffffff', beige: '#e8e6e1', charcoal: '#2a2a2a', grey: '#a3a3a3', gray:'#a3a3a3', navy: '#1e293b', olive: '#556b2f', red: '#dc2626', forest: '#14532d', sage: '#9caf88', 'light-blue': '#93c5fd', 'washed-black': '#1a1a1a', blue:'#2B4C7E' };
-      return map[String(c).toLowerCase()] || c;
+      const map = { black: '#0a0a0a', white: '#ffffff', beige: '#e8e6e1', charcoal: '#2a2a2a', grey: '#94a3b8', gray:'#94a3b8', navy: '#1e293b', olive: '#556b2f', red: '#dc2626', forest: '#14532d', sage: '#b8c7a8', 'light-blue': '#93c5fd', 'washed-black': '#1a1a1a', blue:'#2B4C7E', cream:'#fef3c7', sand:'#e7d6b8', brown:'#78350f', maroon:'#7f1d1d' };
+      return map[String(c).toLowerCase().trim()] || c;
     }
     function selectColor(c) {
       selColor = c;
-      colorRow.querySelectorAll('.color-swatch').forEach(b => b.classList.toggle('active', b.title === c));
+      colorRow.querySelectorAll('.color-swatch').forEach(b => {
+        const isActive = b.title === c;
+        b.classList.toggle('active', isActive);
+        b.style.outline = isActive ? '2px solid #0f172a' : 'none';
+        b.style.outlineOffset = '2px';
+      });
       const needle = document.getElementById('pdpColorLabel');
       if (needle) needle.textContent = c;
       updateVariantInfo();
@@ -160,10 +176,10 @@ export async function Product({ params }) {
     }
     updateVariantInfo();
 
-    // qty stepper
-    const qtyMinus = h('button',{class:'btn btn-ghost', type:'button', style:{width:'40px', minWidth:'40px', padding:'0'}, onclick:()=>{ qty=Math.max(1, qty-1); qtyInput.value=String(qty); }}, '−');
-    const qtyPlus = h('button',{class:'btn btn-ghost', type:'button', style:{width:'40px', minWidth:'40px', padding:'0'}, onclick:()=>{ qty=Math.min(10, qty+1); qtyInput.value=String(qty); }}, '+');
-    const qtyInput = h('input', { class: 'input', type: 'number', min: '1', max: '10', value: '1', style: { width: '64px', textAlign:'center', fontWeight:'700' } });
+    // qty stepper — high contrast inside white info card
+    const qtyMinus = h('button',{class:'btn btn-ghost', type:'button', style:{width:'40px', minWidth:'40px', padding:'0', background:'#f8fafc', border:'1px solid #e2e8f0', color:'#0f172a', fontWeight:'800'}, onclick:()=>{ qty=Math.max(1, qty-1); qtyInput.value=String(qty); }}, '−');
+    const qtyPlus = h('button',{class:'btn btn-ghost', type:'button', style:{width:'40px', minWidth:'40px', padding:'0', background:'#f8fafc', border:'1px solid #e2e8f0', color:'#0f172a', fontWeight:'800'}, onclick:()=>{ qty=Math.min(10, qty+1); qtyInput.value=String(qty); }}, '+');
+    const qtyInput = h('input', { type: 'number', min: '1', max: '10', value: '1', style: { width: '64px', textAlign:'center', fontWeight:'800', background:'#fff', color:'#0f172a', border:'1.5px solid #cbd5e1', borderRadius:'10px', padding:'8px' } });
     qtyInput.addEventListener('input', () => { qty = Math.max(1, Math.min(10, Number(qtyInput.value) || 1)); qtyInput.value=String(qty); });
 
     const sizeGuideBtn = h('button', { class: 'btn btn-ghost btn-sm', type: 'button', style:{border:'1px dashed #cbd5e1', background:'#f8fafc'}, onclick: openSizeGuide }, '📏 Size guide');
@@ -218,7 +234,7 @@ export async function Product({ params }) {
     // ── Premium info panel ──
     const youSave = saveAmt ? h('span',{style:{background:'#dcfce7', color:'#166534', fontSize:'11px', fontWeight:'800', padding:'4px 8px', borderRadius:'999px'}}, `You save ${money(saveAmt)}`) : null;
 
-    const info = h('div', { style:{display:'flex', flexDirection:'column', gap:'0', minWidth:'0'}},
+    const info = h('div', { style:{display:'flex', flexDirection:'column', gap:'0', minWidth:'0', background:'#ffffff', border:'1px solid #e2e8f0', borderRadius:'16px', padding:'18px', boxShadow:'0 8px 24px rgba(15,23,42,0.08)'}},
       h('div', { style:{display:'inline-flex', alignItems:'center', gap:'8px'} },
         h('span', { style:{fontSize:'11px', letterSpacing:'0.1em', textTransform:'uppercase', fontWeight:'800', background:'#0f172a', color:'#fff', padding:'5px 10px', borderRadius:'999px'} }, 'ZUNO'),
         h('span', { style:{fontSize:'11px', letterSpacing:'0.08em', textTransform:'uppercase', fontWeight:'700', color:'#64748b', border:'1px solid #e2e8f0', padding:'5px 10px', borderRadius:'999px', background:'#fff'} }, product.collection || 'Essentials')
@@ -300,8 +316,8 @@ export async function Product({ params }) {
     const specEntries = product.specs ? Object.entries(product.specs) : [];
     const details = h('div', { style:{marginTop:'28px'} },
       h('div', { style:{display:'flex', alignItems:'baseline', justifyContent:'space-between', marginBottom:'14px'} },
-        h('h3',{style:{margin:'0', fontFamily:'var(--font-display)', fontSize:'18px', color:'#0f172a', letterSpacing:'-0.02em'}}, 'Product Details'),
-        h('span',{style:{fontSize:'11px', letterSpacing:'0.08em', textTransform:'uppercase', fontWeight:'700', color:'#64748b', background:'#f1f5f9', padding:'6px 10px', borderRadius:'999px'}}, 'Premium • ZUNO')
+        h('h3',{style:{margin:'0', fontFamily:'var(--font-display)', fontSize:'18px', color:'#f8fafc', letterSpacing:'-0.02em', textShadow:'0 1px 2px rgba(0,0,0,0.15)'}}, 'Product Details'),
+        h('span',{style:{fontSize:'11px', letterSpacing:'0.08em', textTransform:'uppercase', fontWeight:'700', color:'#cbd5e1', background:'rgba(255,255,255,0.10)', border:'1px solid rgba(255,255,255,0.15)', padding:'6px 10px', borderRadius:'999px'}}, 'Premium • ZUNO')
       ),
       h('div', { style:{display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(240px,1fr))', gap:'14px'} },
         // Fabric & Care
@@ -360,8 +376,8 @@ export async function Product({ params }) {
     const related = product.related?.length
       ? h('div', { class: 'section', style:{marginTop:'28px'} },
           h('div', { style:{display:'flex', alignItems:'baseline', justifyContent:'space-between', marginBottom:'14px'} },
-            h('h2', { style:{fontFamily:'var(--font-display)', fontSize:'18px', color:'#0f172a', margin:'0'} }, 'You may also like'),
-            h('a',{href:'#/shop', style:{fontSize:'12px', fontWeight:'700', color:'#1e40af', textDecoration:'none', border:'1px solid #dbeafe', padding:'6px 10px', borderRadius:'999px', background:'#eff6ff'}}, 'View all →')
+            h('h2', { style:{fontFamily:'var(--font-display)', fontSize:'18px', color:'#f8fafc', margin:'0', textShadow:'0 1px 2px rgba(0,0,0,0.15)'} }, 'You may also like'),
+            h('a',{href:'#/shop', style:{fontSize:'12px', fontWeight:'700', color:'#e0e7ff', textDecoration:'none', border:'1px solid rgba(255,255,255,0.18)', padding:'6px 10px', borderRadius:'999px', background:'rgba(255,255,255,0.10)'}}, 'View all →')
           ),
           h('div', { class: 'grid grid-products' }, ...product.related.map(ProductCard)))
       : null;
