@@ -4,9 +4,21 @@ import { Store } from '../store.js';
 import { refreshCart } from '../components.js';
 
 function field({ label, type = 'text', name, placeholder, value = '', note, inputmode }) {
-  const input = h('input', { class: 'input', type, name, placeholder, value, inputmode, autocomplete: name === 'password' ? 'current-password' : 'on' });
+  const ac = name === 'password' ? 'current-password' : (name === 'identifier' ? 'username' : (name === 'email' ? 'email' : (name === 'mobile' ? 'tel' : 'on')));
+  const im = inputmode || (name === 'mobile' || name === 'code' || name === 'otp' ? 'numeric' : undefined);
+  const input = h('input', { class: 'input', type, name, placeholder, value, inputmode: im, autocomplete: ac, autocapitalize: 'off', spellcheck: 'false' });
+  // Ensure mobile browsers don't zoom on focus (font-size 16px) and provide correct keyboard
+  if (type === 'email') input.inputMode = 'email';
   const err = h('div', { class: 'field-error hide' });
   return { wrap: h('div', { class: 'field' }, h('label', {}, label), input, note && h('span', { class: 'muted text-xs' }, note), err), input, err };
+}
+function friendlyError(err) {
+  const msg = err && err.message ? String(err.message) : 'Something went wrong';
+  if (err && (err.code === 'NETWORK_ERROR' || msg.includes('Network error') || msg.includes('Failed to fetch'))) {
+    return 'Network error — please check your internet and try again. Server may be waking up (wait 10s and retry).';
+  }
+  if (String(msg).includes('Load failed')) return 'Network error — please retry in a few seconds.';
+  return msg;
 }
 
 function redirectAfterLogin(user) {
@@ -111,12 +123,19 @@ export async function Login() {
   async function onPwSubmit(e) {
     e.preventDefault();
     [idF, pwF].forEach((f) => f.err.classList.add('hide'));
+    const ident = idF.input.value.trim();
+    const pw = pwF.input.value;
+    if (!ident) { idF.err.textContent = 'Enter email or mobile'; idF.err.classList.remove('hide'); return; }
+    if (!pw) { pwF.err.textContent = 'Enter password'; pwF.err.classList.remove('hide'); return; }
     pwSubmit.disabled = true; pwSubmit.textContent = 'Signing in…';
     try {
-      const { token, user } = await api.post('/auth/login', { identifier: idF.input.value.trim(), password: pwF.input.value });
+      const { token, user } = await api.post('/auth/login', { identifier: ident, password: pw });
       finalize({ token, user });
     } catch (err) {
-      pwF.err.textContent = err.message; pwF.err.classList.remove('hide');
+      const msg = friendlyError(err);
+      pwF.err.textContent = msg; pwF.err.classList.remove('hide');
+      if (err.code === 'NETWORK_ERROR' || String(err.message).includes('Failed to fetch')) toast(msg, 'error');
+      else toast(err.message, 'error');
     } finally { pwSubmit.disabled = false; pwSubmit.textContent = 'Sign in'; }
   }
 
@@ -128,18 +147,22 @@ export async function Login() {
     try {
       const data = await api.post('/auth/otp/request', { mobile });
       otpSubmit.style.display = '';
-      otpNote.textContent = data.devOtp ? `Dev OTP: ${data.devOtp} (would be SMS in production)` : 'Enter the OTP sent to your mobile.';
+      otpNote.textContent = data && data.devOtp ? `Dev OTP: ${data.devOtp}` : 'Enter the OTP sent to your mobile.';
       toast('OTP sent', 'success');
-    } catch (e) { toast(e.message, 'error'); }
+    } catch (e) { const msg = friendlyError(e); otpMobile.err.textContent = msg; otpMobile.err.classList.remove('hide'); toast(msg, 'error'); }
     finally { sendOtpBtn.disabled = false; sendOtpBtn.textContent = 'Resend OTP'; }
   }
 
   async function verifyOtp() {
     otpCode.err.classList.add('hide');
+    const code = otpCode.input.value.trim();
+    if (!/^\d{6}$/.test(code)) { otpCode.err.textContent = 'Enter 6-digit OTP'; otpCode.err.classList.remove('hide'); return; }
+    otpSubmit.disabled = true; otpSubmit.textContent = 'Verifying…';
     try {
-      const { token, user } = await api.post('/auth/otp/verify', { mobile: otpMobile.input.value.trim(), code: otpCode.input.value.trim() });
+      const { token, user } = await api.post('/auth/otp/verify', { mobile: otpMobile.input.value.trim(), code });
       finalize({ token, user });
-    } catch (e) { otpCode.err.textContent = e.message; otpCode.err.classList.remove('hide'); }
+    } catch (e) { const msg = friendlyError(e); otpCode.err.textContent = msg; otpCode.err.classList.remove('hide'); toast(msg, 'error'); }
+    finally { otpSubmit.disabled = false; otpSubmit.textContent = 'Verify & login'; }
   }
 
   return root;
@@ -174,8 +197,10 @@ export function Register() {
       const { token, user } = await api.post('/auth/register', payload);
       finalize({ token, user });
     } catch (err) {
-      const map = { MOBILE_EXISTS: mobF, EMAIL_EXISTS: emailF, 'Validation failed': mobF };
-      (map[err.code] || pwF).err.textContent = err.message; (map[err.code] || pwF).err.classList.remove('hide');
+      const msg = friendlyError(err);
+      const map = { MOBILE_EXISTS: mobF, EMAIL_EXISTS: emailF, 'Validation failed': mobF, NETWORK_ERROR: pwF };
+      (map[err.code] || map[msg] || pwF).err.textContent = msg; (map[err.code] || map[msg] || pwF).err.classList.remove('hide');
+      toast(msg, 'error');
     } finally { submit.disabled = false; submit.textContent = 'Create account'; }
   }
   return root;
@@ -197,10 +222,10 @@ export function ForgotPassword() {
       const data = await api.post('/auth/forgot-password', { email }, { auth:false });
       msg.textContent = data?.message || 'If an account exists with this email, an OTP has been sent.';
       msg.style.color='#16a34a';
-      toast('OTP sent — check email (and Spam)','success');
+      toast('OTP sent — check email (and Spam / Promotions folder)','success');
       if (data && data.devOtp) { preview.style.display='block'; preview.textContent='Dev OTP: '+data.devOtp+' (expires 10m)'; }
-      setTimeout(()=> location.hash = '#/verify-otp?email='+encodeURIComponent(email), 800);
-    } catch(e){ msg.textContent=e.message; msg.style.color='#dc2626'; toast(e.message,'error'); }
+      setTimeout(()=> location.hash = '#/verify-otp?email='+encodeURIComponent(email), 900);
+    } catch(e){ const m=friendlyError(e); msg.textContent=m; msg.style.color='#dc2626'; toast(m,'error'); }
     btn.disabled=false; btn.textContent='Send OTP';
   };
   card.append(
@@ -240,14 +265,14 @@ export function VerifyOtp() {
       const token=data && data.token;
       if(token) location.hash='#/reset-password?token='+encodeURIComponent(token);
       else msg.textContent='Verified — redirecting…';
-    }catch(e){ msg.textContent=e.message; msg.style.color='#dc2626'; toast(e.message,'error'); }
+    }catch(e){ const m=friendlyError(e); msg.textContent=m; msg.style.color='#dc2626'; toast(m,'error'); }
     btn.disabled=false; btn.textContent='Verify OTP';
   };
   resend.onclick = async ()=>{
     const em=emailF.input.value.trim();
     if(!em || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)){ toast('Enter valid email','error'); return; }
     resend.disabled=true; resend.textContent='Sending…';
-    try{ await api.post('/auth/forgot-password', {email:em}, {auth:false}); toast('OTP resent — check email','success'); msg.textContent='A new OTP has been sent.'; msg.style.color='#16a34a'; }catch(e){ toast(e.message,'error'); }
+    try{ await api.post('/auth/forgot-password', {email:em}, {auth:false}); toast('OTP resent — check email (and Spam)','success'); msg.textContent='A new OTP has been sent — check email (and Spam).'; msg.style.color='#16a34a'; }catch(e){ const m=friendlyError(e); toast(m,'error'); msg.textContent=m; msg.style.color='#dc2626'; }
     resend.disabled=false; resend.textContent='Resend OTP';
   };
   card.append(
@@ -295,7 +320,7 @@ export function ResetPassword() {
     if(pw!==cf){ cfF.err.textContent='Passwords must match'; cfF.err.classList.remove('hide'); return; }
     btn.disabled=true; btn.textContent='Resetting…';
     try{ const data=await api.post('/auth/reset-password', {token, password:pw}, {auth:false}); formWrap.style.display='none'; success.style.display='block'; toast(data?.message||'Reset successful','success'); }catch(e){
-      const m=e.message||'Reset failed'; msg.textContent=m; msg.style.color='#dc2626'; toast(m,'error');
+      const m=friendlyError(e); msg.textContent=m; msg.style.color='#dc2626'; toast(m,'error');
     }
     btn.disabled=false; btn.textContent='Reset Password';
   };

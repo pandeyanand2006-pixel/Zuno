@@ -221,10 +221,28 @@ export const authService = {
       db.prepare('UPDATE users SET reset_otp_hash = ?, reset_otp_expires = ?, reset_password_token = NULL, reset_password_expires = NULL WHERE id = ?').run(hashed, expiresIso, user.id);
     }
 
+    // Log OTP only in dev — in production OTP goes only via email (not log) for security
     if (!env.isProduction) logger.info(`[DEV USER OTP] for ${normalized}: ${otp} (expires ${OTP_EXPIRES_MINUTES}m)`);
-    void sendPasswordResetOtpEmail({ to: normalized, otp, expiresMinutes: OTP_EXPIRES_MINUTES, isAdmin: false })
-      .then((r) => logger.info(`[USER OTP] email delivered to ${normalized} — ${r.messageId || 'mocked'}`))
-      .catch((err) => logger.error('User forgot OTP email failed for ' + normalized, err.message));
+
+    // Deliver via email synchronously with timeout guard — ensures user actually gets email on mobile
+    // Do not use fire-and-forget void here; we await so Render logs capture delivery status before response
+    try {
+      const result = await Promise.race([
+        sendPasswordResetOtpEmail({ to: normalized, otp, expiresMinutes: OTP_EXPIRES_MINUTES, isAdmin: false }),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('EMAIL_TIMEOUT')), 12000)),
+      ]);
+      if (result && result.mocked) {
+        logger.warn(`[USER OTP] SMTP not configured — OTP for ${normalized} logged as mock (set Render SMTP env to deliver via email)`);
+        if (!env.isProduction) logger.info(`[USER OTP] mock preview: ${otp}`);
+      } else {
+        logger.info(`[USER OTP] email delivered to ${normalized} — ${result.messageId || 'ok'}`);
+      }
+    } catch (err) {
+      logger.error('User forgot OTP email failed for ' + normalized + ': ' + (err.message || err));
+      // If email fails in production, still keep OTP stored but log clearly — frontend will show generic success
+      // but ops can check Render logs for EMAIL_FAILED. Don't expose OTP to client in prod.
+      if (!env.isProduction) logger.warn(`[USER OTP] fallback dev OTP for ${normalized}: ${otp}`);
+    }
     logger.info(`[USER OTP] generated for ${normalized} — queued`);
     return { message: genericMessage, _devOtp: env.isProduction ? undefined : otp };
   },

@@ -34,21 +34,33 @@ const app = express();
 
 app.use(helmet({ contentSecurityPolicy: false, crossOriginResourcePolicy: false, crossOriginEmbedderPolicy: false }));
 const allowedOrigins = env.frontendUrl ? env.frontendUrl.split(',').map(s => s.trim()).filter(Boolean) : [];
-app.use(cors({
+const corsOptions = {
   origin: env.isProduction
     ? (origin, cb) => {
-        if (!origin) return cb(null, true); // same-origin / health checks / curl
+        if (!origin) return cb(null, true); // same-origin / health checks / curl / mobile WebView
+        try {
+          const u = new URL(origin);
+          // Always allow Vercel deployments regardless of FRONTEND_URL exact value — fixes mobile "Failed to fetch"
+          if (u.hostname.endsWith('.vercel.app')) return cb(null, true);
+        } catch {}
         if (allowedOrigins.includes(origin)) return cb(null, true);
-        // Allow Vercel preview deploys (*.vercel.app) only if wildcard is configured
         if (allowedOrigins.some(o => o.includes('*.vercel.app')) && origin.endsWith('.vercel.app')) return cb(null, true);
         if (allowedOrigins.some(o => o.includes('vercel.app')) && origin.endsWith('.vercel.app')) return cb(null, true);
-        if (allowedOrigins.length === 0) return cb(null, true); // single-service same-origin fallback
-        // Block arbitrary origins in production
+        if (allowedOrigins.length === 0) return cb(null, true);
+        // Allow localhost for dev tunnels
+        if (origin.startsWith('http://localhost') || origin.startsWith('http://127.0.0.1')) return cb(null, true);
         return cb(new Error('Not allowed by CORS'), false);
       }
     : true,
-  credentials: true
-}));
+  credentials: true,
+  methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+  exposedHeaders: ['Content-Range', 'X-Content-Range'],
+  maxAge: 86400,
+};
+app.use(cors(corsOptions));
+// Explicit preflight handler for all routes (ensures OPTIONS succeeds on mobile)
+app.options('*', cors(corsOptions));
 app.use(express.json({ limit: '1mb' }));
 
 // minimal cookie parser (no extra dependency)
@@ -66,7 +78,13 @@ const limiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 300, standardHeaders:
 app.use('/api/', limiter);
 
 app.get('/api/health', (_req, res) => {
-  res.status(200).json({ success: true, data: { status: 'healthy', time: new Date().toISOString(), testMode: !env.razorpay.keyId }, message: 'ZUNO API is running' });
+  const smtpConfigured = !!(env.smtp.user && env.smtp.pass);
+  res.status(200).json({ success: true, data: { status: 'healthy', time: new Date().toISOString(), testMode: !env.razorpay.keyId, smtpConfigured, smtpHost: env.smtp.host, smtpUser: smtpConfigured ? env.smtp.user.slice(0,3)+'***' : 'NOT_SET' }, message: 'ZUNO API is running' });
+});
+// Debug: check SMTP config (no secrets) — helps diagnose mock vs real sending
+app.get('/api/debug/smtp', (_req, res) => {
+  const cfg = !!(env.smtp.user && env.smtp.pass);
+  res.status(200).json({ success: true, data: { configured: cfg, host: env.smtp.host, port: env.smtp.port, user: cfg ? env.smtp.user.slice(0,3)+'***' : null, from: env.smtp.from, note: cfg ? 'SMTP ready — OTP will arrive in inbox' : 'SMTP NOT SET — Render is in mock mode, OTP only in logs. Set SMTP_USER/SMTP_PASS in Render Dashboard → Environment and redeploy.' } });
 });
 
 app.use('/api/auth', authRoutes);

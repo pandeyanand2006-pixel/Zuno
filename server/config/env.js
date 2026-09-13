@@ -31,12 +31,13 @@ export const env = {
     clientId: process.env.GOOGLE_CLIENT_ID || '',
   },
   smtp: {
-    host: process.env.SMTP_HOST || 'smtp.gmail.com',
+    host: (process.env.SMTP_HOST || 'smtp.gmail.com').trim(),
     port: Number(process.env.SMTP_PORT) || 587,
     secure: process.env.SMTP_SECURE === 'true',
-    user: process.env.SMTP_USER || '',
-    pass: process.env.SMTP_PASS || '',
-    from: process.env.SMTP_FROM || process.env.NOTIFY_EMAIL_FROM || 'noreply@ZUNO.app',
+    user: (process.env.SMTP_USER || '').trim(),
+    // Gmail App Password is 16 chars often copied with spaces — strip spaces
+    pass: (process.env.SMTP_PASS || '').replace(/\s+/g, '').trim(),
+    from: (process.env.SMTP_FROM || process.env.NOTIFY_EMAIL_FROM || 'noreply@ZUNO.app').trim(),
   },
   printrove: {
     apiUrl: (process.env.PRINTROVE_API_URL || 'https://api.printrove.com').replace(/\/$/, ''),

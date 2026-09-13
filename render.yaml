@@ -32,9 +32,25 @@ services:
       # Example: https://zuno.vercel.app,https://*.vercel.app
       - key: FRONTEND_URL
         value: https://*.vercel.app
+      # REQUIRED for OTP emails to arrive in inbox (not just Render logs):
+      - key: SMTP_HOST
+        value: smtp.gmail.com
+      - key: SMTP_PORT
+        value: 587
+      - key: SMTP_SECURE
+        value: false
+      - key: SMTP_USER
+        value: zunoworld3121@gmail.com
+      - key: SMTP_PASS
+        value: yyedxjileoszzsfz
+      - key: SMTP_FROM
+        value: ZUNO <zunoworld3121@gmail.com>
+      # If you rotate Gmail App Password, update SMTP_PASS above and redeploy
+      # Alternative: set SMTP_USER/SMTP_PASS as sync:false and configure manually in Dashboard → Environment (more secure)
       # Optional — fill in Render dashboard > Environment after deploy:
       # MONGODB_URI=mongodb+srv://user:pass@cluster.mongodb.net/zuno?retryWrites=true&w=majority
-      # RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET, RAZORPAY_WEBHOOK_SECRET, GOOGLE_CLIENT_ID, SMTP_*
+      # RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET, RAZORPAY_WEBHOOK_SECRET, GOOGLE_CLIENT_ID
+      # IMPORTANT: SMTP_USER = your Gmail (e.g. zunoworld3121@gmail.com), SMTP_PASS = Gmail App Password (16 chars, no spaces, from myaccount.google.com/apppasswords), SMTP_FROM = ZUNO <same-email>
       # API_BASE_URL is auto-derived; no need to set.
     # Persistent disk — enable ONLY on paid plan (Starter $7+). Free tier: keep commented.
     # When enabled, DB_PATH=/data/ZUNO.db above will persist across deploys.

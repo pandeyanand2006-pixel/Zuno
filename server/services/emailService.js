@@ -6,7 +6,7 @@ let transporter = null;
 
 function getTransporter() {
   if (transporter) return transporter;
-  // Gmail: 465 => SSL (secure true) is fastest, 587 => STARTTLS (secure false + requireTLS)
+  // Gmail: 465 => SSL (secure true), 587 => STARTTLS (secure false + requireTLS)
   const port = Number(env.smtp.port) || 587;
   const is465 = port === 465;
   const cfg = {
@@ -14,30 +14,55 @@ function getTransporter() {
     port,
     secure: is465 ? true : !!env.smtp.secure,
     requireTLS: !is465,
-    pool: true,
+    // Render free tier can have socket issues with pooling — disable pool in production for reliability
+    pool: env.isProduction ? false : true,
     maxConnections: 3,
     maxMessages: 100,
-    connectionTimeout: 10000,
-    greetingTimeout: 10000,
-    socketTimeout: 20000,
+    connectionTimeout: 15000,
+    greetingTimeout: 15000,
+    socketTimeout: 25000,
+    // Render sometimes blocks IPv6 — prefer IPv4
+    tls: { ciphers: 'SSLv3', rejectUnauthorized: true },
     auth: undefined,
   };
   if (env.smtp.user && env.smtp.pass) {
     cfg.auth = { user: env.smtp.user, pass: env.smtp.pass };
   }
   transporter = nodemailer.createTransport(cfg);
-  // Verify asynchronously without crashing boot
+  // Verify asynchronously without crashing boot — retry once if fails (cold start)
   if (env.smtp.user && env.smtp.pass) {
     transporter.verify().then(() => {
-      logger.info('SMTP connection verified');
+      logger.info('SMTP connection verified — ' + env.smtp.host + ':' + env.smtp.port + ' as ' + env.smtp.user);
     }).catch((err) => {
-      logger.warn('SMTP connection failed');
+      logger.warn('SMTP verify failed: ' + err.message);
       logger.error('SMTP verify error', err.message);
+      // Hint: Gmail needs App Password, not regular password. Check Render env SMTP_PASS length=16 no spaces.
+      if (String(err.message).includes('535') || String(err.message).includes('Authentication')) {
+        logger.error('SMTP auth failed — verify Render env: SMTP_USER and SMTP_PASS (Gmail App Password, 16 chars, no spaces)');
+      }
     });
   } else {
-    logger.warn('SMTP not configured — emails will be logged but not sent');
+    logger.warn('SMTP not configured — emails will be logged but not sent. Set Render env SMTP_USER/SMTP_PASS/SMTP_HOST');
   }
   return transporter;
+}
+
+// Force-fresh transporter for critical OTPs (avoids pooled socket stale on Render free tier)
+function getFreshTransporter() {
+  const port = Number(env.smtp.port) || 587;
+  const is465 = port === 465;
+  return nodemailer.createTransport({
+    host: env.smtp.host || 'smtp.gmail.com',
+    port,
+    secure: is465 ? true : false,
+    requireTLS: !is465,
+    pool: false,
+    connectionTimeout: 15000,
+    greetingTimeout: 15000,
+    socketTimeout: 25000,
+    auth: env.smtp.user && env.smtp.pass ? { user: env.smtp.user, pass: env.smtp.pass } : undefined,
+    tls: { ciphers: 'SSLv3', rejectUnauthorized: true },
+  });
 }
 
 function getFrontendUrl() {
@@ -204,50 +229,82 @@ export async function sendPasswordResetOtpEmail({ to, otp, expiresMinutes = 10, 
   // For user, subject is slightly different but same HTML works (already says Admin — make neutral)
   // Clone with neutral subject if not admin
   if (!isAdmin) {
-    // Use same HTML but subject user-specific — call internal with user subject
     const html = `
   <div style="font-family:Inter,Arial,sans-serif;max-width:560px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;overflow:hidden">
-    <div style="background:#0f172a;padding:24px 28px;text-align:center">
-      <div style="display:inline-block;background:#fff;color:#0f172a;width:40px;height:40px;border-radius:10px;line-height:40px;font-weight:800;letter-spacing:0.08em">Z</div>
-      <div style="color:#fff;font-weight:800;letter-spacing:0.12em;margin-top:8px;font-size:14px">ZUNO</div>
-    </div>
-    <div style="padding:28px">
-      <h2 style="margin:0 0 8px;color:#0f172a;font-size:20px">Your Password Reset OTP</h2>
-      <p style="margin:0 0 16px;color:#475569;font-size:14px;line-height:1.6">Hello,</p>
-      <p style="margin:0 0 16px;color:#475569;font-size:14px;line-height:1.6">We received a request to reset the password for your Zuno account (<strong>${to}</strong>). Use the OTP below.</p>
-      <div style="text-align:center;margin:24px 0">
-        <div style="display:inline-block;background:#f8fafc;border:2px dashed #1e40af;border-radius:12px;padding:16px 32px">
-          <div style="font-size:32px;font-weight:800;letter-spacing:0.25em;color:#0f172a">${otp}</div>
-          <div style="font-size:11px;color:#64748b;letter-spacing:0.1em;margin-top:4px">ONE-TIME PASSWORD</div>
-        </div>
-      </div>
-      <p style="margin:0 0 12px;color:#334155;font-size:13px;text-align:center"><strong>Expires in ${expiresMinutes} minutes</strong> • One-time use only</p>
-      <p style="margin:0 0 12px;color:#64748b;font-size:13px;line-height:1.5">Enter this OTP on the verification page to set a new password.</p>
-      <p style="margin:0 0 12px;color:#64748b;font-size:13px;line-height:1.5">If you did not request this, ignore this email.</p>
-      <div style="margin-top:20px;padding:12px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px">
-        <p style="margin:0;color:#991b1b;font-size:12px;line-height:1.5"><strong>Security:</strong> Never share this OTP.</p>
-      </div>
-    </div>
-    <div style="background:#f8fafc;padding:16px 28px;text-align:center;border-top:1px solid #e2e8f0">
-      <p style="margin:0;color:#94a3b8;font-size:11px">© ${new Date().getFullYear()} ZUNO — Modern Everyday Clothing</p>
-    </div>
-  </div>`;
-    const text = `Your Zuno OTP is: ${otp}\nExpires in ${expiresMinutes} minutes.`;
+     <div style="background:#0f172a;padding:24px 28px;text-align:center">
+       <div style="display:inline-block;background:#fff;color:#0f172a;width:40px;height:40px;border-radius:10px;line-height:40px;font-weight:800;letter-spacing:0.08em">Z</div>
+       <div style="color:#fff;font-weight:800;letter-spacing:0.12em;margin-top:8px;font-size:14px">ZUNO</div>
+     </div>
+     <div style="padding:28px">
+       <h2 style="margin:0 0 8px;color:#0f172a;font-size:20px">Your Password Reset OTP</h2>
+       <p style="margin:0 0 16px;color:#475569;font-size:14px;line-height:1.6">Hello,</p>
+       <p style="margin:0 0 16px;color:#475569;font-size:14px;line-height:1.6">We received a request to reset the password for your Zuno account (<strong>${to}</strong>). Use the OTP below.</p>
+       <div style="text-align:center;margin:24px 0">
+         <div style="display:inline-block;background:#f8fafc;border:2px dashed #1e40af;border-radius:12px;padding:16px 32px">
+           <div style="font-size:32px;font-weight:800;letter-spacing:0.25em;color:#0f172a">${otp}</div>
+           <div style="font-size:11px;color:#64748b;letter-spacing:0.1em;margin-top:4px">ONE-TIME PASSWORD</div>
+         </div>
+       </div>
+       <p style="margin:0 0 12px;color:#334155;font-size:13px;text-align:center"><strong>Expires in ${expiresMinutes} minutes</strong> • One-time use only</p>
+       <p style="margin:0 0 12px;color:#64748b;font-size:13px;line-height:1.5">Enter this OTP on the verification page to set a new password.</p>
+       <p style="margin:0 0 12px;color:#64748b;font-size:13px;line-height:1.5">If you did not request this, ignore this email.</p>
+       <div style="margin-top:20px;padding:12px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px">
+         <p style="margin:0;color:#991b1b;font-size:12px;line-height:1.5"><strong>Security:</strong> Never share this OTP.</p>
+       </div>
+     </div>
+     <div style="background:#f8fafc;padding:16px 28px;text-align:center;border-top:1px solid #e2e8f0">
+       <p style="margin:0;color:#94a3b8;font-size:11px">© ${new Date().getFullYear()} ZUNO — Modern Everyday Clothing</p>
+     </div>
+   </div>`;
+    const text = `Your Zuno OTP is: ${otp}\nExpires in ${expiresMinutes} minutes.\nGo to ${getFrontendUrl()}/#/verify-otp?email=${encodeURIComponent(to)} to enter it.\nIf you didn't request, ignore.`;
     const rawFrom = env.smtp.from || env.smtp.user || 'noreply@zuno.app';
-    const from = rawFrom.includes('<') ? rawFrom : rawFrom;
+    const from = rawFrom.includes('<') ? rawFrom : `ZUNO <${rawFrom}>`;
     if (!env.smtp.user || !env.smtp.pass) {
-      logger.info(`[email mock] Would send user OTP to ${to} — OTP: ${otp}`);
+      logger.warn(`[email mock] SMTP not configured — would send user OTP to ${to} — OTP: ${otp} (set Render env SMTP_USER/SMTP_PASS to deliver)`);
+      // Still return success to keep flow, but log clearly that email is mocked
       return { mocked: true, otp };
     }
-    logger.info(`[email] Sending user OTP to ${to}`);
-    const t = getTransporter();
+    logger.info(`[email] Sending user OTP to ${to} — expires ${expiresMinutes}m via ${env.smtp.host}:${env.smtp.port}`);
+    const mailOpts = { from, to, subject: 'Your Password Reset OTP — ZUNO', text, html, priority: 'high', headers: { 'X-Mailer': 'ZUNO User OTP', 'X-Priority': '1', 'Importance': 'high' }, envelope: { from: env.smtp.user, to } };
+    // Try pooled first, then fresh connection fallback (Render free tier fix)
+    const isNoSuchUser = (err) => String(err.message||'').includes('550') && String(err.message||'').includes('5.1.1');
     try {
-      const info = await t.sendMail({ from, to, subject: 'Your Password Reset OTP — ZUNO', text, html, priority: 'high', headers: { 'X-Mailer': 'ZUNO User OTP' }, envelope: { from: env.smtp.user || from, to } });
-      logger.info(`User OTP sent to ${to} (${info.messageId}) — accepted: ${(info.accepted||[]).join(',')}`);
+      const t = getTransporter();
+      const info = await t.sendMail(mailOpts);
+      logger.info(`User OTP sent to ${to} (${info.messageId}) — accepted: ${(info.accepted||[]).join(',')} rejected: ${(info.rejected||[]).join(',')}`);
+      if (info.rejected && info.rejected.length) {
+        logger.error(`[email] User OTP rejected by Gmail: ${info.rejected.join(',')} — recipient does not exist or blocked`);
+        throw new Error('EMAIL_REJECTED: ' + info.rejected.join(','));
+      }
+      if (!info.accepted || info.accepted.length === 0) {
+        logger.error(`[email] User OTP not accepted by Gmail — no accepted recipients`);
+        throw new Error('EMAIL_FAILED');
+      }
       return { messageId: info.messageId, otp: env.isProduction ? undefined : otp };
     } catch (err) {
-      logger.error('Failed to send user OTP', err.message);
-      throw new Error('EMAIL_FAILED');
+      // Don't retry on 550 NoSuchUser — recipient invalid, retry won't help
+      if (isNoSuchUser(err) || String(err.message).startsWith('EMAIL_REJECTED')) {
+        logger.error('User OTP failed — invalid recipient ' + to + ': ' + err.message + ' — user must register with a real Gmail address');
+        throw new Error('EMAIL_FAILED');
+      }
+      logger.error('Failed to send user OTP (pooled)', err.message);
+      // Retry via fresh transporter (fixes pooled socket timeout on Render)
+      try {
+        logger.warn('[email] Retrying user OTP via fresh connection');
+        const fresh = getFreshTransporter();
+        const r2 = await fresh.sendMail(mailOpts);
+        logger.info(`User OTP retry sent to ${to} (${r2.messageId}) — accepted: ${(r2.accepted||[]).join(',')} rejected: ${(r2.rejected||[]).join(',')}`);
+        if (r2.rejected && r2.rejected.length) throw new Error('EMAIL_REJECTED: ' + r2.rejected.join(','));
+        return { messageId: r2.messageId, otp: env.isProduction ? undefined : otp };
+      } catch (e2) {
+        if (isNoSuchUser(e2) || String(e2.message).startsWith('EMAIL_REJECTED')) {
+          logger.error('User OTP retry: invalid recipient ' + to);
+          throw new Error('EMAIL_FAILED');
+        }
+        logger.error('User OTP retry failed', e2.message);
+        logger.error(`[email] SMTP host=${env.smtp.host} port=${env.smtp.port} user=${env.smtp.user ? env.smtp.user.slice(0,3)+'***' : 'none'} — check Gmail App Password (16 chars, no spaces) and Render env vars`);
+        throw new Error('EMAIL_FAILED');
+      }
     }
   }
   // Admin path delegates to admin sender for consistency

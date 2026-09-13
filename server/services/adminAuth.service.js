@@ -58,14 +58,20 @@ export const adminAuthService = {
       db.prepare('UPDATE users SET reset_otp_hash = ?, reset_otp_expires = ?, reset_password_token = NULL, reset_password_expires = NULL WHERE id = ?').run(hashed, expiresIso, adminUser.id);
     }
 
-    // Fire-and-forget email so API returns instantly (~50ms) — OTP already stored, Gmail delivers in background (pooled)
-    // Log OTP immediately for dev, then send async
     if (!env.isProduction) logger.info(`[DEV OTP] for ${normalized}: ${otp} (expires ${OTP_EXPIRES_MINUTES}m)`);
 
-    // Don't await — pool will deliver in ~1-2s, API stays instant
-    void sendAdminOtpEmail({ to: normalized, otp, expiresMinutes: OTP_EXPIRES_MINUTES })
-      .then((r) => logger.info(`[ADMIN OTP] email delivered to ${normalized} — ${r.messageId || 'mocked'} (${r.mocked ? 'mock' : 'smtp'})`))
-      .catch((err) => logger.error('Admin forgot OTP email failed for ' + normalized, err.message));
+    // Await email delivery with timeout so Render logs capture result before response (fixes "OTP only in render log" confusion)
+    try {
+      const result = await Promise.race([
+        sendAdminOtpEmail({ to: normalized, otp, expiresMinutes: OTP_EXPIRES_MINUTES }),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('EMAIL_TIMEOUT')), 12000)),
+      ]);
+      if (result && result.mocked) logger.warn(`[ADMIN OTP] SMTP not configured — mock OTP for ${normalized}: ${otp} (set Render SMTP env)`);
+      else logger.info(`[ADMIN OTP] email delivered to ${normalized} — ${result.messageId || 'ok'} (${result.mocked ? 'mock' : 'smtp'})`);
+    } catch (err) {
+      logger.error('Admin forgot OTP email failed for ' + normalized + ': ' + (err.message || err));
+      if (!env.isProduction) logger.warn(`[ADMIN OTP] fallback dev OTP for ${normalized}: ${otp}`);
+    }
 
     logger.info(`[ADMIN OTP] generated for ${normalized} — expires ${OTP_EXPIRES_MINUTES}m — queued for delivery`);
 
