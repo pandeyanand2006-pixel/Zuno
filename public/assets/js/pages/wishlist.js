@@ -1,7 +1,7 @@
 import { h, toast, emptyState, money, productImage, resolveImageUrl, imgFallback } from '../ui.js';
 import { api } from '../api.js';
 import { Store } from '../store.js';
-import { refreshCart } from '../components.js';
+import { refreshCart, showCartDrawer } from '../components.js';
 
 export async function Wishlist() {
   const root = h('div', { class: 'container section' });
@@ -56,10 +56,9 @@ export async function Wishlist() {
           h('div', { class: 'row gap-2', style: { marginTop: '12px' } },
             h('button', { class: 'btn btn-primary btn-sm', style: { flex: '1' }, type: 'button', onclick: async () => {
               try {
-                // Try with first available variant
                 const variant = prod.colors && prod.sizes ? { color: prod.colors[0], size: prod.sizes[1] || prod.sizes[0] } : null;
                 const payload = variant ? { productId: it.productId, quantity: 1, variant } : { productId: it.productId, quantity: 1 };
-                await api.post('/cart/items?module=shop', payload); await refreshCart(); toast('Added to bag', 'success');
+                await api.post('/cart/items?module=shop', payload); await refreshCart(); toast('Added to bag', 'success'); try{ showCartDrawer({ addedProduct: { name: it.name, price: prod.price || it.price, image: img, variant } }); }catch{}
               } catch (e) { toast(e.message, 'error'); }
             } }, 'Add to bag'),
             h('a', { class: 'btn btn-ghost btn-sm', href: '#/product/' + it.slug }, 'View'))));

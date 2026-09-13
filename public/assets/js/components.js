@@ -229,3 +229,61 @@ export async function refreshCart() {
 }
 
 export function moneyPaisetoINR(p) { return money(p); }
+
+// ── Mini-cart drawer popup — shown after Add to Bag, ESC/overlay to close ──
+export function showCartDrawer({ addedProduct } = {}) {
+  const existing = document.querySelector('.cart-drawer');
+  if (existing) existing.remove();
+  const isGuest = !Store.isAuthed();
+  let items = [];
+  let subtotal = 0;
+  let count = 0;
+  if (isGuest) {
+    const guest = (Store.getGuest ? Store.getGuest() : []).filter(i => !i.module || i.module === 'shop');
+    items = guest.slice(-3).reverse();
+    guest.forEach(i => { subtotal += (i.price || 0) * (i.quantity || 0); count += i.quantity || 0; });
+  } else {
+    const cart = Store.getCart && Store.getCart();
+    const shop = cart && cart.shop;
+    if (shop && shop.items) { items = shop.items.slice(-3).reverse(); subtotal = shop.subtotal || 0; count = shop.items.reduce((a,b)=>a+(b.quantity||0),0); }
+  }
+  const titleAdded = addedProduct ? `Added — ${String(addedProduct.name||'').slice(0,28)}` : 'Added to bag';
+  const drawer = h('div', { class: 'cart-drawer', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Bag' },
+    h('div', { class: 'cart-drawer__backdrop', onclick: close }),
+    h('div', { class: 'cart-drawer__panel' },
+      h('div', { class: 'cart-drawer__head' },
+        h('div', { style: { display: 'flex', gap: '8px', alignItems: 'center' } },
+          h('span', { style: { width: '32px', height: '32px', borderRadius: '50%', background: '#dcfce7', color: '#166534', display: 'grid', placeItems: 'center', fontSize: '16px' } }, '✓'),
+          h('div', {},
+            h('h3', {}, titleAdded),
+            h('div', { style: { fontSize: '12px', color: '#64748b' } }, count + ' item(s) • ' + money(subtotal)))),
+        h('button', { class: 'cart-drawer__close', type: 'button', 'aria-label': 'Close', onclick: close }, '✕')),
+      h('div', { class: 'cart-drawer__body' },
+        addedProduct ? h('div', { class: 'cart-drawer__item', style: { borderColor: '#bbf7d0', background: '#f0fdf4' } },
+          h('img', { src: addedProduct.image ? resolveImageUrl(addedProduct.image) : productImage({ name: addedProduct.name }), alt: addedProduct.name }),
+          h('div', { style: { minWidth: 0, flex: 1 } },
+            h('div', { style: { fontWeight: '700', color: '#0f172a', fontSize: '13px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } }, addedProduct.name),
+            h('div', { style: { fontSize: '12px', color: '#64748b' } }, [addedProduct.variant?.color, addedProduct.variant?.size].filter(Boolean).join(' · ') || 'Premium • 240 GSM'),
+            h('div', { style: { fontWeight: '800', color: '#0f172a', marginTop: '4px' } }, money(addedProduct.price)))) : null,
+        ...items.map(it => h('div', { class: 'cart-drawer__item' },
+          h('img', { src: it.image ? resolveImageUrl(it.image) : productImage({ name: it.name }), alt: it.name }),
+          h('div', { style: { minWidth: 0, flex: 1 } },
+            h('div', { style: { fontWeight: '600', color: '#0f172a', fontSize: '13px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } }, it.name),
+            h('div', { style: { fontSize: '11px', color: '#64748b' } }, (it.variant ? [it.variant.color, it.variant.size].filter(Boolean).join(' · ') : '') || (it.isCustom ? 'Custom design' : 'Qty ' + it.quantity)),
+            h('div', { style: { fontWeight: '700', color: '#334155', marginTop: '2px', fontSize: '12px' } }, money(it.price) + (it.quantity ? ' × ' + it.quantity : ''))),
+          h('div', { style: { fontWeight: '800', color: '#0f172a', fontSize: '12px' } }, money((it.price||0)*(it.quantity||1))))),
+        !items.length ? h('div', { style: { textAlign: 'center', padding: '20px', color: '#64748b' } }, 'Your bag will appear here') : null),
+      h('div', { class: 'cart-drawer__foot' },
+        h('div', { style: { display: 'flex', justifyContent: 'space-between', fontWeight: '700', color: '#0f172a' } }, h('span', {}, 'Subtotal'), h('span', {}, money(subtotal))),
+        h('a', { class: 'btn btn-outline btn-block', href: '#/cart', onclick: () => close() }, 'View bag'),
+        h('a', { class: 'btn btn-primary btn-block', href: isGuest ? '#/cart' : '#/checkout?module=shop', style: { background: '#0f172a', borderColor: '#0f172a' }, onclick: () => close() }, isGuest ? 'Sign in to checkout →' : 'Proceed to checkout →'),
+        h('p', { style: { fontSize: '11px', color: '#64748b', textAlign: 'center', margin: '4px 0 0' } }, 'Free shipping over ₹999 • 7-day returns'))));
+  function close(){ drawer.remove(); document.removeEventListener('keydown', onKey); }
+  function onKey(e){ if(e.key==='Escape') close(); }
+  document.body.append(drawer);
+  document.addEventListener('keydown', onKey);
+  // Auto-close after 6s, toast already shown
+  setTimeout(() => { try{ if(document.body.contains(drawer)) close(); } catch{} }, 6000);
+  // Ensure cart count updated
+  if (!isGuest) refreshCart().catch(()=>{});
+}

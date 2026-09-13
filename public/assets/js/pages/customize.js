@@ -1,7 +1,7 @@
 import { h, money, toast, emptyState, productImage, resolveImageUrl, imgFallback } from '../ui.js';
 import { api } from '../api.js';
 import { Store } from '../store.js';
-import { refreshCart } from '../components.js';
+import { refreshCart, showCartDrawer } from '../components.js';
 
 const COLORS = [
   { key: 'white', label: 'White', bg: '#ffffff', border: '#d8dee8' },
@@ -496,20 +496,22 @@ export async function Customize() {
     if (!selectedProduct) { toast('Select a T-shirt', 'warning'); return; }
     if (!front.length && !back.length) { toast('Add text or an image to your design', 'warning'); return; }
     const designData = { front: { elements: front }, back: { elements: back } };
+    const price = selectedProduct.price + (front.length ? 10000 : 0) + (back.length ? 10000 : 0);
+    const added = { name: `Custom: ${selectedProduct.name}`, price, image: (selectedProduct.images && selectedProduct.images[0]) || productImage({ name: selectedProduct.name, module: 'shop' }), variant: { color, size, fit } };
     if (!Store.isAuthed()) {
       const guest = JSON.parse(localStorage.getItem('ZUNO_guest_cart') || '[]');
-      guest.push({ productId: selectedProduct.id, name: `Custom: ${selectedProduct.name}`, price: selectedProduct.price + (front.length ? 10000 : 0) + (back.length ? 10000 : 0), slug: selectedProduct.slug, image: productImage({ name: selectedProduct.name, module: 'shop' }), module: 'shop', quantity: 1, customization: designData, variant: { color, size, fit }, isCustom: true });
+      guest.push({ productId: selectedProduct.id, name: `Custom: ${selectedProduct.name}`, price, slug: selectedProduct.slug, image: productImage({ name: selectedProduct.name, module: 'shop' }), module: 'shop', quantity: 1, customization: designData, variant: { color, size, fit }, isCustom: true });
       localStorage.setItem('ZUNO_guest_cart', JSON.stringify(guest));
       Store._guest = guest; Store.emit();
       toast('Custom design added to bag', 'success');
-      location.hash = '#/cart';
+      try { showCartDrawer({ addedProduct: added }); } catch {}
       return;
     }
     try {
       await api.post('/cart/custom', { productId: selectedProduct.id, color, size, fit, designData, quantity: 1 });
       await refreshCart();
       toast('Custom design added to bag', 'success');
-      location.hash = '#/cart';
+      try { showCartDrawer({ addedProduct: added }); } catch {}
     } catch (e) { toast(e.message, 'error'); }
   }
 

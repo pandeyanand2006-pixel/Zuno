@@ -71,8 +71,32 @@ const bot = document.createElement('div');
 const foot = footer();
 app.append(top, main, bot, foot);
 
-// Theme toggle reflects in nav icon automatically via re-render.
-Store.on(() => { /* re-render handled by router on navigation */ });
+// Keep nav badges in sync without requiring a navigation — update counts in place.
+Store.on(() => {
+  try {
+    const c = String(Store.cartCount() || '');
+    const w = String(Store.wishlistCount ? Store.wishlistCount() : (Store._wishlist ? Store._wishlist.size : 0));
+    // Update existing badges
+    document.querySelectorAll('a[href="#/cart"] .cart-count, a[href="#/wishlist"] .cart-count').forEach(el => {
+      const isWish = !!el.closest('a[href="#/wishlist"]');
+      const val = isWish ? w : c;
+      if (!val || val === '0') el.style.display = 'none';
+      else { el.textContent = val; el.style.display = ''; }
+    });
+    // If badge should exist but doesn't, inject it
+    const cartLink = document.querySelector('a[href="#/cart"].icon-btn, .bottom-nav a[href="#/cart"]');
+    if (cartLink && Number(c) > 0 && !cartLink.querySelector('.cart-count')) {
+      const b = document.createElement('span'); b.className = 'cart-count'; b.textContent = c; cartLink.append(b);
+    }
+    document.querySelectorAll('a[href="#/cart"].icon-btn').forEach(a => {
+      if (Number(c) > 0 && !a.querySelector('.cart-count')) { const b=document.createElement('span'); b.className='cart-count'; b.textContent=c; a.append(b); }
+    });
+    const wishLink = document.querySelector('a[href="#/wishlist"].icon-btn');
+    if (wishLink && Number(w) > 0 && !wishLink.querySelector('.cart-count')) {
+      const b = document.createElement('span'); b.className = 'cart-count'; b.style.background='var(--primary-denim)'; b.textContent = w; wishLink.append(b);
+    }
+  } catch {}
+});
 
 // Start routing immediately so first paint is never blocked on the API.
 // Auth/config/cart/wishlist hydrate in the background in parallel.

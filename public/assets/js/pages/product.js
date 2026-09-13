@@ -1,7 +1,7 @@
 import { h, money, toast, emptyState, errorState, productImage, resolveImageUrl, imgFallback, modal } from '../ui.js';
 import { api } from '../api.js';
 import { Store } from '../store.js';
-import { ProductCard, refreshCart } from '../components.js';
+import { ProductCard, refreshCart, showCartDrawer } from '../components.js';
 
 export async function Product({ params }) {
   const root = h('div', { class: 'container section' });
@@ -198,21 +198,35 @@ export async function Product({ params }) {
       if (product.sizes?.length && !selSize) { toast('Please select a size', 'warning'); return; }
       const variant = selColor && selSize ? { color: selColor, size: selSize } : null;
       const q = Math.max(1, Math.min(10, Number(qtyInput.value) || 1));
+      const imageSrc = (product.images && product.images[0]) || null;
+      // Buy Now → go straight to checkout (proceed section) as requested
+      if (buyNow) {
+        if (!Store.isAuthed()) {
+          Store.addGuestItem({ productId: product.id, name: product.name, price: product.price, mrp: product.mrp, slug: product.slug, image: imageSrc || productImage(product), module: 'shop', quantity: q, variant, isCustom: false });
+          toast('Added to bag — sign in to checkout', 'success');
+          location.hash = '#/cart';
+          return;
+        }
+        try {
+          await api.post('/cart/items?module=shop', { productId: product.id, quantity: q, variant });
+          await refreshCart();
+          toast('Proceeding to checkout', 'success');
+          location.hash = '#/checkout?module=shop';
+        } catch (e) { toast(e.message, 'error'); }
+        return;
+      }
+      // Add to Bag → show popup drawer with cart preview (no redirect)
       if (!Store.isAuthed()) {
-        Store.addGuestItem({
-          productId: product.id, name: product.name, price: product.price, mrp: product.mrp, slug: product.slug,
-          image: (product.images && product.images[0]) || productImage(product), module: 'shop', quantity: q,
-          variant, isCustom: false
-        });
+        Store.addGuestItem({ productId: product.id, name: product.name, price: product.price, mrp: product.mrp, slug: product.slug, image: imageSrc || productImage(product), module: 'shop', quantity: q, variant, isCustom: false });
         toast('Added to bag', 'success');
-        if (buyNow) location.hash = '#/cart';
+        try { showCartDrawer({ addedProduct: { name: product.name, price: product.price, image: imageSrc, variant } }); } catch {}
         return;
       }
       try {
         await api.post('/cart/items?module=shop', { productId: product.id, quantity: q, variant });
         await refreshCart();
         toast('Added to bag', 'success');
-        if (buyNow) location.hash = '#/cart';
+        try { showCartDrawer({ addedProduct: { name: product.name, price: product.price, image: imageSrc, variant } }); } catch {}
       } catch (e) { toast(e.message, 'error'); }
     }
 

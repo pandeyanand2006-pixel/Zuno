@@ -41,6 +41,17 @@ ul { margin: 0; padding: 0; list-style: none; }
 .skip-link:focus { left: 12px; top: 12px; }
 
 .muted { color: var(--ink-500); }
+/* High-contrast overrides for cards that are light on dark page */
+.card .muted, .tee-card .muted, [style*="background: #fff"] .muted, [style*="background:#fff"] .muted,
+[style*="background: rgb(245"] .muted, .sidebar .muted { color: #64748b !important; }
+.card h1, .card h2, .card h3, .card h4, .tee-card h1, .tee-card h2, .tee-card h3, .tee-card h4 { color: #0f172a !important; }
+.card .price, .tee-card .price { color: #0f172a !important; }
+/* Ensure inputs inside white cards are visible */
+.card .input, .card .select, .card .textarea, .tee-card .input, .tee-card .select, .tee-card .textarea { color: #0f172a !important; background: #fff !important; border-color: #cbd5e1 !important; }
+.card .input::placeholder, .tee-card .input::placeholder { color: #94a3b8 !important; }
+/* Toast text always high contrast */
+.toast { color: #0f172a; }
+.toast .muted { color: #64748b !important; }
 .center { text-align: center; }
 .container { max-width: var(--maxw); margin: 0 auto; padding: 0 var(--sp-5); }
 .container-narrow { max-width: var(--maxw-narrow); margin: 0 auto; padding: 0 var(--sp-5); }

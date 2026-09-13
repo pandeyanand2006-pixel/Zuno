@@ -120,12 +120,24 @@
 .admin-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 @media (max-width: 640px) { .admin-form-grid { grid-template-columns: 1fr; } }
 
-/* Ensure admin content text is always visible on light background */
-.admin-content { background: #f8fafc; color: #0f172a; }
-.admin-card, .admin-stat, .admin-table, .admin-table td, .admin-table th { color: #0f172a; }
-.admin-table th { background: #f1f5f9; color: #334155; }
-.admin-table td { background: #fff; }
-.admin-card__title, .admin-stat__value, .admin-stat__label { color: #0f172a; }
-.admin-badge { color: #0f172a; }
-.admin-badge-pending, .admin-badge-low { color: #92400e; }
-.admin-badge-paid, .admin-badge-confirmed, .admin-badge-shipped, .admin-badge-delivered { color: #0f172a; }
+/* Ensure admin content text is always visible on light background — isolated from dark tokens */
+.admin-content { background: #f8fafc; color: #0f172a !important; }
+.admin-content h1, .admin-content h2, .admin-content h3, .admin-content h4, .admin-content h5 { color: #0f172a !important; }
+.admin-content .muted { color: #64748b !important; }
+.admin-card, .admin-stat { color: #0f172a; }
+.admin-table th { background: #f1f5f9; color: #334155 !important; }
+.admin-table td { background: #fff; color: #0f172a !important; }
+.admin-card__title { color: #0f172a !important; }
+.admin-stat__value { color: #0f172a !important; }
+.admin-stat__label { color: #64748b !important; }
+.admin-stat__sub { color: #94a3b8 !important; }
+/* Badge semantic colors must not be overridden generically */
+.admin-badge-pending { background: #fef3c7; color: #92400e !important; }
+.admin-badge-low { background: #fef3c7; color: #92400e !important; }
+.admin-badge-paid { background: #dbeafe; color: #1e40af !important; }
+.admin-badge-confirmed { background: #e0e7ff; color: #3730a3 !important; }
+.admin-badge-processing { background: #fce7f3; color: #9d174d !important; }
+.admin-badge-shipped { background: #e0f2fe; color: #0c4a6e !important; }
+.admin-badge-delivered { background: #dcfce7; color: #166534 !important; }
+.admin-badge-cancelled { background: #fee2e2; color: #991b1b !important; }
+.admin-badge-out { background: #fee2e2; color: #991b1b !important; }

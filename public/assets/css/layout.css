@@ -585,3 +585,24 @@ html, body { overflow-x: hidden; max-width: 100vw; }
 @media (max-width: 640px){
   #toast-root{ top:68px !important; }
 }
+
+/* ── Tablet dedicated polish 641–1024 — ensure no overflow, 3-col grid fits ── */
+@media (min-width: 641px) and (max-width: 1024px) {
+  .container, .container-narrow { padding: 0 20px !important; }
+  .grid-products { grid-template-columns: repeat(3, 1fr) !important; gap: 16px !important; }
+  .custom-layout { grid-template-columns: 1fr 1fr !important; }
+  .custom-right { grid-column: auto !important; }
+  .pdp { grid-template-columns: 1fr 1fr; gap: 20px; }
+  .trust-grid { grid-template-columns: repeat(4, 1fr) !important; }
+  section.hero { height: auto !important; min-height: 560px; padding: 48px 32px !important; }
+  .hero-art { height: 420px !important; }
+  .split { gap: 20px; }
+  .shop-sidebar { display: block !important; }
+}
+@media (min-width: 900px) and (max-width: 1024px) {
+  .admin-cards { grid-template-columns: repeat(3, 1fr) !important; }
+}
+/* Ensure all flex/grid don't overflow on any breakpoint */
+* { min-width: 0; }
+img { max-width: 100%; }
+button, a { -webkit-tap-highlight-color: transparent; }
