@@ -57,8 +57,8 @@ function getTransporter() {
 }
 
 // Force-fresh transporter for critical OTPs (avoids pooled socket stale on Render free tier)
-function getFreshTransporter() {
-  const port = Number(env.smtp.port) || 587;
+function getFreshTransporter(overridePort) {
+  const port = Number(overridePort ?? env.smtp.port) || 587;
   const is465 = port === 465;
   return nodemailer.createTransport({
     host: env.smtp.host || 'smtp.gmail.com',
@@ -73,6 +73,23 @@ function getFreshTransporter() {
     auth: env.smtp.user && env.smtp.pass ? { user: env.smtp.user, pass: env.smtp.pass } : undefined,
     tls: { rejectUnauthorized: true, minVersion: 'TLSv1.2' },
   });
+}
+// Try SMTP on 465 if 587 is blocked (Render free ENETUNREACH)
+async function trySmtpWithFallback(mailOpts) {
+  const primaryPort = Number(env.smtp.port) || 587;
+  const fallbackPort = primaryPort === 587 ? 465 : 587;
+  try {
+    const t = primaryPort === 465 ? getFreshTransporter(465) : getTransporter();
+    return await t.sendMail(mailOpts);
+  } catch (e) {
+    const isNet = String(e.message).includes('ENETUNREACH') || String(e.message).includes('ETIMEDOUT') || String(e.message).includes('ECONNREFUSED') || String(e.message).includes('timeout');
+    if (isNet && primaryPort === 587) {
+      logger.warn(`[email] SMTP ${primaryPort} blocked (ENETUNREACH) — trying fallback port ${fallbackPort}`);
+      const alt = getFreshTransporter(fallbackPort);
+      return await alt.sendMail(mailOpts);
+    }
+    throw e;
+  }
 }
 
 function getFrontendUrl() {
@@ -274,13 +291,12 @@ export async function sendPasswordResetOtpEmail({ to, otp, expiresMinutes = 10, 
       // Still return success to keep flow, but log clearly that email is mocked
       return { mocked: true, otp };
     }
-    logger.info(`[email] Sending user OTP to ${to} — expires ${expiresMinutes}m via ${env.smtp.host}:${env.smtp.port}`);
+    logger.info(`[email] Sending user OTP to ${to} — expires ${expiresMinutes}m via ${env.smtp.host}:${env.smtp.port} (will fallback 587↔465 if blocked)`);
     const mailOpts = { from, to, subject: 'Your Password Reset OTP — ZUNO', text, html, priority: 'high', headers: { 'X-Mailer': 'ZUNO User OTP', 'X-Priority': '1', 'Importance': 'high' }, envelope: { from: env.smtp.user, to } };
-    // Try pooled first, then fresh connection fallback (Render free tier fix)
+    // Try pooled first, then fresh connection fallback (Render free tier fix) + HTTPS fallback
     const isNoSuchUser = (err) => String(err.message||'').includes('550') && String(err.message||'').includes('5.1.1');
     try {
-      const t = getTransporter();
-      const info = await t.sendMail(mailOpts);
+      const info = await trySmtpWithFallback(mailOpts);
       logger.info(`User OTP sent to ${to} (${info.messageId}) — accepted: ${(info.accepted||[]).join(',')} rejected: ${(info.rejected||[]).join(',')}`);
       if (info.rejected && info.rejected.length) {
         logger.error(`[email] User OTP rejected by Gmail: ${info.rejected.join(',')} — recipient does not exist or blocked`);
