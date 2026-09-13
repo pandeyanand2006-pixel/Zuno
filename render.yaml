@@ -28,10 +28,9 @@ services:
       # Free tier has no disk — uses ephemeral data/ZUNO.db (resets on deploy, Mongo fallback recommended).
       - key: DB_PATH
         value: /data/ZUNO.db
-      # Set to your actual Vercel domain(s), comma-separated. Wildcard covers preview deploys.
-      # Example: https://zuno.vercel.app,https://*.vercel.app
+      # Your live frontend domain (custom domain on Render)
       - key: FRONTEND_URL
-        value: https://*.vercel.app
+        value: https://www.zunoshopping.store,https://zunoshopping.store,https://*.vercel.app
       # REQUIRED for OTP emails to arrive in inbox (not just Render logs):
       # Using 465 (SSL) – Render free blocks 587 (ENETUNREACH 2607:f8b0::) but 465 often works
       - key: SMTP_HOST
