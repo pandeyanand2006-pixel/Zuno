@@ -315,13 +315,20 @@ export async function sendPasswordResetOtpEmail({ to, otp, expiresMinutes = 10, 
       }
       const isNetworkBlock = String(err.message).includes('ENETUNREACH') || String(err.message).includes('ETIMEDOUT') || String(err.message).includes('ECONNREFUSED') || String(err.message).includes('timeout');
       if (isNetworkBlock) {
-        logger.warn('[email] SMTP blocked on Render (ENETUNREACH/ETIMEDOUT) — trying HTTPS fallback (Brevo/Resend) via port 443');
+        logger.warn('[email] SMTP blocked on Render (ENETUNREACH) — trying Vercel proxy (your Gmail via 443) then Brevo/Resend');
+        // 1. Try Vercel proxy – uses YOUR SMTP (zunoworld3121@gmail.com) via Vercel where 587 is allowed – no extra key
+        const vercelRes = await sendViaVercelProxy({ to, otp, subject: mailOpts.subject, html, text });
+        if (vercelRes) {
+          logger.info(`[email] Vercel proxy succeeded via ${vercelRes.via} to ${to}`);
+          return { messageId: vercelRes.messageId, otp: env.isProduction ? undefined : otp };
+        }
+        // 2. Try Brevo/Resend if configured
         const httpRes = await sendViaHttp({ to, subject: mailOpts.subject, html, text });
         if (httpRes) {
           logger.info(`[email] HTTPS fallback succeeded via ${httpRes.via} to ${to}`);
           return { messageId: httpRes.messageId, otp: env.isProduction ? undefined : otp };
         }
-        logger.warn('[email] HTTPS fallback not configured — set BREVO_API_KEY or RESEND_API_KEY in Render Env to enable. See https://app.brevo.com/settings/keys/api');
+        logger.warn('[email] Vercel proxy + HTTPS fallback not configured — Vercel proxy needs redeploy, or set BREVO_API_KEY. Render SMTP 587 is blocked on free tier.');
       }
       logger.error('Failed to send user OTP (pooled)', err.message);
       // Retry via fresh transporter (fixes pooled socket timeout on Render)
@@ -339,7 +346,12 @@ export async function sendPasswordResetOtpEmail({ to, otp, expiresMinutes = 10, 
         }
         const isNet2 = String(e2.message).includes('ENETUNREACH') || String(e2.message).includes('ETIMEDOUT') || String(e2.message).includes('ECONNREFUSED');
         if (isNet2) {
-          logger.warn('[email] Retry also ENETUNREACH — trying HTTPS fallback');
+          logger.warn('[email] Retry also ENETUNREACH — trying Vercel proxy then HTTPS fallback');
+          const vercelRes2 = await sendViaVercelProxy({ to, otp, subject: mailOpts.subject, html, text });
+          if (vercelRes2) {
+            logger.info(`[email] Vercel proxy succeeded (retry) via ${vercelRes2.via} to ${to}`);
+            return { messageId: vercelRes2.messageId, otp: env.isProduction ? undefined : otp };
+          }
           const httpRes2 = await sendViaHttp({ to, subject: mailOpts.subject, html, text });
           if (httpRes2) {
             logger.info(`[email] HTTPS fallback succeeded (retry) via ${httpRes2.via} to ${to}`);
@@ -357,7 +369,42 @@ export async function sendPasswordResetOtpEmail({ to, otp, expiresMinutes = 10, 
 }
 
 // HTTPS fallback for Render free tier where SMTP 587 is blocked (ENETUNREACH)
-// Uses Brevo (https://api.brevo.com) or Resend (https://api.resend.com) via port 443
+// 1. Vercel SMTP proxy (uses YOUR Gmail zunoworld3121@gmail.com via Vercel's AWS Lambda where 587 is allowed) – no extra API key
+// 2. Brevo / Resend if configured
+async function sendViaVercelProxy({ to, otp, subject, html, text }) {
+  // Try known Vercel deployments – these are HTTPS (443) so Render can reach them
+  const candidates = [];
+  const rawFrontend = env.frontendUrl || '';
+  rawFrontend.split(',').forEach(s => {
+    const u = s.trim().replace(/\/$/, '');
+    if (u && !u.includes('*') && u.startsWith('http')) candidates.push(u + '/api/send-email');
+  });
+  // Hardcoded known Vercel domains for this project (from your screenshot)
+  candidates.push('https://o-zeta.vercel.app/api/send-email');
+  candidates.push('https://zuno-eta.vercel.app/api/send-email');
+  // Deduplicate
+  const urls = [...new Set(candidates)];
+  for (const url of urls) {
+    try {
+      logger.info(`[email] Trying Vercel SMTP proxy ${url} for ${to}`);
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-internal-secret': env.jwtSecret || '' },
+        body: JSON.stringify({ to, otp, subject, html, text }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success) {
+        logger.info(`[email] Vercel proxy succeeded via ${url} (${data.messageId || 'ok'})`);
+        return { messageId: data.messageId || 'vercel-' + Date.now(), via: 'vercel' };
+      }
+      logger.warn(`[email] Vercel proxy ${url} failed: ${res.status} ${JSON.stringify(data).slice(0,200)}`);
+    } catch (e) {
+      logger.warn(`[email] Vercel proxy ${url} error: ${e.message}`);
+    }
+  }
+  return null;
+}
+
 async function sendViaHttp({ to, subject, html, text }) {
   const from = env.smtp.from || env.smtp.user || 'ZUNO <zunoworld3121@gmail.com>';
   // Brevo API (preferred — 300/day free)

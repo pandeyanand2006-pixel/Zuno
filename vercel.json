@@ -1,5 +1,6 @@
 {
   "rewrites": [
+    { "source": "/api/send-email", "destination": "/api/send-email" },
     { "source": "/api/:path*", "destination": "https://zuno-ydl3.onrender.com/api/:path*" },
     { "source": "/uploads/:path*", "destination": "https://zuno-ydl3.onrender.com/uploads/:path*" },
     { "source": "/assets/:path*", "destination": "/public/assets/:path*" },
