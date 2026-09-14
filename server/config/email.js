@@ -96,16 +96,16 @@ export async function initializeEmailService() {
       auth: { user: env.smtp.user, pass: env.smtp.pass },
     };
     transporter = nodemailer.createTransport(cfg);
-    try {
-      await transporter.verify();
+    // Verify in background — don't block boot (Render free tier blocks SMTP, verify will timeout 12s)
+    transporter.verify().then(() => {
       logger.info(`Email service ready — ${env.smtp.host}:${env.smtp.port} as ${env.smtp.user.slice(0, 3)}***`);
-    } catch (err) {
-      logger.warn('[email] SMTP verify failed: ' + err.message);
+    }).catch(err => {
+      logger.warn('[email] SMTP verify failed: ' + err.message + ' — will use fallback (Vercel/Brevo) at send time');
       if (String(err.message).includes('535') || String(err.message).includes('Authentication')) {
         logger.error('[email] SMTP auth failed — verify SMTP_USER and SMTP_PASS (Gmail App Password, 16 chars, no spaces)');
       }
-      // Don't throw — allow boot, but mark as not verified; sendEmail will retry/fallback
-    }
+    });
+    logger.info('[email] Email service initialized — transporter created, verifying in background');
     initialized = true;
     return transporter;
   })();
