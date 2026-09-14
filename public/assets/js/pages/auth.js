@@ -323,6 +323,19 @@ export function ForgotPassword() {
   const msg = h('div', { style:{fontSize:'13px', minHeight:'18px', marginTop:'8px', textAlign:'center'} });
   const btn = h('button', { class:'btn btn-primary btn-block btn-lg', type:'button' }, 'Send OTP');
   const preview = h('div', { style:{display:'none', marginTop:'12px', padding:'12px', background:'#f0fdf4', border:'1px solid #bbf7d0', borderRadius:'10px', fontSize:'12px', textAlign:'center'} });
+  // Inline OTP entry — shown immediately after Send OTP so user knows where to add OTP
+  const otpF = field({ label:'Enter 6-digit OTP', name:'otp', placeholder:'6-digit code', inputmode:'numeric' });
+  otpF.input.maxLength=6; otpF.input.style.letterSpacing='0.3em'; otpF.input.style.textAlign='center'; otpF.input.style.fontWeight='700'; otpF.input.style.fontSize='18px';
+  const otpMsg = h('div', { style:{fontSize:'13px', minHeight:'18px', marginTop:'8px', textAlign:'center'} });
+  const verifyBtn = h('button', { class:'btn btn-primary btn-block btn-lg', type:'button', style:{display:'none', marginTop:'8px'} }, 'Verify OTP & Continue');
+  const goVerifyLink = h('a', { href:'#', style:{display:'none', fontSize:'13px', color:'var(--primary)', fontWeight:'600', textAlign:'center', marginTop:'8px'} }, 'Go to full verify page →');
+  goVerifyLink.onclick = (e)=>{ e.preventDefault(); const em=emailF.input.value.trim(); if(em) location.hash='#/verify-otp?email='+encodeURIComponent(em); else location.hash='#/verify-otp'; };
+  const otpWrap = h('div', { style:{display:'none', marginTop:'16px', padding:'16px', background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:'12px'} },
+    h('div', { style:{textAlign:'center', marginBottom:'8px'}}, h('div',{style:{fontSize:'20px'}},'✉️'), h('div',{style:{fontWeight:'700', color:'#0f172a'}},'Enter OTP'), h('div',{class:'muted text-xs'},'Check email (and Spam) — expires in 10 minutes')),
+    otpF.wrap, otpMsg, verifyBtn, goVerifyLink
+  );
+  // Also allow direct navigation to full page
+  const fullPageLink = h('div', { style:{textAlign:'center', marginTop:'12px'}}, h('a', { href:'#', style:{fontSize:'12px', color:'#64748b'}, onclick:(e)=>{ e.preventDefault(); const em=emailF.input.value.trim(); if(em) location.hash='#/verify-otp?email='+encodeURIComponent(em); else location.hash='#/verify-otp'; }}, 'Having trouble? Open full OTP page'));
   let cooldown = 0; let timer = null;
   function startCooldown(sec=60){
     cooldown = sec;
@@ -334,9 +347,16 @@ export function ForgotPassword() {
     };
     tick();
   }
+  function showOtpStep(email){
+    otpWrap.style.display='block';
+    verifyBtn.style.display='block';
+    goVerifyLink.style.display='block';
+    emailF.input.readOnly = false; // keep editable but show where to add
+    setTimeout(()=> otpF.input.focus(), 150);
+  }
   btn.onclick = async () => {
-    if (cooldown > 0) return;
-    emailF.err.classList.add('hide'); msg.textContent=''; preview.style.display='none';
+    if (cooldown > 0) { showOtpStep(emailF.input.value.trim()); return; }
+    emailF.err.classList.add('hide'); msg.textContent=''; preview.style.display='none'; otpMsg.textContent='';
     const email = emailF.input.value.trim();
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { emailF.err.textContent='Enter a valid email'; emailF.err.classList.remove('hide'); return; }
     btn.disabled=true; btn.textContent='Sending…';
@@ -347,13 +367,16 @@ export function ForgotPassword() {
       toast('OTP sent — check email (and Spam / Promotions folder)','success');
       if (data && data.devOtp) { preview.style.display='block'; preview.textContent='Dev OTP: '+data.devOtp+' (expires 10m)'; }
       startCooldown(60);
-      setTimeout(()=> location.hash = '#/verify-otp?email='+encodeURIComponent(email), 900);
+      showOtpStep(email);
+      // Also keep auto-redirect as fallback after 1.5s but inline is now primary
+      setTimeout(()=> { if (otpWrap.style.display==='block') msg.textContent += ' — Enter OTP below or Go to full verify page'; }, 500);
     } catch(e){
       const m=friendlyError(e);
       if (e.code === 'COOLDOWN' || m.includes('wait 60')) {
         msg.textContent='Please wait 60 seconds before requesting another OTP'; msg.style.color='#f59e0b';
         toast('Please wait before resending','warning');
         startCooldown(60);
+        showOtpStep(email);
       } else if (e.code === 'NETWORK_ERROR' || m.includes('Network error')) {
         msg.textContent='Network error — please wait 10s and retry. If on Render free tier, server may be waking.'; msg.style.color='#dc2626';
         toast('Network error — retry in 10s','error');
@@ -363,11 +386,36 @@ export function ForgotPassword() {
       if (cooldown <= 0) { btn.disabled=false; btn.textContent='Send OTP'; }
     }
   };
+  verifyBtn.onclick = async ()=>{
+    otpF.err.classList.add('hide'); otpMsg.textContent='';
+    const email = emailF.input.value.trim();
+    const otp = otpF.input.value.trim();
+    if (!email) { emailF.err.textContent='Enter email'; emailF.err.classList.remove('hide'); return; }
+    if (!/^\d{6}$/.test(otp)){ otpF.err.textContent='Enter 6-digit OTP'; otpF.err.classList.remove('hide'); return; }
+    verifyBtn.disabled=true; verifyBtn.textContent='Verifying…';
+    try{
+      const data = await api.post('/auth/verify-otp', { email, otp }, {auth:false});
+      toast('OTP verified — continue to set new password','success');
+      const token=data && data.token;
+      if(token){
+        // Directly go to reset page with token, but also offer inline next step
+        location.hash='#/verify-otp?email='+encodeURIComponent(email); // keep email for next page's inline reset
+        // Store token in session for reset page or navigate
+        sessionStorage.setItem('zuno_reset_token', token);
+        location.hash='#/reset-password?token='+encodeURIComponent(token);
+      }
+    }catch(e){
+      const m=friendlyError(e); otpMsg.textContent=m; otpMsg.style.color='#dc2626'; toast(m,'error');
+      if (m.includes('expired')) otpMsg.textContent='OTP expired — tap Send OTP to get new code';
+    }
+    verifyBtn.disabled=false; verifyBtn.textContent='Verify OTP & Continue';
+  };
+  otpF.input.addEventListener('keydown', e=>{ if(e.key==='Enter') verifyBtn.click(); });
   card.append(
     h('div', { class:'center', style:{marginBottom:'20px'} }, h('div', { class:'brand', style:{justifyContent:'center', fontFamily:'var(--font-display)', letterSpacing:'0.12em'} }, 'ZUNO')),
     h('h2', { class:'center', style:{fontFamily:'var(--font-display)'} }, 'Forgot your password?'),
     h('p', { class:'center muted text-sm', style:{marginBottom:'16px'} }, "Enter your email and we'll send you a 6-digit OTP to reset your password."),
-    emailF.wrap, msg, btn, preview,
+    emailF.wrap, msg, btn, preview, otpWrap, fullPageLink,
     h('p', { class:'center muted text-sm', style:{marginTop:'16px'} }, h('a', { href:'#/login' }, '← Back to Login'))
   );
   root.append(card);
