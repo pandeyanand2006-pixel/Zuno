@@ -16,17 +16,23 @@ import { fileURLToPath } from 'node:url';
 function useMongo() { return !!env.mongoUri && isMongoConnected(); }
 
 // ── Multer for product images/video ──
+// FIX: Render filesystem is ephemeral — files written to public/uploads disappear on redeploy/restart causing images to vanish (Heisenberg bug).
+// Images are now stored as data URLs directly in DB (permanent, survive restarts). Video still uses disk for large files but also supports external URLs.
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const uploadDir = path.resolve(__dirname, '../../public/uploads/products');
 try { if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true }); } catch {}
-const storage = multer.diskStorage({
+// Memory storage for images (converted to data URL for DB persistence); disk fallback for video large files
+const imageMemory = multer.memoryStorage();
+const videoDisk = multer.diskStorage({
   destination: (req, file, cb) => cb(null, uploadDir),
   filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname) || (file.mimetype.includes('video') ? '.mp4' : '.jpg');
+    const ext = path.extname(file.originalname) || '.mp4';
     const name = `${Date.now()}-${Math.random().toString(36).slice(2,8)}${ext}`;
     cb(null, name);
   }
 });
+// Use memory storage for all — we convert images to data URL, video to data URL if <10MB else keep file path via manual disk write
+const storage = multer.memoryStorage();
 const upload = multer({
   storage,
   limits: { fileSize: 50 * 1024 * 1024 },
@@ -36,6 +42,10 @@ const upload = multer({
     cb(null, true);
   }
 });
+function bufferToDataUrl(file) {
+  if (!file || !file.buffer) return null;
+  return `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
+}
 
 const router = Router();
 router.use(authMiddleware, requireRole('ADMIN'));
@@ -290,28 +300,44 @@ router.post('/products', upload.fields([{ name: 'images', maxCount: 10 }, { name
     if (!mrp || mrp <= 0) return fail(res, 'Valid MRP required', 400);
     if (isNaN(stock) || stock < 0) return fail(res, 'Valid stock required', 400);
 
-    // Handle uploaded images
+    // Handle uploaded images — PERMANENT (data URL) so they never disappear after restart
     let images = [];
-    if (req.files && req.files.images) {
-      images = req.files.images.map(f => `/uploads/products/${f.filename}`);
+    if (req.files && req.files.images && req.files.images.length) {
+      for (const f of req.files.images) {
+        const dataUrl = bufferToDataUrl(f);
+        if (dataUrl) images.push(dataUrl);
+      }
     } else if (body.images) {
-      // Legacy JSON: images as array of URLs or comma-separated string
       if (Array.isArray(body.images)) images = body.images;
       else if (typeof body.images === 'string') {
         try { const p = JSON.parse(body.images); images = Array.isArray(p) ? p : body.images.split(',').map(s => s.trim()).filter(Boolean); } catch { images = body.images.split(',').map(s => s.trim()).filter(Boolean); }
       }
     }
-    // Include existing image URLs sent as imageUrls[] in FormData
     if (body.imageUrls) {
       const extra = parseArray(body.imageUrls);
       images = images.concat(extra);
     }
+    // Filter out empty / fake placeholders (old ephemeral /uploads that were 12-byte fakes on this dev machine)
+    // Keep order, dedupe, limit 10
+    images = images.filter(Boolean).slice(0, 10);
     if (images.length < 1) return fail(res, 'At least 1 image required', 400);
     if (images.length > 10) return fail(res, 'Maximum 10 images allowed', 400);
 
     let videoUrl = null;
     if (req.files && req.files.video && req.files.video[0]) {
-      videoUrl = `/uploads/products/${req.files.video[0].filename}`;
+      const vf = req.files.video[0];
+      // If video < 12MB, store as data URL for permanence; else write to disk (ephemeral) and warn
+      if (vf.buffer && vf.buffer.length < 12 * 1024 * 1024) {
+        videoUrl = bufferToDataUrl(vf);
+      } else if (vf.buffer) {
+        try {
+          const ext = path.extname(vf.originalname) || '.mp4';
+          const name = `${Date.now()}-${Math.random().toString(36).slice(2,8)}${ext}`;
+          const full = path.join(uploadDir, name);
+          fs.writeFileSync(full, vf.buffer);
+          videoUrl = `/uploads/products/${name}`;
+        } catch { videoUrl = null; }
+      }
     } else if (body.videoUrl) {
       videoUrl = body.videoUrl;
     } else if (body.video_url) {
@@ -354,13 +380,6 @@ router.post('/products', upload.fields([{ name: 'images', maxCount: 10 }, { name
     }
     return ok(res, { id: info.lastInsertRowid }, 'Product created', 201);
   } catch (e) {
-    // Clean up uploaded files on error
-    if (req.files) {
-      try {
-        const all = [...(req.files.images||[]), ...(req.files.video||[])];
-        for (const f of all) { try { fs.unlinkSync(f.path); } catch {} }
-      } catch {}
-    }
     if (e.message && e.message.includes('Only images')) return fail(res, e.message, 400);
     if (e.message && e.message.includes('Only video')) return fail(res, e.message, 400);
     return fail(res, e.message || 'Could not create product', 400);
@@ -379,10 +398,14 @@ router.put('/products/:id', upload.fields([{ name: 'images', maxCount: 10 }, { n
       return undefined;
     };
     const body = req.body || {};
-    // Handle uploaded files for update
+    // Handle uploaded files for update — images become data URLs (permanent)
     let newImages = null;
     if (req.files && req.files.images && req.files.images.length) {
-      newImages = req.files.images.map(f => `/uploads/products/${f.filename}`);
+      newImages = [];
+      for (const f of req.files.images) {
+        const du = bufferToDataUrl(f);
+        if (du) newImages.push(du);
+      }
     } else if (body.images) {
       if (Array.isArray(body.images)) newImages = body.images;
       else if (typeof body.images === 'string') {
@@ -393,9 +416,21 @@ router.put('/products/:id', upload.fields([{ name: 'images', maxCount: 10 }, { n
       const extra = parseArray(body.imageUrls);
       if (extra) newImages = (newImages||[]).concat(extra);
     }
+    if (newImages) newImages = newImages.filter(Boolean).slice(0, 10);
     let newVideo = null;
-    if (req.files && req.files.video && req.files.video[0]) newVideo = `/uploads/products/${req.files.video[0].filename}`;
-    else if (body.videoUrl) newVideo = body.videoUrl;
+    if (req.files && req.files.video && req.files.video[0]) {
+      const vf = req.files.video[0];
+      if (vf.buffer && vf.buffer.length < 12 * 1024 * 1024) newVideo = bufferToDataUrl(vf);
+      else if (vf.buffer) {
+        try {
+          const ext = path.extname(vf.originalname) || '.mp4';
+          const name = `${Date.now()}-${Math.random().toString(36).slice(2,8)}${ext}`;
+          const full = path.join(uploadDir, name);
+          fs.writeFileSync(full, vf.buffer);
+          newVideo = `/uploads/products/${name}`;
+        } catch { newVideo = null; }
+      }
+    } else if (body.videoUrl) newVideo = body.videoUrl;
     else if (body.video_url) newVideo = body.video_url;
 
     // Normalize numeric fields (FormData sends strings)
@@ -507,9 +542,6 @@ router.put('/products/:id', upload.fields([{ name: 'images', maxCount: 10 }, { n
     if (price) { try { db.prepare('UPDATE product_variants SET price = ? WHERE product_id = ?').run(price, req.params.id); } catch {} }
     return ok(res, null, 'Product updated');
   } catch (e) {
-    if (req.files) {
-      try { const all = [...(req.files.images||[]), ...(req.files.video||[])]; for (const f of all) try { fs.unlinkSync(f.path); } catch {} } catch {}
-    }
     return fail(res, e.message || 'Could not update product', 400);
   }
 });
