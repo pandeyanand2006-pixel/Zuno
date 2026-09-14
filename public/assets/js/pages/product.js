@@ -335,6 +335,9 @@ export async function Product({ params }) {
 
     // ── Premium info panel ──
     const youSave = saveAmt ? h('span',{style:{background:'#dcfce7', color:'#166534', fontSize:'11px', fontWeight:'800', padding:'4px 8px', borderRadius:'999px'}}, `You save ${money(saveAmt)}`) : null;
+    // Live rating refs — updated instantly when user rates, stable on refresh
+    const topRatingBadge = h('span', { style:{display:'inline-flex', gap:'4px', alignItems:'center', background:'#fff7ed', border:'1px solid #fed7aa', color:'#9a3412', fontSize:'12px', fontWeight:'700', padding:'4px 10px', borderRadius:'999px'} }, `★ ${product.rating || '4.5'}`);
+    const topCountText = h('span', { style:{fontSize:'12px', color:'#64748b'} }, `· ${product.ratingCount || 0} ratings`);
 
     const info = h('div', { style:{display:'flex', flexDirection:'column', gap:'0', minWidth:'0', background:'#ffffff', border:'1px solid #e2e8f0', borderRadius:'16px', padding:'18px', boxShadow:'0 8px 24px rgba(15,23,42,0.08)'}},
       h('div', { style:{display:'inline-flex', alignItems:'center', gap:'8px'} },
@@ -343,8 +346,8 @@ export async function Product({ params }) {
       ),
       h('h1', { style: { fontFamily: 'var(--font-display)', letterSpacing: '-0.03em', margin: '10px 0 6px', lineHeight:'1.05', fontSize:'clamp(22px,3.2vw,32px)', color:'#0f172a'} }, product.name),
       h('div', { style:{display:'flex', gap:'10px', alignItems:'center', flexWrap:'wrap'} },
-        h('span', { style:{display:'inline-flex', gap:'4px', alignItems:'center', background:'#fff7ed', border:'1px solid #fed7aa', color:'#9a3412', fontSize:'12px', fontWeight:'700', padding:'4px 10px', borderRadius:'999px'} }, `★ ${product.rating || '4.5'}`),
-        h('span', { style:{fontSize:'12px', color:'#64748b'} }, `· ${product.ratingCount || 0} ratings`),
+        topRatingBadge,
+        topCountText,
         h('span', { style:{width:'4px', height:'4px', borderRadius:'50%', background:'#cbd5e1'} }),
         h('span', { style:{fontSize:'12px', color:'#0f172a', fontWeight:'600'} }, (product.fabric || '100% Cotton'))
       ),
@@ -484,8 +487,156 @@ export async function Product({ params }) {
           h('div', { class: 'grid grid-products' }, ...product.related.map(ProductCard)))
       : null;
 
+    // ── Live Rating Section (store + fetch live, no glitch) ──
+    let liveRating = product.rating || 0;
+    let liveCount = product.ratingCount || 0;
+    // large box refs for live update
+    const largeRatingNum = h('div', { style:{fontSize:'32px', fontWeight:'900', lineHeight:'1'} }, String(liveRating || '—'));
+    const largeStars = h('div', { style:{fontSize:'14px', color:'#fbbf24', marginTop:'4px'} }, '★★★★★'.slice(0, Math.round(liveRating)) + '☆☆☆☆☆'.slice(Math.round(liveRating) || 0));
+    const largeCount = h('div', { style:{fontSize:'12px', color:'#cbd5e1', marginTop:'6px'} }, `${liveCount} ratings`);
+
+    function setLiveRating(rating, count) {
+      liveRating = rating; liveCount = count;
+      topRatingBadge.textContent = `★ ${rating}`;
+      topCountText.textContent = `· ${count} ratings`;
+      largeRatingNum.textContent = String(rating || '—');
+      largeStars.textContent = '★★★★★'.slice(0, Math.round(rating)) + '☆☆☆☆☆'.slice(Math.round(rating) || 0);
+      largeCount.textContent = `${count} ratings`;
+      product.rating = rating; product.ratingCount = count;
+    }
+
+    let reviewsData = { reviews: product.reviews || [], distribution: {1:0,2:0,3:0,4:0,5:0}, rating: liveRating, ratingCount: liveCount };
+    try {
+      const pid = product.id || product._id;
+      const d = await api.get('/products/' + pid + '/reviews').catch(async () => await api.get('/reviews/products/' + pid + '/reviews').catch(()=> null));
+      if (d) {
+        reviewsData = d;
+        setLiveRating(d.rating || liveRating, d.ratingCount || d.total || liveCount);
+      } else if (reviewsData.reviews.length) {
+        // fallback from product.reviews already
+      }
+    } catch {}
+
+    const dist = reviewsData.distribution || {1:0,2:0,3:0,4:0,5:0};
+    const maxDist = Math.max(1, ...Object.values(dist));
+    const reviewListWrap = h('div', { style:{display:'flex', flexDirection:'column', gap:'10px', marginTop:'14px'} });
+    function renderReviews() {
+      reviewListWrap.innerHTML = '';
+      const rows = reviewsData.reviews || [];
+      if (!rows.length) {
+        reviewListWrap.append(h('div', { style:{padding:'18px', textAlign:'center', color:'#64748b', background:'#f8fafc', border:'1px dashed #e2e8f0', borderRadius:'12px', fontSize:'13px'} }, 'No reviews yet — be the first to rate!'));
+        return;
+      }
+      rows.slice(0, 8).forEach(rv => {
+        const stars = '★★★★★'.slice(0, Math.round(rv.rating)) + '☆☆☆☆☆'.slice(Math.round(rv.rating));
+        reviewListWrap.append(
+          h('div', { style:{background:'#fff', border:'1px solid #e2e8f0', borderRadius:'12px', padding:'12px'} },
+            h('div', { style:{display:'flex', justifyContent:'space-between', alignItems:'center'} },
+              h('span', { style:{fontWeight:'700', fontSize:'13px', color:'#0f172a'} }, rv.user_name || rv.userName || 'Anonymous'),
+              h('span', { style:{fontSize:'11px', color:'#64748b'} }, rv.created_at ? new Date(rv.created_at).toLocaleDateString('en-IN') : '')
+            ),
+            h('div', { style:{fontSize:'12px', color:'#f59e0b', marginTop:'4px'} }, stars + `  ${rv.rating}/5`, rv.verified ? h('span', { style:{marginLeft:'8px', background:'#f0fdf4', color:'#166534', border:'1px solid #bbf7d0', padding:'2px 6px', borderRadius:'999px', fontSize:'10px'} }, '✓ Verified') : null),
+            rv.title ? h('div', { style:{fontWeight:'600', fontSize:'13px', marginTop:'6px', color:'#0f172a'} }, rv.title) : null,
+            rv.body ? h('div', { style:{fontSize:'13px', color:'#334155', marginTop:'4px', lineHeight:'1.5'} }, rv.body) : null
+          )
+        );
+      });
+      if (rows.length > 8) reviewListWrap.append(h('div', { style:{fontSize:'12px', color:'#64748b', textAlign:'center', marginTop:'4px'} }, `Showing 8 of ${rows.length} reviews`));
+    }
+    renderReviews();
+
+    let selectedRating = 0;
+    const starBtns = [];
+    const starRow = h('div', { style:{display:'flex', gap:'6px'} });
+    for (let i=1;i<=5;i++) {
+      const btn = h('button', { type:'button', style:{fontSize:'28px', background:'none', border:'none', cursor:'pointer', color:'#e2e8f0', padding:'2px 4px', transition:'transform 0.12s, color 0.12s'}, onclick:()=> setStars(i) }, '★');
+      starBtns.push(btn); starRow.append(btn);
+    }
+    function setStars(n) {
+      selectedRating = n;
+      starBtns.forEach((b, idx)=> { b.style.color = idx < n ? '#f59e0b' : '#e2e8f0'; b.style.transform = idx < n ? 'scale(1.08)' : 'scale(1)'; });
+      if (ratingHint) ratingHint.textContent = n ? `${n}/5 — ${['','Poor','Fair','Good','Very Good','Excellent'][n]}` : 'Tap to rate';
+      if (ratingHint) ratingHint.style.color = n ? '#0f172a' : '#64748b';
+    }
+    const ratingHint = h('div', { style:{fontSize:'12px', color:'#64748b', marginTop:'4px', minHeight:'16px'} }, 'Tap to rate');
+    const titleInput = h('input', { placeholder:'Title (optional)', style:{width:'100%', padding:'10px 12px', border:'1px solid #e2e8f0', borderRadius:'10px', fontSize:'13px'} });
+    const bodyInput = h('textarea', { placeholder:'Share your experience… (optional)', style:{width:'100%', minHeight:'80px', padding:'10px 12px', border:'1px solid #e2e8f0', borderRadius:'10px', fontSize:'13px', resize:'vertical'} });
+    const submitMsg = h('div', { style:{fontSize:'12px', minHeight:'16px'} });
+    const submitBtn = h('button', { class:'btn btn-primary', style:{padding:'10px 18px', borderRadius:'10px', background:'#0f172a', borderColor:'#0f172a', fontWeight:'700'}, onclick: async ()=>{
+      if (!selectedRating) { submitMsg.textContent='Please select a rating (1-5)'; submitMsg.style.color='#dc2626'; return; }
+      if (!Store.isAuthed()) { toast('Please sign in to rate', 'warning'); location.hash='#/login'; return; }
+      submitBtn.disabled=true; submitBtn.textContent='Publishing…'; submitMsg.textContent='';
+      try {
+        const pid = product.id || product._id;
+        let res = null;
+        try { res = await api.post('/products/' + pid + '/reviews', { rating: selectedRating, title: titleInput.value.trim() || undefined, body: bodyInput.value.trim() || undefined }); }
+        catch(e){ res = await api.post('/reviews/products/' + pid + '/reviews', { rating: selectedRating, title: titleInput.value.trim() || undefined, body: bodyInput.value.trim() || undefined }); }
+        toast('Rating published — live!', 'success');
+        submitMsg.textContent='✓ Live — thank you!'; submitMsg.style.color='#16a34a';
+        titleInput.value=''; bodyInput.value=''; setStars(0);
+        // refresh live stats without page reload
+        try {
+          const d = await api.get('/products/' + pid + '/reviews').catch(async ()=> await api.get('/reviews/products/' + pid + '/reviews'));
+          if (d) { reviewsData = d; setLiveRating(d.rating || selectedRating, d.ratingCount || d.total || liveCount); Object.assign(dist, d.distribution||dist); renderReviews(); renderDist(); }
+          else { // optimistic
+            const newAvg = liveCount ? ((liveRating*liveCount + selectedRating)/(liveCount+1)) : selectedRating;
+            setLiveRating(Number(newAvg.toFixed(1)), liveCount+1);
+          }
+        } catch {}
+        // clear API cache so other views see live rating instantly
+        try { api.clearCache && api.clearCache(); } catch {}
+      } catch(e){ submitMsg.textContent=e.message||'Failed to publish'; submitMsg.style.color='#dc2626'; toast(e.message,'error'); }
+      submitBtn.disabled=false; submitBtn.textContent='Publish rating';
+    } }, 'Publish rating');
+
+    const distWrap = h('div', { style:{marginTop:'10px'} });
+    function renderDist(){
+      distWrap.innerHTML='';
+      for(let s=5;s>=1;s--){
+        const c = dist[s]||0;
+        const pct = Math.round((c / maxDist)*100);
+        // recalc max live
+        const curMax = Math.max(1, ...Object.values(dist));
+        const w = curMax ? Math.round((c/curMax)*100) : 0;
+        distWrap.append(
+          h('div', { style:{display:'flex', gap:'8px', alignItems:'center', fontSize:'12px'} },
+            h('span', { style:{width:'32px', fontWeight:'700', color:'#334155'} }, s+'★'),
+            h('div', { style:{flex:'1', height:'8px', borderRadius:'999px', background:'#f1f5f9', overflow:'hidden'} }, h('div', { style:{width: w+'%', height:'100%', background:'#f59e0b', borderRadius:'999px'} })),
+            h('span', { style:{width:'28px', color:'#64748b', fontWeight:'600'} }, String(c))
+          )
+        );
+      }
+    }
+    renderDist();
+
+    const ratingSection = h('div', { style:{marginTop:'28px', background:'#fff', border:'1px solid #e2e8f0', borderRadius:'16px', padding:'18px', boxShadow:'0 8px 24px rgba(15,23,42,0.06)'} },
+      h('div', { style:{display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:'10px'} },
+        h('h3', { style:{margin:'0', fontFamily:'var(--font-display)', fontSize:'18px', color:'#0f172a'} }, 'Ratings & Reviews'),
+        h('span', { style:{fontSize:'11px', background:'#f0fdf4', color:'#166534', border:'1px solid #bbf7d0', padding:'5px 10px', borderRadius:'999px', fontWeight:'700'} }, '● Live')
+      ),
+      h('div', { style:{display:'grid', gridTemplateColumns:'180px 1fr', gap:'16px', marginTop:'16px', alignItems:'start'} },
+        h('div', { style:{background:'linear-gradient(135deg,#0f172a,#1e293b)', color:'#fff', borderRadius:'14px', padding:'16px', textAlign:'center'} },
+          largeRatingNum,
+          largeStars,
+          largeCount,
+          h('div', { style:{fontSize:'11px', color:'#93c5fd', marginTop:'4px'} }, 'Live average')
+        ),
+        h('div', {}, distWrap, h('div', { style:{fontSize:'11px', color:'#64748b', marginTop:'8px'} }, 'Tap a star to rate — updates live for everyone'))
+      ),
+      h('div', { style:{height:'1px', background:'#e2e8f0', margin:'18px 0'} }),
+      h('div', { style:{background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:'12px', padding:'14px'} },
+        h('div', { style:{fontSize:'12px', fontWeight:'700', color:'#0f172a'} }, 'Write a review'),
+        h('div', { style:{marginTop:'8px'} }, starRow, ratingHint),
+        h('div', { style:{marginTop:'10px', display:'grid', gap:'8px'} }, titleInput, bodyInput),
+        h('div', { style:{marginTop:'10px', display:'flex', gap:'8px', alignItems:'center'} }, submitBtn, submitMsg),
+        h('div', { style:{fontSize:'11px', color:'#64748b', marginTop:'8px'} }, 'Your rating is stored and visible instantly. Refresh-safe — stored in database.')
+      ),
+      h('div', { style:{marginTop:'16px'} }, h('div', { style:{fontWeight:'700', fontSize:'13px', color:'#0f172a'} }, 'Customer reviews'), reviewListWrap)
+    );
+
     root.append(crumb, h('div', { class: 'pdp', style:{gap:'20px'} }, gallery, info));
     root.append(details);
+    root.append(ratingSection);
     if (related) root.append(related);
     return root;
   } catch (err) {

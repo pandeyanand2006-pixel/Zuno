@@ -101,15 +101,14 @@ async function request(method, path, { body, auth = true, query, timeout } = {})
 
 // Tiny in-memory GET cache for safe, idempotent catalog endpoints only.
 // Never caches auth/cart/wishlist/orders — those must stay real-time.
-// NOTE: /products (list) is NOT cached so admin uploads are live instantly.
-// Only /config, /categories and product suggestions/details are cached briefly.
+// NOTE: /products list AND /products/:slug are NOT cached so admin uploads + live ratings + media are instantly reflected.
+// Only /config, /categories and product suggestions are cached briefly.
 const GET_CACHE = new Map();
 const CACHE_TTL = 15 * 1000;
 function cacheable(path) {
   return path === '/config'
     || path === '/categories'
-    || path === '/products/suggestions'
-    || path.startsWith('/products/');
+    || path === '/products/suggestions';
 }
 function cacheKey(path, query) {
   const qs = query ? new URLSearchParams(Object.entries(query).filter(([, v]) => v !== undefined && v !== '')).toString() : '';

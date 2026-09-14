@@ -173,7 +173,22 @@ export const productService = {
       const product = serializeProduct(p);
       const related = await Product.find({ category_id: p.category_id, _id: { $ne: p._id }, active: true }).limit(8).lean();
       product.related = related.map(r => serializeProduct(r));
-      product.reviews = []; // could populate reviews
+      try {
+        const revRows = await Review.find({ module: 'product', target_id: p._id }).sort({ created_at: -1 }).limit(10).lean();
+        // populate user names
+        const uids = [...new Set(revRows.map(r => String(r.user_id)))];
+        const { User } = await import('../models/index.js');
+        const users = uids.length ? await User.find({ _id: { $in: uids } }).lean() : [];
+        const umap = new Map(users.map(u => [String(u._id), u.name]));
+        product.reviews = revRows.map(r => ({ id: String(r._id), user_id: String(r.user_id), user_name: umap.get(String(r.user_id)) || 'Anonymous', rating: r.rating, title: r.title, body: r.body, verified: !!r.verified, created_at: r.created_at }));
+        if (revRows.length) {
+          const agg = await Review.aggregate([{ $match: { module: 'product', target_id: p._id } }, { $group: { _id: null, avg: { $avg: '$rating' }, count: { $sum: 1 } } }]);
+          if (agg[0]?.count) {
+            product.rating = Number(Number(agg[0].avg).toFixed(1));
+            product.ratingCount = agg[0].count;
+          }
+        }
+      } catch { product.reviews = []; }
       return product;
     }
     const p = db.prepare('SELECT * FROM products WHERE slug = ? AND active = 1').get(slug);

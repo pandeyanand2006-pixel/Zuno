@@ -25,6 +25,7 @@ import sellerRoutes from './routes/seller.routes.js';
 import restaurantAdminRoutes from './routes/restaurant.admin.routes.js';
 import providerAdminRoutes from './routes/provider.admin.routes.js';
 import customDesignRoutes from './routes/customDesign.routes.js';
+import reviewRoutes from './routes/review.routes.js';
 import { webhook as razorpayWebhook } from './controllers/payment.controller.js';
 
 import { errorHandler, notFoundHandler } from './middleware/error.js';
@@ -76,6 +77,9 @@ app.use((req, _res, next) => {
 
 const limiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 300, standardHeaders: true, legacyHeaders: false });
 app.use('/api/', limiter);
+// Live data must not be cached by browsers/CDN — products, reviews, media must stay stable and instant
+app.use('/api/products', (req, res, next) => { res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate'); res.setHeader('Pragma', 'no-cache'); next(); });
+app.use('/api/reviews', (req, res, next) => { res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate'); res.setHeader('Pragma', 'no-cache'); next(); });
 
 app.get('/api/health', (_req, res) => {
   const smtpConfigured = !!(env.smtp.user && env.smtp.pass);
@@ -89,6 +93,9 @@ app.get('/api/debug/smtp', (_req, res) => {
 
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
+// Reviews must be mounted BEFORE productRoutes — otherwise /products/:id/reviews is captured as slug=:id
+app.use('/api/reviews', reviewRoutes);
+app.use('/api', reviewRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/cart', cartRoutes);
