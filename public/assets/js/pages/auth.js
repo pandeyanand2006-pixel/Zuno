@@ -388,6 +388,40 @@ export function VerifyOtp() {
   const msg = h('div', { style:{fontSize:'13px', minHeight:'18px', marginTop:'8px', textAlign:'center'} });
   const btn = h('button', { class:'btn btn-primary btn-block btn-lg', type:'button' }, 'Verify OTP');
   const resend = h('button', { class:'btn btn-outline btn-block', type:'button', style:{marginTop:'8px'} }, 'Resend OTP');
+  // --- Inline Reset Password Step (single page OTP → new password) ---
+  let verifiedToken = null;
+  const pwF = field({ label:'New Password', name:'password', type:'password', placeholder:'At least 8 chars, 1 upper, 1 lower, 1 number' });
+  const cfF = field({ label:'Confirm New Password', name:'confirm', type:'password', placeholder:'Confirm new password' });
+  const showPw = h('label', {style:{display:'flex', gap:'6px', alignItems:'center', fontSize:'12px', color:'#64748b', cursor:'pointer', marginTop:'8px'}}, h('input',{type:'checkbox', onchange:(e)=>{ pwF.input.type=e.target.checked?'text':'password'; cfF.input.type=e.target.checked?'text':'password'; }}), ' Show passwords');
+  const hint = h('div', {style:{fontSize:'11px', color:'#64748b', background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:'8px', padding:'10px', marginTop:'8px'}}, h('div',{style:{fontWeight:'700', color:'#334155'}},'Password requirements:'), h('div',{},'• Minimum 8 characters • At least one uppercase • One lowercase • One number'));
+  const resetMsg = h('div', {style:{fontSize:'13px', minHeight:'18px', marginTop:'8px', textAlign:'center'}});
+  const resetBtn = h('button', {class:'btn btn-primary btn-block btn-lg', type:'button'}, 'Set New Password');
+  const resetSuccess = h('div', {style:{display:'none', textAlign:'center', marginTop:'12px'}}, h('div',{style:{fontSize:'40px'}},'✅'), h('h3',{style:{color:'#16a34a'}},'Password reset successful.'), h('p',{class:'muted text-sm'},'You can now log in with your new password.'), h('a',{class:'btn btn-primary', href:'#/login'},'Back to Login'));
+  const otpStep = h('div', {}, emailF.wrap, otpF.wrap, msg, btn, resend);
+  const resetStep = h('div', {style:{display:'none', flexDirection:'column', gap:'8px'}}, h('div', {style:{textAlign:'center', marginBottom:'8px'}}, h('div',{style:{fontSize:'24px'}},'🔒'), h('h3',{},'Create New Password'), h('p',{class:'muted text-sm'},'OTP verified — now set your new password.')), pwF.wrap, cfF.wrap, showPw, hint, resetMsg, resetBtn, resetSuccess);
+  resetBtn.onclick = async ()=>{
+    resetMsg.textContent=''; pwF.err.classList.add('hide'); cfF.err.classList.add('hide');
+    const pw=pwF.input.value, cf=cfF.input.value;
+    if(!pw){ pwF.err.textContent='Password is required'; pwF.err.classList.remove('hide'); return; }
+    if(pw.length<8){ pwF.err.textContent='At least 8 characters'; pwF.err.classList.remove('hide'); return; }
+    if(!/[A-Z]/.test(pw)){ pwF.err.textContent='Need uppercase'; pwF.err.classList.remove('hide'); return; }
+    if(!/[a-z]/.test(pw)){ pwF.err.textContent='Need lowercase'; pwF.err.classList.remove('hide'); return; }
+    if(!/[0-9]/.test(pw)){ pwF.err.textContent='Need number'; pwF.err.classList.remove('hide'); return; }
+    if(!cf){ cfF.err.textContent='Confirm required'; cfF.err.classList.remove('hide'); return; }
+    if(pw!==cf){ cfF.err.textContent='Passwords must match'; cfF.err.classList.remove('hide'); return; }
+    if(!verifiedToken){ resetMsg.textContent='Missing token — please verify OTP again'; resetMsg.style.color='#dc2626'; return; }
+    resetBtn.disabled=true; resetBtn.textContent='Resetting…';
+    try{
+      const data=await api.post('/auth/reset-password', {token: verifiedToken, password:pw}, {auth:false});
+      resetStep.querySelectorAll('div').forEach(()=>{}); // keep
+      pwF.wrap.style.display='none'; cfF.wrap.style.display='none'; showPw.style.display='none'; hint.style.display='none'; resetBtn.style.display='none';
+      resetSuccess.style.display='block';
+      toast(data?.message||'Reset successful — please log in','success');
+    }catch(e){
+      const m=friendlyError(e); resetMsg.textContent=m; resetMsg.style.color='#dc2626'; toast(m,'error');
+    }
+    resetBtn.disabled=false; resetBtn.textContent='Set New Password';
+  };
   btn.onclick = async ()=>{
     emailF.err.classList.add('hide'); otpF.err.classList.add('hide'); msg.textContent='';
     const em=emailF.input.value.trim(); const otp=otpF.input.value.trim();
@@ -396,10 +430,18 @@ export function VerifyOtp() {
     btn.disabled=true; btn.textContent='Verifying…';
     try{
       const data = await api.post('/auth/verify-otp', { email:em, otp }, {auth:false});
-      toast('OTP verified','success');
-      const token=data && data.token;
-      if(token) location.hash='#/reset-password?token='+encodeURIComponent(token);
-      else msg.textContent='Verified — redirecting…';
+      toast('OTP verified — now set new password','success');
+      verifiedToken=data && data.token;
+      if(verifiedToken){
+        msg.textContent='✓ OTP verified — enter new password below'; msg.style.color='#16a34a';
+        otpStep.style.display='none';
+        resetStep.style.display='flex';
+        // Focus password
+        setTimeout(()=> pwF.input.focus(), 100);
+      } else {
+        msg.textContent='Verified — redirecting…';
+        location.hash='#/reset-password?token='+encodeURIComponent(verifiedToken || '');
+      }
     }catch(e){ const m=friendlyError(e); msg.textContent=m; msg.style.color='#dc2626'; toast(m,'error'); }
     btn.disabled=false; btn.textContent='Verify OTP';
   };
@@ -435,7 +477,7 @@ export function VerifyOtp() {
     h('div', { class:'center', style:{marginBottom:'20px'} }, h('div', { class:'brand', style:{justifyContent:'center'} }, 'ZUNO')),
     h('h2', { class:'center' }, 'Verify OTP'),
     h('p', { class:'center muted text-sm', style:{marginBottom:'16px'} }, 'Enter the 6-digit code sent to your email. Expires in 10 minutes. Check Spam.'),
-    emailF.wrap, otpF.wrap, msg, btn, resend,
+    otpStep, resetStep,
     h('p', { class:'center muted text-sm', style:{marginTop:'16px'} }, h('a', {href:'#/forgot-password'}, '← Back'), ' • ', h('a', {href:'#/login'}, 'Login'))
   );
   root.append(card);
