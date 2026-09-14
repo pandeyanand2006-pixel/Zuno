@@ -132,6 +132,19 @@ export async function Login() {
       const { token, user } = await api.post('/auth/login', { identifier: ident, password: pw });
       finalize({ token, user });
     } catch (err) {
+      if (err.code === 'EMAIL_NOT_VERIFIED' || String(err.message).includes('verify your email')) {
+        toast('Please verify your email — OTP sent', 'warning');
+        const email = ident.includes('@') ? ident : '';
+        if (email) {
+          // Trigger resend to ensure OTP exists
+          api.post('/auth/resend-verification', { email }, {auth:false}).catch(()=>{});
+          location.hash = '#/verify-email?email=' + encodeURIComponent(email);
+        } else {
+          location.hash = '#/verify-email';
+        }
+        pwF.err.textContent = 'Email not verified — check email for OTP'; pwF.err.classList.remove('hide');
+        return;
+      }
       const msg = friendlyError(err);
       pwF.err.textContent = msg; pwF.err.classList.remove('hide');
       if (err.code === 'NETWORK_ERROR' || String(err.message).includes('Failed to fetch')) toast(msg, 'error');
@@ -194,15 +207,106 @@ export function Register() {
     if (!payload.email) delete payload.email;
     submit.disabled = true; submit.textContent = 'Creating account…';
     try {
-      const { token, user } = await api.post('/auth/register', payload);
-      finalize({ token, user });
+      const data = await api.post('/auth/register', payload);
+      // TalkSpace pattern: if email provided, registration requires verification
+      if (data && data.needsVerification) {
+        toast('Account created — verification OTP sent to email', 'success');
+        const email = payload.email;
+        // Show dev OTP if present
+        if (data.devOtp) toast('Dev OTP: ' + data.devOtp + ' (10m)', 'info');
+        location.hash = '#/verify-email?email=' + encodeURIComponent(email);
+        return;
+      }
+      const { token, user } = data;
+      if (token && user) finalize({ token, user });
+      else {
+        // Fallback — treat as needs verification
+        toast('Account created', 'success');
+        location.hash = '#/login';
+      }
     } catch (err) {
       const msg = friendlyError(err);
+      // Handle EMAIL_NOT_VERIFIED from login-like flow
+      if (err.code === 'EMAIL_NOT_VERIFIED') {
+        toast('Please verify your email', 'warning');
+        const email = emailF.input.value.trim();
+        if (email) location.hash = '#/verify-email?email=' + encodeURIComponent(email);
+        return;
+      }
       const map = { MOBILE_EXISTS: mobF, EMAIL_EXISTS: emailF, 'Validation failed': mobF, NETWORK_ERROR: pwF };
       (map[err.code] || map[msg] || pwF).err.textContent = msg; (map[err.code] || map[msg] || pwF).err.classList.remove('hide');
       toast(msg, 'error');
     } finally { submit.disabled = false; submit.textContent = 'Create account'; }
   }
+  return root;
+}
+
+export function VerifyEmail() {
+  const hashQ = location.hash.split('?')[1]||'';
+  let email = new URLSearchParams(hashQ).get('email')||'';
+  try { if(!email) email=new URLSearchParams(location.search).get('email')||''; } catch {}
+  email=decodeURIComponent(email||'').trim();
+  const root = h('div', { class: 'container-narrow section' });
+  const card = h('div', { class: 'card card-pad elevated', style: { maxWidth: '460px', margin: '0 auto' } });
+  const emailF = field({ label:'Email address', name:'email', type:'email', placeholder:'you@email.com', value:email });
+  const otpF = field({ label:'Verification Code', name:'otp', placeholder:'6-digit OTP', inputmode:'numeric' });
+  otpF.input.maxLength=6; otpF.input.style.letterSpacing='0.3em'; otpF.input.style.textAlign='center'; otpF.input.style.fontWeight='700'; otpF.input.style.fontSize='18px';
+  const msg = h('div', { style:{fontSize:'13px', minHeight:'18px', marginTop:'8px', textAlign:'center'} });
+  const btn = h('button', { class:'btn btn-primary btn-block btn-lg', type:'button' }, 'Verify Email');
+  const resend = h('button', { class:'btn btn-outline btn-block', type:'button', style:{marginTop:'8px'} }, 'Resend Code');
+  let resendTimer = null; let countdown = 0;
+  function startCountdown(sec=60) {
+    countdown = sec;
+    resend.disabled = true;
+    const tick = () => {
+      if (countdown <= 0) { resend.disabled=false; resend.textContent='Resend Code'; return; }
+      resend.textContent = `Resend in ${countdown}s`;
+      countdown--;
+      resendTimer = setTimeout(tick, 1000);
+    };
+    tick();
+  }
+  btn.onclick = async ()=>{
+    emailF.err.classList.add('hide'); otpF.err.classList.add('hide'); msg.textContent='';
+    const em=emailF.input.value.trim(); const otp=otpF.input.value.trim();
+    if(!em || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)){ emailF.err.textContent='Enter valid email'; emailF.err.classList.remove('hide'); return; }
+    if(!/^\d{6}$/.test(otp)){ otpF.err.textContent='Enter 6-digit OTP'; otpF.err.classList.remove('hide'); return; }
+    btn.disabled=true; btn.textContent='Verifying…';
+    try{
+      const data = await api.post('/auth/verify-email', { email:em, otp }, {auth:false});
+      toast('Email verified — welcome to ZUNO!', 'success');
+      if (data && data.token && data.user) finalize({ token: data.token, user: data.user });
+      else { toast('Verified — please log in', 'success'); location.hash='#/login'; }
+    }catch(e){ const m=friendlyError(e); msg.textContent=m; msg.style.color='#dc2626'; toast(m,'error'); if (m.includes('expired')) msg.textContent='OTP expired — tap Resend Code'; }
+    btn.disabled=false; btn.textContent='Verify Email';
+  };
+  resend.onclick = async ()=>{
+    const em=emailF.input.value.trim();
+    if(!em || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)){ toast('Enter valid email','error'); return; }
+    if (countdown > 0) return;
+    resend.disabled=true; resend.textContent='Sending…';
+    try{
+      const data = await api.post('/auth/resend-verification', {email:em}, {auth:false});
+      toast('Verification code resent — check inbox and Spam','success');
+      msg.textContent='New code sent — check email (and Spam).'; msg.style.color='#16a34a';
+      if (data && data.devOtp) { msg.textContent += ' Dev OTP: ' + data.devOtp; }
+      startCountdown(60);
+    }catch(e){
+      const m=friendlyError(e);
+      if (e.code==='ALREADY_VERIFIED') { toast('Email already verified — please log in','success'); location.hash='#/login'; return; }
+      toast(m,'error'); msg.textContent=m; msg.style.color='#dc2626'; resend.disabled=false; resend.textContent='Resend Code';
+    }
+  };
+  // Auto-start countdown if navigated from register (avoid spam)
+  setTimeout(()=> startCountdown(30), 500);
+  card.append(
+    h('div', { class:'center', style:{marginBottom:'20px'} }, h('div', { class:'brand', style:{justifyContent:'center'} }, 'ZUNO')),
+    h('h2', { class:'center' }, 'Verify Your Email'),
+    h('p', { class:'center muted text-sm', style:{marginBottom:'16px'} }, 'Enter the 6-digit code sent to your email. Expires in 10 minutes. Check Spam / Promotions.'),
+    emailF.wrap, otpF.wrap, msg, btn, resend,
+    h('p', { class:'center muted text-sm', style:{marginTop:'16px'} }, h('a', {href:'#/login'}, '← Back to Login'))
+  );
+  root.append(card);
   return root;
 }
 
@@ -268,12 +372,24 @@ export function VerifyOtp() {
     }catch(e){ const m=friendlyError(e); msg.textContent=m; msg.style.color='#dc2626'; toast(m,'error'); }
     btn.disabled=false; btn.textContent='Verify OTP';
   };
+  let verifyOtpCountdown = 0; let verifyOtpTimer = null;
+  function startVerifyCountdown(sec=60){
+    verifyOtpCountdown = sec;
+    resend.disabled = true;
+    const tick = () => {
+      if (verifyOtpCountdown <= 0) { resend.disabled=false; resend.textContent='Resend OTP'; return; }
+      resend.textContent = `Resend in ${verifyOtpCountdown}s`;
+      verifyOtpCountdown--;
+      verifyOtpTimer = setTimeout(tick, 1000);
+    };
+    tick();
+  }
   resend.onclick = async ()=>{
     const em=emailF.input.value.trim();
     if(!em || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)){ toast('Enter valid email','error'); return; }
+    if (verifyOtpCountdown > 0) return;
     resend.disabled=true; resend.textContent='Sending…';
-    try{ await api.post('/auth/forgot-password', {email:em}, {auth:false}); toast('OTP resent — check email (and Spam)','success'); msg.textContent='A new OTP has been sent — check email (and Spam).'; msg.style.color='#16a34a'; }catch(e){ const m=friendlyError(e); toast(m,'error'); msg.textContent=m; msg.style.color='#dc2626'; }
-    resend.disabled=false; resend.textContent='Resend OTP';
+    try{ await api.post('/auth/forgot-password', {email:em}, {auth:false}); toast('OTP resent — check email (and Spam)','success'); msg.textContent='A new OTP has been sent — check email (and Spam).'; msg.style.color='#16a34a'; startVerifyCountdown(60); }catch(e){ const m=friendlyError(e); toast(m,'error'); msg.textContent=m; msg.style.color='#dc2626'; resend.disabled=false; resend.textContent='Resend OTP'; }
   };
   card.append(
     h('div', { class:'center', style:{marginBottom:'20px'} }, h('div', { class:'brand', style:{justifyContent:'center'} }, 'ZUNO')),

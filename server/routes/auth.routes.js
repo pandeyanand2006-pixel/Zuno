@@ -1,9 +1,9 @@
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
-import { register, login, me, logout, requestOtp, verifyOtp, googleLogin, forgotPassword, verifyForgotOtp, resetPassword } from '../controllers/auth.controller.js';
+import { register, login, me, logout, requestOtp, verifyOtp, googleLogin, forgotPassword, verifyForgotOtp, resetPassword, verifyEmail, resendVerification } from '../controllers/auth.controller.js';
 import { validate } from '../middleware/validate.js';
 import { authMiddleware } from '../middleware/auth.js';
-import { registerSchema, loginSchema, otpRequestSchema, otpVerifySchema, googleSchema, userForgotSchema, userVerifyOtpSchema, userResetSchema } from '../validators/auth.validators.js';
+import { registerSchema, loginSchema, otpRequestSchema, otpVerifySchema, googleSchema, userForgotSchema, userVerifyOtpSchema, userResetSchema, verifyEmailSchema, resendVerificationSchema } from '../validators/auth.validators.js';
 
 const router = Router();
 
@@ -21,5 +21,8 @@ router.post('/logout', authMiddleware, logout);
 router.post('/forgot-password', forgotLimiter, validate(userForgotSchema), forgotPassword);
 router.post('/verify-otp', forgotLimiter, validate(userVerifyOtpSchema), verifyForgotOtp);
 router.post('/reset-password', resetLimiter, validate(userResetSchema), resetPassword);
+// Registration email verification (TalkSpace pattern)
+router.post('/verify-email', forgotLimiter, validate(verifyEmailSchema), verifyEmail);
+router.post('/resend-verification', forgotLimiter, validate(resendVerificationSchema), resendVerification);
 
 export default router;

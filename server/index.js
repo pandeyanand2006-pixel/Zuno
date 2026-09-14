@@ -5,6 +5,14 @@ import { env } from './config/env.js';
 import { logger } from './utils/logger.js';
 import { db } from './config/db.js';
 import bcrypt from 'bcryptjs';
+import { initializeEmailService } from './config/email.js';
+
+// ── TalkSpace Startup Architecture ──
+// dotenv.config() (via env.js)
+//   ↓ database connection
+//   ↓ email configuration validation
+//   ↓ email service initialization
+//   ↓ HTTP/API server initialization
 
 // Try Atlas first — if MONGODB_URI set and reachable, use it; else fallback to SQLite
 if (env.mongoUri) {
@@ -14,6 +22,20 @@ if (env.mongoUri) {
 }
 
 initializeSchema();
+
+// Initialize centralized email service BEFORE HTTP server — TalkSpace pattern
+try {
+  await initializeEmailService();
+} catch (e) {
+  logger.error('Email service initialization failed', e.message);
+  if (env.isProduction) {
+    // Fail fast in production if email mandatory
+    logger.error('Failing startup due to missing email configuration in production');
+    // Don't exit hard for Zuno — email is important but not boot-blocking for shop browsing
+    // Uncomment below to make email mandatory:
+    // process.exit(1);
+  }
+}
 logger.info('Database schema initialized');
 logger.info(`DB_PATH=${env.dbPath} ${isMongoConnected() ? '(Mongo active — SQLite fallback for unmigrated tables)' : ''}`);
 

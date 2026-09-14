@@ -48,6 +48,15 @@ export const userResetSchema = z.object({
     .regex(/[0-9]/, 'Password must contain at least one number'),
 });
 
+export const verifyEmailSchema = z.object({
+  email: z.string().email('Enter a valid email address'),
+  otp: z.string().regex(/^\d{6}$/, 'OTP must be a 6-digit code'),
+});
+
+export const resendVerificationSchema = z.object({
+  email: z.string().email('Enter a valid email address'),
+});
+
 export const otpRequestSchema = z.object({
   mobile: z.string().regex(/^[6-9]\d{9}$/, 'Enter a valid 10-digit Indian mobile number'),
 });

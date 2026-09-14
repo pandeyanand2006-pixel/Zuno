@@ -4,7 +4,14 @@ import { logger } from '../utils/logger.js';
 
 export async function register(req, res) {
   try {
-    const user = await authService.register(req.validated);
+    const result = await authService.register(req.validated);
+    // TalkSpace pattern: if email provided, registration requires verification
+    if (result && result.needsVerification) {
+      const data = result._devOtp ? { user: result.user, devOtp: result._devOtp, needsVerification: true } : { user: result.user, needsVerification: true };
+      return ok(res, data, result.message, 201);
+    }
+    // No verification needed (no email or legacy) — issue token immediately
+    const user = result.user || result;
     const { token } = await authService.issueTokenForUser(user);
     return ok(res, { user, token }, 'Account created successfully', 201);
   } catch (err) {
@@ -15,12 +22,42 @@ export async function register(req, res) {
   }
 }
 
+export async function verifyEmail(req, res) {
+  try {
+    const { email, otp } = req.validated;
+    const { token, user } = await authService.verifyEmail({ email, otp });
+    return ok(res, { token, user }, 'Email verified successfully');
+  } catch (err) {
+    if (err.message === 'OTP_INVALID') return fail(res, 'Invalid OTP. Please check and try again.', 400, 'OTP_INVALID');
+    if (err.message === 'OTP_EXPIRED') return fail(res, 'OTP has expired. Please request a new one.', 400, 'OTP_EXPIRED');
+    if (err.message === 'NOT_FOUND') return fail(res, 'User not found', 404);
+    if (err.message === 'OTP_REQUIRED') return fail(res, 'OTP is required', 400);
+    logger.error('verifyEmail', err);
+    return serverError(res);
+  }
+}
+
+export async function resendVerification(req, res) {
+  try {
+    const { email } = req.validated;
+    const result = await authService.resendVerification({ email });
+    const data = result._devOtp ? { devOtp: result._devOtp } : null;
+    return ok(res, data, result.message);
+  } catch (err) {
+    if (err.message === 'NOT_FOUND') return fail(res, 'User not found', 404);
+    if (err.message === 'ALREADY_VERIFIED') return fail(res, 'Email already verified', 400, 'ALREADY_VERIFIED');
+    logger.error('resendVerification', err);
+    return serverError(res);
+  }
+}
+
 export async function login(req, res) {
   try {
     const { token, user } = await authService.login(req.validated.identifier, req.validated.password);
     return ok(res, { token, user }, 'Logged in successfully');
   } catch (err) {
     if (err.message === 'INVALID_CREDENTIALS') return unauthorized(res, 'Invalid email/mobile or password');
+    if (err.message === 'EMAIL_NOT_VERIFIED') return fail(res, 'Please verify your email before logging in. OTP sent to your email.', 403, 'EMAIL_NOT_VERIFIED');
     logger.error('login', err);
     return serverError(res);
   }

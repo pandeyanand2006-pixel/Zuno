@@ -5,7 +5,7 @@ import { api } from './api.js';
 import { topBar, bottomNav, footer, refreshCart } from './components.js';
 
 import { Home } from './pages/home.js';
-import { Login, Register, ForgotPassword, VerifyOtp, ResetPassword } from './pages/auth.js';
+import { Login, Register, ForgotPassword, VerifyOtp, ResetPassword, VerifyEmail } from './pages/auth.js';
 import { Shop, Grocery } from './pages/shop.js';
 import { Product } from './pages/product.js';
 import { Cart } from './pages/cart.js';
@@ -28,6 +28,7 @@ route('/register', Register);
 route('/forgot-password', ForgotPassword);
 route('/verify-otp', VerifyOtp);
 route('/reset-password', ResetPassword);
+route('/verify-email', VerifyEmail);
 route('/shop', Shop);
 route('/grocery', Grocery);
 route('/product/:slug', Product);

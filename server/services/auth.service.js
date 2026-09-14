@@ -8,12 +8,14 @@ import { logger } from '../utils/logger.js';
 import { isMongoConnected } from '../config/mongo.js';
 import { User, Role, OtpCode } from '../models/index.js';
 import { sendPasswordResetOtpEmail } from './emailService.js';
+import { sendVerificationEmail, sendWelcomeEmail, sendPasswordResetSuccessEmail } from '../utils/email.js';
 
 function useMongo() { return !!env.mongoUri && isMongoConnected(); }
 
 function hashToken(raw) { return crypto.createHash('sha256').update(String(raw).trim()).digest('hex'); }
 const OTP_EXPIRES_MINUTES = 10;
 const TOKEN_EXPIRES_MINUTES = 15;
+const VERIFICATION_EXPIRES_MINUTES = 10;
 function generateOtp() { return String(crypto.randomInt(100000, 1000000)); }
 
 async function getRoleDoc(name = 'USER') {
@@ -48,29 +50,160 @@ async function toPublicUser(user) {
 
 export const authService = {
   async register({ name, email, mobile, password }) {
+    const normalizedEmail = email ? String(email).toLowerCase().trim() : null;
     if (useMongo()) {
-      const existing = await User.findOne({ $or: [{ email: email || '__none' }, { mobile }] });
+      const existing = await User.findOne({ $or: [{ email: normalizedEmail || '__none' }, { mobile }] });
       if (existing) {
         const conflictMobile = await User.findOne({ mobile });
         throw new Error(conflictMobile ? 'MOBILE_EXISTS' : 'EMAIL_EXISTS');
       }
       const role = await Role.findOne({ name: 'USER' });
       const password_hash = await hashPassword(password);
-      const user = await User.create({ name, email: email || null, mobile, password_hash, role_id: role._id, role_name: 'USER' });
+      const user = await User.create({ name, email: normalizedEmail || null, mobile, password_hash, role_id: role._id, role_name: 'USER', email_verified: normalizedEmail ? false : true });
       logger.audit('user.register', { id: String(user._id), mobile });
+      // ── Registration + Email Verification Flow (TalkSpace pattern) ──
+      if (normalizedEmail) {
+        const otp = generateOtp();
+        const expiresAt = new Date(Date.now() + VERIFICATION_EXPIRES_MINUTES * 60 * 1000);
+        await OtpCode.deleteMany({ email: normalizedEmail, purpose: 'verify' });
+        await OtpCode.create({ email: normalizedEmail, code: otp, purpose: 'verify', expires_at: expiresAt });
+        logger.info(`[register] Verification email requested for ${normalizedEmail.slice(0, 3)}***`);
+        try {
+          await Promise.race([
+            sendVerificationEmail({ to: normalizedEmail, otp, expiresMinutes: VERIFICATION_EXPIRES_MINUTES }),
+            new Promise((_, rej) => setTimeout(() => rej(new Error('EMAIL_TIMEOUT')), 30000)),
+          ]);
+          logger.info(`[register] Verification email sent to ${normalizedEmail.slice(0, 3)}***`);
+        } catch (err) {
+          logger.error(`[register] Verification email failed for ${normalizedEmail.slice(0, 3)}***: ${err.message}`);
+          // Don't expose failure as success — throw so controller can handle, but keep user created
+          // We still want to inform frontend that verification email failed
+          // For now, log and continue; frontend will allow resend
+          if (!env.isProduction) logger.info(`[DEV VERIFY OTP] for ${normalizedEmail}: ${otp}`);
+          // Throw to make caller aware — but we don't delete user
+          // Instead, return special flag
+          const pub = await toPublicUser(user.toObject());
+          return { user: pub, needsVerification: true, verificationEmailFailed: true, message: 'Account created but verification email failed. Please resend code.', _devOtp: env.isProduction ? undefined : otp };
+        }
+        if (!env.isProduction) logger.info(`[DEV VERIFY OTP] for ${normalizedEmail}: ${otp} (expires ${VERIFICATION_EXPIRES_MINUTES}m)`);
+        const pub = await toPublicUser(user.toObject());
+        return { user: pub, needsVerification: true, message: 'Account created. Verification OTP sent to email.', _devOtp: env.isProduction ? undefined : otp };
+      }
       return toPublicUser(user.toObject());
     }
-    const existing = db.prepare('SELECT id FROM users WHERE email = ? OR mobile = ?').get(email || 'x', mobile);
+    const existing = db.prepare('SELECT id FROM users WHERE email = ? OR mobile = ?').get(normalizedEmail || 'x', mobile);
     if (existing) {
       const conflictMobile = db.prepare('SELECT id FROM users WHERE mobile = ?').get(mobile);
       throw new Error(conflictMobile ? 'MOBILE_EXISTS' : 'EMAIL_EXISTS');
     }
     const userRole = db.prepare("SELECT id FROM roles WHERE name = 'USER'").get();
     const password_hash = await hashPassword(password);
-    const info = db.prepare('INSERT INTO users (name, email, mobile, password_hash, role_id) VALUES (?, ?, ?, ?, ?)').run(name, email || null, mobile, password_hash, userRole.id);
+    const emailVerified = normalizedEmail ? 0 : 1;
+    const info = db.prepare('INSERT INTO users (name, email, mobile, password_hash, role_id, email_verified) VALUES (?, ?, ?, ?, ?, ?)').run(name, normalizedEmail || null, mobile, password_hash, userRole.id, emailVerified);
     const user = db.prepare('SELECT * FROM users WHERE id = ?').get(info.lastInsertRowid);
     logger.audit('user.register', { id: user.id, mobile });
+    if (normalizedEmail) {
+      const otp = generateOtp();
+      const expiresIso = new Date(Date.now() + VERIFICATION_EXPIRES_MINUTES * 60 * 1000).toISOString();
+      db.prepare('DELETE FROM otp_codes WHERE email = ? AND purpose = ?').run(normalizedEmail, 'verify');
+      db.prepare('INSERT INTO otp_codes (email, code, purpose, expires_at) VALUES (?, ?, ?, ?)').run(normalizedEmail, otp, 'verify', expiresIso);
+      logger.info(`[register] Verification email requested for ${normalizedEmail.slice(0, 3)}***`);
+      try {
+        await Promise.race([
+          sendVerificationEmail({ to: normalizedEmail, otp, expiresMinutes: VERIFICATION_EXPIRES_MINUTES }),
+          new Promise((_, rej) => setTimeout(() => rej(new Error('EMAIL_TIMEOUT')), 30000)),
+        ]);
+        logger.info(`[register] Verification email sent to ${normalizedEmail.slice(0, 3)}***`);
+      } catch (err) {
+        logger.error(`[register] Verification email failed for ${normalizedEmail.slice(0, 3)}***: ${err.message}`);
+        if (!env.isProduction) logger.info(`[DEV VERIFY OTP] for ${normalizedEmail}: ${otp}`);
+        const pub = await toPublicUser(user);
+        return { user: pub, needsVerification: true, verificationEmailFailed: true, message: 'Account created but verification email failed. Please resend code.', _devOtp: env.isProduction ? undefined : otp };
+      }
+      if (!env.isProduction) logger.info(`[DEV VERIFY OTP] for ${normalizedEmail}: ${otp} (expires ${VERIFICATION_EXPIRES_MINUTES}m)`);
+      const pub = await toPublicUser(user);
+      return { user: pub, needsVerification: true, message: 'Account created. Verification OTP sent to email.', _devOtp: env.isProduction ? undefined : otp };
+    }
     return toPublicUser(user);
+  },
+
+  // ── Email Verification (TalkSpace pattern) ──
+  async verifyEmail({ email, otp }) {
+    const normalized = String(email).toLowerCase().trim();
+    const code = String(otp).trim();
+    if (!code) throw new Error('OTP_REQUIRED');
+    const now = new Date();
+    if (useMongo()) {
+      const row = await OtpCode.findOne({ email: normalized, purpose: 'verify' }).sort({ _id: -1 });
+      if (!row) throw new Error('OTP_INVALID');
+      if (new Date(row.expires_at).getTime() < now.getTime()) throw new Error('OTP_EXPIRED');
+      if (row.code !== code) throw new Error('OTP_INVALID');
+      await OtpCode.deleteMany({ email: normalized, purpose: 'verify' });
+      const user = await User.findOne({ email: normalized });
+      if (!user) throw new Error('NOT_FOUND');
+      // Already verified? Idempotent
+      if (user.email_verified) return this.issueTokenForUser(user);
+      user.email_verified = true;
+      await user.save();
+      // Welcome email — non-blocking but await with catch (TalkSpace: await then handle)
+      try {
+        await sendWelcomeEmail({ to: normalized, name: user.name });
+      } catch (e) { logger.warn(`[verify] Welcome email failed for ${normalized.slice(0, 3)}***: ${e.message}`); }
+      logger.info(`[verify] Email verified for ${normalized}`);
+      return this.issueTokenForUser(user);
+    }
+    const row = db.prepare('SELECT * FROM otp_codes WHERE email = ? AND purpose = ? ORDER BY id DESC LIMIT 1').get(normalized, 'verify');
+    if (!row) throw new Error('OTP_INVALID');
+    if (new Date(row.expires_at).getTime() < now.getTime()) throw new Error('OTP_EXPIRED');
+    if (row.code !== code) throw new Error('OTP_INVALID');
+    db.prepare('DELETE FROM otp_codes WHERE email = ? AND purpose = ?').run(normalized, 'verify');
+    const user = db.prepare('SELECT * FROM users WHERE email = ?').get(normalized);
+    if (!user) throw new Error('NOT_FOUND');
+    if (user.email_verified) {
+      return this.issueTokenForUser(user);
+    }
+    db.prepare('UPDATE users SET email_verified = 1 WHERE id = ?').run(user.id);
+    const updated = db.prepare('SELECT * FROM users WHERE id = ?').get(user.id);
+    try {
+      await sendWelcomeEmail({ to: normalized, name: updated.name });
+    } catch (e) { logger.warn(`[verify] Welcome email failed for ${normalized.slice(0, 3)}***: ${e.message}`); }
+    logger.info(`[verify] Email verified for ${normalized} (SQLite)`);
+    return this.issueTokenForUser(updated);
+  },
+
+  async resendVerification({ email }) {
+    const normalized = String(email).toLowerCase().trim();
+    let user = null;
+    if (useMongo()) {
+      user = await User.findOne({ email: normalized });
+      if (!user) throw new Error('NOT_FOUND');
+      if (user.email_verified) throw new Error('ALREADY_VERIFIED');
+      const otp = generateOtp();
+      const expiresAt = new Date(Date.now() + VERIFICATION_EXPIRES_MINUTES * 60 * 1000);
+      await OtpCode.deleteMany({ email: normalized, purpose: 'verify' });
+      await OtpCode.create({ email: normalized, code: otp, purpose: 'verify', expires_at: expiresAt });
+      logger.info(`[resend] Verification email requested for ${normalized.slice(0, 3)}***`);
+      await Promise.race([
+        sendVerificationEmail({ to: normalized, otp, expiresMinutes: VERIFICATION_EXPIRES_MINUTES }),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('EMAIL_TIMEOUT')), 30000)),
+      ]);
+      logger.info(`[resend] Verification email sent to ${normalized.slice(0, 3)}***`);
+      return { message: 'Verification OTP resent.', _devOtp: env.isProduction ? undefined : otp };
+    }
+    user = db.prepare('SELECT id, email_verified FROM users WHERE email = ?').get(normalized);
+    if (!user) throw new Error('NOT_FOUND');
+    if (user.email_verified) throw new Error('ALREADY_VERIFIED');
+    const otp = generateOtp();
+    const expiresIso = new Date(Date.now() + VERIFICATION_EXPIRES_MINUTES * 60 * 1000).toISOString();
+    db.prepare('DELETE FROM otp_codes WHERE email = ? AND purpose = ?').run(normalized, 'verify');
+    db.prepare('INSERT INTO otp_codes (email, code, purpose, expires_at) VALUES (?, ?, ?, ?)').run(normalized, otp, 'verify', expiresIso);
+    logger.info(`[resend] Verification email requested for ${normalized.slice(0, 3)}***`);
+    await Promise.race([
+      sendVerificationEmail({ to: normalized, otp, expiresMinutes: VERIFICATION_EXPIRES_MINUTES }),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('EMAIL_TIMEOUT')), 30000)),
+    ]);
+    logger.info(`[resend] Verification email sent to ${normalized.slice(0, 3)}*** (SQLite)`);
+    return { message: 'Verification OTP resent.', _devOtp: env.isProduction ? undefined : otp };
   },
 
   async login(identifier, password) {
@@ -79,6 +212,8 @@ export const authService = {
       if (!user) throw new Error('INVALID_CREDENTIALS');
       const okPass = await comparePassword(password, user.password_hash);
       if (!okPass) throw new Error('INVALID_CREDENTIALS');
+      // Enforce email verification if email is present
+      if (user.email && !user.email_verified) throw new Error('EMAIL_NOT_VERIFIED');
       const pub = await toPublicUser(user.toObject());
       const token = signToken({ sub: pub.id, role: pub.role_id, jti: generateId() });
       return { token, user: pub };
@@ -87,6 +222,7 @@ export const authService = {
     if (!user) throw new Error('INVALID_CREDENTIALS');
     const okPass = await comparePassword(password, user.password_hash);
     if (!okPass) throw new Error('INVALID_CREDENTIALS');
+    if (user.email && !user.email_verified) throw new Error('EMAIL_NOT_VERIFIED');
     const pub = await toPublicUser(user);
     const token = signToken({ sub: pub.id, role: pub.role_id, jti: generateId() });
     return { token, user: pub };
@@ -301,7 +437,9 @@ export const authService = {
       if (!user.reset_password_expires || new Date(user.reset_password_expires).getTime() < now.getTime()) throw new Error('TOKEN_EXPIRED');
     }
     const newHash = await hashPassword(String(newPassword));
+    let emailForSuccess = null;
     if (useMongo()) {
+      emailForSuccess = user.email;
       user.password_hash = newHash;
       user.resetPasswordToken = null;
       user.resetPasswordExpires = null;
@@ -309,9 +447,16 @@ export const authService = {
       user.resetOtpExpires = null;
       await user.save();
     } else {
+      const full = db.prepare('SELECT email FROM users WHERE id = ?').get(user.id);
+      emailForSuccess = full ? full.email : null;
       db.prepare('UPDATE users SET password_hash = ?, reset_password_token = NULL, reset_password_expires = NULL, reset_otp_hash = NULL, reset_otp_expires = NULL WHERE id = ?').run(newHash, user.id);
     }
     logger.audit('user.password.reset', { tokenHash: hashed.slice(0, 8) + '...' });
+    if (emailForSuccess) {
+      try {
+        await sendPasswordResetSuccessEmail({ to: emailForSuccess });
+      } catch (e) { logger.warn(`[reset] Success email failed for ${emailForSuccess.slice(0, 3)}***: ${e.message}`); }
+    }
     return { message: 'Your password has been reset successfully. You can now log in with your new password.' };
   },
 };
