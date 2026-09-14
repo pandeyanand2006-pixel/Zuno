@@ -1,4 +1,8 @@
 {
+  "buildCommand": "echo \"static site — no build\"",
+  "outputDirectory": "public",
+  "installCommand": "npm install",
+  "framework": null,
   "rewrites": [
     { "source": "/api/send-email", "destination": "/api/send-email" },
     { "source": "/api/:path*", "destination": "https://zuno-ydl3.onrender.com/api/:path*" },

@@ -4,10 +4,10 @@ import nodemailer from 'nodemailer';
 // It uses the same Gmail App Password you provided in .env, so no Brevo needed.
 // Render will call this via HTTPS (443) when its own SMTP is ENETUNREACH.
 
-const SMTP_USER = process.env.SMTP_USER || 'zunoworld3121@gmail.com';
-const SMTP_PASS = (process.env.SMTP_PASS || 'yyedxjileoszzsfz').replace(/\s+/g, '');
-const SMTP_FROM = process.env.SMTP_FROM || process.env.NOTIFY_EMAIL_FROM || 'ZUNO <zunoworld3121@gmail.com>';
-const SMTP_HOST = process.env.SMTP_HOST || 'smtp.gmail.com';
+const SMTP_USER = (process.env.SMTP_USER || '').trim();
+const SMTP_PASS = (process.env.SMTP_PASS || '').replace(/\s+/g, '').trim();
+const SMTP_FROM = (process.env.SMTP_FROM || process.env.NOTIFY_EMAIL_FROM || '').trim() || (SMTP_USER ? `ZUNO <${SMTP_USER}>` : '');
+const SMTP_HOST = (process.env.SMTP_HOST || 'smtp.gmail.com').trim();
 const SMTP_PORT = Number(process.env.SMTP_PORT) || 587;
 
 export default async function handler(req, res) {
