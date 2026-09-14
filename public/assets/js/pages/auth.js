@@ -294,6 +294,12 @@ export function VerifyEmail() {
     }catch(e){
       const m=friendlyError(e);
       if (e.code==='ALREADY_VERIFIED') { toast('Email already verified — please log in','success'); location.hash='#/login'; return; }
+      if (e.code==='COOLDOWN' || e.code==='RATE_LIMITED' || m.includes('wait 60') || m.includes('Too many requests')) {
+        msg.textContent='Please wait 60 seconds before requesting another code'; msg.style.color='#f59e0b';
+        toast('Please wait before resending','warning');
+        startCountdown(60);
+        return;
+      }
       toast(m,'error'); msg.textContent=m; msg.style.color='#dc2626'; resend.disabled=false; resend.textContent='Resend Code';
     }
   };
@@ -317,7 +323,19 @@ export function ForgotPassword() {
   const msg = h('div', { style:{fontSize:'13px', minHeight:'18px', marginTop:'8px', textAlign:'center'} });
   const btn = h('button', { class:'btn btn-primary btn-block btn-lg', type:'button' }, 'Send OTP');
   const preview = h('div', { style:{display:'none', marginTop:'12px', padding:'12px', background:'#f0fdf4', border:'1px solid #bbf7d0', borderRadius:'10px', fontSize:'12px', textAlign:'center'} });
+  let cooldown = 0; let timer = null;
+  function startCooldown(sec=60){
+    cooldown = sec;
+    btn.disabled = true;
+    const tick = () => {
+      if (cooldown <= 0) { btn.disabled=false; btn.textContent='Send OTP'; return; }
+      btn.textContent = `Wait ${cooldown}s`;
+      cooldown--; timer = setTimeout(tick, 1000);
+    };
+    tick();
+  }
   btn.onclick = async () => {
+    if (cooldown > 0) return;
     emailF.err.classList.add('hide'); msg.textContent=''; preview.style.display='none';
     const email = emailF.input.value.trim();
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { emailF.err.textContent='Enter a valid email'; emailF.err.classList.remove('hide'); return; }
@@ -328,9 +346,22 @@ export function ForgotPassword() {
       msg.style.color='#16a34a';
       toast('OTP sent — check email (and Spam / Promotions folder)','success');
       if (data && data.devOtp) { preview.style.display='block'; preview.textContent='Dev OTP: '+data.devOtp+' (expires 10m)'; }
+      startCooldown(60);
       setTimeout(()=> location.hash = '#/verify-otp?email='+encodeURIComponent(email), 900);
-    } catch(e){ const m=friendlyError(e); msg.textContent=m; msg.style.color='#dc2626'; toast(m,'error'); }
-    btn.disabled=false; btn.textContent='Send OTP';
+    } catch(e){
+      const m=friendlyError(e);
+      if (e.code === 'COOLDOWN' || m.includes('wait 60')) {
+        msg.textContent='Please wait 60 seconds before requesting another OTP'; msg.style.color='#f59e0b';
+        toast('Please wait before resending','warning');
+        startCooldown(60);
+      } else if (e.code === 'NETWORK_ERROR' || m.includes('Network error')) {
+        msg.textContent='Network error — please wait 10s and retry. If on Render free tier, server may be waking.'; msg.style.color='#dc2626';
+        toast('Network error — retry in 10s','error');
+      } else {
+        msg.textContent=m; msg.style.color='#dc2626'; toast(m,'error');
+      }
+      if (cooldown <= 0) { btn.disabled=false; btn.textContent='Send OTP'; }
+    }
   };
   card.append(
     h('div', { class:'center', style:{marginBottom:'20px'} }, h('div', { class:'brand', style:{justifyContent:'center', fontFamily:'var(--font-display)', letterSpacing:'0.12em'} }, 'ZUNO')),
@@ -389,7 +420,16 @@ export function VerifyOtp() {
     if(!em || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)){ toast('Enter valid email','error'); return; }
     if (verifyOtpCountdown > 0) return;
     resend.disabled=true; resend.textContent='Sending…';
-    try{ await api.post('/auth/forgot-password', {email:em}, {auth:false}); toast('OTP resent — check email (and Spam)','success'); msg.textContent='A new OTP has been sent — check email (and Spam).'; msg.style.color='#16a34a'; startVerifyCountdown(60); }catch(e){ const m=friendlyError(e); toast(m,'error'); msg.textContent=m; msg.style.color='#dc2626'; resend.disabled=false; resend.textContent='Resend OTP'; }
+    try{ await api.post('/auth/forgot-password', {email:em}, {auth:false}); toast('OTP resent — check email (and Spam)','success'); msg.textContent='A new OTP has been sent — check email (and Spam).'; msg.style.color='#16a34a'; startVerifyCountdown(60); }catch(e){
+      const m=friendlyError(e);
+      if (e.code==='COOLDOWN' || e.code==='RATE_LIMITED' || m.includes('wait 60') || m.includes('Too many requests')) {
+        msg.textContent='Please wait 60 seconds before requesting another OTP'; msg.style.color='#f59e0b';
+        toast('Please wait before resending','warning');
+        startVerifyCountdown(60);
+        return;
+      }
+      toast(m,'error'); msg.textContent=m; msg.style.color='#dc2626'; resend.disabled=false; resend.textContent='Resend OTP';
+    }
   };
   card.append(
     h('div', { class:'center', style:{marginBottom:'20px'} }, h('div', { class:'brand', style:{justifyContent:'center'} }, 'ZUNO')),

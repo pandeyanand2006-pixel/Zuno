@@ -42,6 +42,20 @@ export const adminAuthService = {
       return { message: genericMessage };
     }
 
+    // Cooldown 60s — prevent duplicate emails from double-click
+    const cooldownMs = 60 * 1000;
+    if (useMongo()) {
+      const existing = await User.findOne({ email: normalized });
+      if (existing && existing.resetOtpExpires && new Date(existing.resetOtpExpires).getTime() > Date.now() + (OTP_EXPIRES_MINUTES * 60 * 1000 - cooldownMs)) {
+        throw new Error('COOLDOWN');
+      }
+    } else {
+      const row = db.prepare('SELECT reset_otp_expires FROM users WHERE email = ?').get(normalized);
+      if (row && row.reset_otp_expires && new Date(row.reset_otp_expires).getTime() > Date.now() + (OTP_EXPIRES_MINUTES * 60 * 1000 - cooldownMs)) {
+        throw new Error('COOLDOWN');
+      }
+    }
+
     const otp = generateOtp();
     const hashed = hashToken(otp);
     const expiresAt = new Date(Date.now() + OTP_EXPIRES_MINUTES * 60 * 1000);

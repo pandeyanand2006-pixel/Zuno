@@ -89,14 +89,14 @@ export async function initializeEmailService() {
       pool: env.isProduction ? false : true,
       maxConnections: 3,
       maxMessages: 100,
-      connectionTimeout: 12000,
-      greetingTimeout: 12000,
-      socketTimeout: 20000,
+      connectionTimeout: 7000,
+      greetingTimeout: 7000,
+      socketTimeout: 15000,
       tls: { rejectUnauthorized: true, minVersion: 'TLSv1.2' },
       auth: { user: env.smtp.user, pass: env.smtp.pass },
     };
     transporter = nodemailer.createTransport(cfg);
-    // Verify in background — don't block boot (Render free tier blocks SMTP, verify will timeout 12s)
+    // Verify in background — don't block boot (Render free tier blocks SMTP, verify will timeout ~7s)
     transporter.verify().then(() => {
       logger.info(`Email service ready — ${env.smtp.host}:${env.smtp.port} as ${env.smtp.user.slice(0, 3)}***`);
     }).catch(err => {
@@ -126,9 +126,9 @@ function getTransporter() {
     pool: env.isProduction ? false : true,
     maxConnections: 3,
     maxMessages: 100,
-    connectionTimeout: 12000,
-    greetingTimeout: 12000,
-    socketTimeout: 20000,
+    connectionTimeout: 7000,
+    greetingTimeout: 7000,
+    socketTimeout: 15000,
     tls: { rejectUnauthorized: true, minVersion: 'TLSv1.2' },
     auth: env.smtp.user && env.smtp.pass ? { user: env.smtp.user, pass: env.smtp.pass } : undefined,
   };
@@ -146,9 +146,9 @@ function getFreshTransporter(overridePort) {
     requireTLS: !is465,
     lookup: ipv4Lookup,
     pool: false,
-    connectionTimeout: 12000,
-    greetingTimeout: 12000,
-    socketTimeout: 20000,
+    connectionTimeout: 7000,
+    greetingTimeout: 7000,
+    socketTimeout: 15000,
     auth: env.smtp.user && env.smtp.pass ? { user: env.smtp.user, pass: env.smtp.pass } : undefined,
     tls: { rejectUnauthorized: true, minVersion: 'TLSv1.2' },
   });

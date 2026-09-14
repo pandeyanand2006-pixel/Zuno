@@ -40,9 +40,9 @@ async function fetchWithTimeout(url, options, timeoutMs = 15000) {
   } finally { clearTimeout(t); }
 }
 
-async function doFetch(url, method, headers, body) {
+async function doFetch(url, method, headers, body, timeoutMs) {
   const isFormData = typeof FormData !== 'undefined' && body instanceof FormData;
-  const res = await fetchWithTimeout(url, { method, headers, body: body ? (isFormData ? body : JSON.stringify(body)) : undefined });
+  const res = await fetchWithTimeout(url, { method, headers, body: body ? (isFormData ? body : JSON.stringify(body)) : undefined }, timeoutMs);
   let data = null;
   try { data = await res.json(); } catch { /* no body */ }
   if (!res.ok || (data && data.success === false)) {
@@ -55,6 +55,9 @@ async function doFetch(url, method, headers, body) {
 }
 
 async function request(method, path, { body, auth = true, query, timeout } = {}) {
+  // Email OTP endpoints need longer timeout (Render cold start + Vercel proxy ~8s)
+  const defaultTimeout = path.includes('/forgot-password') || path.includes('/verify-otp') || path.includes('/verify-email') || path.includes('/resend') ? 30000 : 15000;
+  const timeoutMs = timeout || defaultTimeout;
   let url = API + path;
   if (query) {
     const qs = new URLSearchParams(Object.entries(query).filter(([, v]) => v !== undefined && v !== ''));
@@ -68,15 +71,17 @@ async function request(method, path, { body, auth = true, query, timeout } = {})
   if (auth && token) headers['Authorization'] = 'Bearer ' + token;
 
   try {
-    return await doFetch(url, method, headers, body);
+    return await doFetch(url, method, headers, body, timeoutMs);
   } catch (err) {
     // Network failure on Vercel proxy: fallback to direct Render origin (once) for resilience
+    // CRITICAL: Do NOT fallback for auth OTP POSTs — they are not idempotent (each retry generates new OTP → duplicate emails)
+    const isAuthOtp = path.includes('/forgot-password') || path.includes('/verify-otp') || path.includes('/verify-email') || path.includes('/resend');
     const isNetworkError = !err.status || err.message === 'Failed to fetch' || err.name === 'AbortError' || String(err.message).includes('NetworkError') || String(err.message).includes('Load failed');
-    const shouldFallback = isNetworkError && API === '/api' && DIRECT_API_FALLBACK !== '/api' && !path.startsWith('/config');
+    const shouldFallback = isNetworkError && API === '/api' && DIRECT_API_FALLBACK !== '/api' && !path.startsWith('/config') && !isAuthOtp;
     if (shouldFallback) {
       try {
         const altUrl = DIRECT_API_FALLBACK + path + (query ? '?' + new URLSearchParams(Object.entries(query).filter(([, v]) => v !== undefined && v !== '')).toString() : '');
-        return await doFetch(altUrl, method, headers, body);
+        return await doFetch(altUrl, method, headers, body, timeoutMs);
       } catch (fallbackErr) {
         // Prefer original error but enhance message for mobile users
         if (fallbackErr.name === 'AbortError' || String(fallbackErr.message).includes('Failed to fetch')) {

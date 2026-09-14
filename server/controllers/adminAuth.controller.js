@@ -9,6 +9,7 @@ export async function forgotPassword(req, res) {
     const data = result._devOtp ? { devOtp: result._devOtp } : null;
     return ok(res, data, result.message);
   } catch (err) {
+    if (err.message === 'COOLDOWN') return fail(res, 'Please wait 60 seconds before requesting another OTP', 429, 'COOLDOWN');
     logger.error('admin forgotPassword', err);
     return serverError(res);
   }
