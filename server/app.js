@@ -32,6 +32,8 @@ import { errorHandler, notFoundHandler } from './middleware/error.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
+// Render/Vercel are behind proxies — needed for express-rate-limit to get correct IP
+app.set('trust proxy', 1);
 
 app.use(helmet({ contentSecurityPolicy: false, crossOriginResourcePolicy: false, crossOriginEmbedderPolicy: false }));
 const allowedOrigins = env.frontendUrl ? env.frontendUrl.split(',').map(s => s.trim()).filter(Boolean) : [];

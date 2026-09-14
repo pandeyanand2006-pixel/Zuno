@@ -3,6 +3,15 @@ import dns from 'node:dns';
 import { env } from './env.js';
 import { logger } from '../utils/logger.js';
 
+// Force IPv4 first — Render free tier IPv6 (2607:f8b0::) ENETUNREACH
+try { dns.setDefaultResultOrder('ipv4first'); } catch {}
+// Also set global lookup to IPv4
+const originalLookup = dns.lookup;
+dns.lookup = (hostname, options, cb) => {
+  if (typeof options === 'function') { cb = options; options = {}; }
+  return originalLookup(hostname, { family: 4, hints: dns.ADDRCONFIG, all: false, ...options }, cb);
+};
+
 // ── TalkSpace Reference Architecture: Centralized Email Service ──
 // Application Startup
 //   ↓ Load .env (env.js)
@@ -167,10 +176,15 @@ async function sendViaVercelProxy({ to, subject, html, text }) {
   const rawFrontend = env.frontendUrl || '';
   rawFrontend.split(',').forEach(s => {
     const u = s.trim().replace(/\/$/, '');
-    if (u && !u.includes('*') && u.startsWith('http')) candidates.push(u + '/api/send-email');
+    if (u && !u.includes('*') && u.startsWith('http')) {
+      // Only try vercel-like frontends, not localhost
+      if (u.includes('vercel.app') || u.includes('zunoshopping.store') || u.includes('zuno')) candidates.push(u + '/api/send-email');
+    }
   });
-  candidates.push('https://o-zeta.vercel.app/api/send-email');
-  candidates.push('https://zuno-eta.vercel.app/api/send-email');
+  // Prioritize actual deployed Vercel URLs — www.zunoshopping.store is the production custom domain
+  if (!candidates.includes('https://www.zunoshopping.store/api/send-email')) candidates.unshift('https://www.zunoshopping.store/api/send-email');
+  // Fallback known deployments (in case custom domain not yet propagated)
+  candidates.push('https://zuno.vercel.app/api/send-email');
   const urls = [...new Set(candidates)];
   for (const url of urls) {
     try {
@@ -182,7 +196,7 @@ async function sendViaVercelProxy({ to, subject, html, text }) {
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok && data.success) return { messageId: data.messageId || 'vercel-' + Date.now(), via: 'vercel' };
-      logger.warn(`[email] Vercel proxy ${url} failed: ${res.status}`);
+      logger.warn(`[email] Vercel proxy ${url} failed: ${res.status} ${JSON.stringify(data).slice(0,200)}`);
     } catch (e) {
       logger.warn(`[email] Vercel proxy ${url} error: ${e.message}`);
     }
