@@ -33,7 +33,13 @@ export const env = {
   smtp: {
     host: (process.env.SMTP_HOST || 'smtp.gmail.com').trim(),
     port: Number(process.env.SMTP_PORT) || 587,
-    secure: process.env.SMTP_SECURE === 'true',
+    // For 465 (implicit TLS) secure must be true; for 587 STARTTLS secure false. Auto-correct if user sets port 465 but left secure false.
+    secure: (() => {
+      const p = Number(process.env.SMTP_PORT) || 587;
+      if (p === 465) return true;
+      if (p === 587) return false;
+      return process.env.SMTP_SECURE === 'true';
+    })(),
     user: (process.env.SMTP_USER || '').trim(),
     // Gmail App Password is 16 chars often copied with spaces — strip spaces
     pass: (process.env.SMTP_PASS || '').replace(/\s+/g, '').trim(),

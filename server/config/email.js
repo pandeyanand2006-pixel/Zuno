@@ -161,11 +161,16 @@ async function trySmtpWithFallback(mailOpts) {
     const t = primaryPort === 465 ? getFreshTransporter(465) : getTransporter();
     return await t.sendMail(mailOpts);
   } catch (e) {
-    const isNet = String(e.message).includes('ENETUNREACH') || String(e.message).includes('ETIMEDOUT') || String(e.message).includes('ECONNREFUSED') || String(e.message).includes('timeout');
-    if (isNet && primaryPort === 587) {
-      logger.warn(`[email] SMTP ${primaryPort} blocked — trying fallback port ${fallbackPort}`);
-      const alt = getFreshTransporter(fallbackPort);
-      return await alt.sendMail(mailOpts);
+    const isNet = String(e.message).includes('ENETUNREACH') || String(e.message).includes('ETIMEDOUT') || String(e.message).includes('ECONNREFUSED') || String(e.message).includes('timeout') || String(e.message).includes('Connection timeout');
+    if (isNet) {
+      logger.warn(`[email] SMTP ${primaryPort} blocked (timeout) — trying fallback port ${fallbackPort}`);
+      try {
+        const alt = getFreshTransporter(fallbackPort);
+        return await alt.sendMail(mailOpts);
+      } catch (e2) {
+        // If fallback also fails with network, let outer catch handle Vercel/Brevo fallback
+        throw e2;
+      }
     }
     throw e;
   }
