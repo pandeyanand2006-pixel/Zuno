@@ -19,72 +19,153 @@ export async function Product({ params }) {
       h('span',{style:{color:'#f1f5f9', fontWeight:'700'}}, product.name.slice(0,32))
     );
 
-    // ── Gallery with thumbnails (1–10 images) ──
+    // ── Gallery with thumbnails (1–10 images) + live video ──
     const images = (product.images && product.images.length ? product.images : [null]).slice(0,10);
-    // resolve video url if present
-    const videoSrc = product.video_url || product.videoUrl || null;
+    const videoSrcRaw = product.video_url || product.videoUrl || null;
+    const videoSrc = videoSrcRaw ? resolveImageUrl(videoSrcRaw) : null;
     let activeIdx = 0;
     const mainSrc = images[0] ? resolveImageUrl(images[0]) : productImage(product);
-    const mainImg = h('img', { class: 'pdp-img', src: mainSrc, alt: product.name, loading: 'eager', decoding: 'async', style:{width:'100%', height:'100%', objectFit:'cover', transition:'transform 0.4s ease'} , onerror: (e) => imgFallback(e.currentTarget, product) });
-    const mainWrap = h('div', { style:{position:'relative', width:'100%', height:'100%', overflow:'hidden', borderRadius:'16px', background:'linear-gradient(135deg,#f1f5f9,#e2e8f0)', cursor:'zoom-in'}, title:'Click to zoom' }, mainImg);
-    // badges on image
+    const mainImg = h('img', { class: 'pdp-img', src: mainSrc, alt: product.name, loading: 'eager', decoding: 'async', style:{width:'100%', height:'100%', objectFit:'cover', transition:'transform 0.35s ease, opacity 0.25s ease'} , onerror: (e) => imgFallback(e.currentTarget, product) });
+    // click on image = scroll to NEXT image (right), double-click = zoom modal
+    const mainWrap = h('div', { style:{position:'relative', width:'100%', height:'100%', overflow:'hidden', borderRadius:'16px', background:'linear-gradient(135deg,#f1f5f9,#e2e8f0)', cursor:'pointer', userSelect:'none'}, title:'Click: next image →  •  Double-click: zoom' }, mainImg);
     const saveAmt = (product.mrp > product.price) ? (product.mrp - product.price) : 0;
-    const badgeRow = h('div', { style:{position:'absolute', top:'12px', left:'12px', display:'flex', gap:'8px', zIndex:'2'} });
+    const badgeRow = h('div', { style:{position:'absolute', top:'12px', left:'12px', display:'flex', gap:'8px', zIndex:'2', pointerEvents:'none'} });
     if (product.discountPercent) badgeRow.append(h('span',{style:{background:'#0a0a0a', color:'#fff', fontSize:'11px', fontWeight:'800', padding:'6px 10px', borderRadius:'999px', letterSpacing:'0.04em'}}, `${product.discountPercent}% OFF`));
     else if (product.newArrival) badgeRow.append(h('span',{style:{background:'#1e40af', color:'#fff', fontSize:'11px', fontWeight:'800', padding:'6px 10px', borderRadius:'999px'}}, 'NEW DROP'));
     if (product.stock <= 10 && product.stock > 0) badgeRow.append(h('span',{style:{background:'#fef3c7', color:'#92400e', fontSize:'11px', fontWeight:'700', padding:'6px 10px', borderRadius:'999px'}}, `Only ${product.stock} left`));
     if (product.stock === 0) badgeRow.append(h('span',{style:{background:'#fee2e2', color:'#991b1b', fontSize:'11px', fontWeight:'700', padding:'6px 10px', borderRadius:'999px'}}, 'Out of stock'));
     mainWrap.append(badgeRow);
-    // image count pill
-    if (images.length > 1) mainWrap.append(h('div',{style:{position:'absolute', bottom:'12px', right:'12px', background:'rgba(15,23,42,0.85)', color:'#fff', fontSize:'11px', fontWeight:'700', padding:'6px 10px', borderRadius:'999px'}}, `1 / ${images.length}`));
+    const countPill = h('div',{style:{position:'absolute', bottom:'12px', right:'12px', background:'rgba(15,23,42,0.85)', color:'#fff', fontSize:'11px', fontWeight:'700', padding:'6px 10px', borderRadius:'999px', pointerEvents:'none'}}, images.length>1 ? `1 / ${images.length}` : '1 / 1');
+    if (images.length > 1 || videoSrc) mainWrap.append(countPill);
+    // arrow controls — visible on hover / always on mobile
+    const prevBtn = h('button', { type:'button', 'aria-label':'Previous image', style:{position:'absolute', left:'10px', top:'50%', transform:'translateY(-50%)', width:'36px', height:'36px', borderRadius:'50%', background:'rgba(255,255,255,0.92)', border:'1px solid #e2e8f0', color:'#0f172a', fontSize:'16px', fontWeight:'800', display: images.length>1 ? 'grid' : 'none', placeItems:'center', cursor:'pointer', zIndex:'2', boxShadow:'0 2px 8px rgba(0,0,0,0.12)'} , onclick:(e)=>{ e.stopPropagation(); goPrev(); } }, '‹');
+    const nextBtn = h('button', { type:'button', 'aria-label':'Next image', style:{position:'absolute', right:'10px', top:'50%', transform:'translateY(-50%)', width:'36px', height:'36px', borderRadius:'50%', background:'rgba(255,255,255,0.92)', border:'1px solid #e2e8f0', color:'#0f172a', fontSize:'16px', fontWeight:'800', display: images.length>1 ? 'grid' : 'none', placeItems:'center', cursor:'pointer', zIndex:'2', boxShadow:'0 2px 8px rgba(0,0,0,0.12)'} , onclick:(e)=>{ e.stopPropagation(); goNext(); } }, '›');
+    if (images.length>1) { mainWrap.append(prevBtn, nextBtn); }
+    // hint overlay
+    const swipeHint = images.length>1 ? h('div',{style:{position:'absolute', bottom:'12px', left:'12px', background:'rgba(255,255,255,0.92)', color:'#334155', fontSize:'10px', fontWeight:'700', padding:'5px 9px', borderRadius:'999px', pointerEvents:'none', border:'1px solid #e2e8f0'}}, 'Click → next • Swipe or use arrows') : null;
+    if (swipeHint) mainWrap.append(swipeHint);
 
     const galleryCard = h('div', { style:{borderRadius:'16px', overflow:'hidden', background:'#fff', border:'1px solid #e2e8f0', boxShadow:'0 8px 24px rgba(15,23,42,0.06)'} },
       h('div', { style:{aspectRatio:'4/5', overflow:'hidden'} }, mainWrap)
     );
 
-    // thumbnails
-    const thumbRow = h('div', { style:{display:'flex', gap:'8px', marginTop:'12px', overflowX:'auto', paddingBottom:'4px', scrollbarWidth:'thin'} });
+    // thumbnails — horizontal scroll, active state, auto-scroll into view
+    const thumbRow = h('div', { style:{display:'flex', gap:'8px', marginTop:'12px', overflowX:'auto', paddingBottom:'6px', scrollbarWidth:'thin', scrollBehavior:'smooth', WebkitOverflowScrolling:'touch'} });
     images.forEach((src, idx) => {
       const thumbSrc = src ? resolveImageUrl(src) : productImage(product);
-      const t = h('button', { type:'button', style:{flex:'0 0 64px', width:'64px', height:'78px', borderRadius:'10px', overflow:'hidden', border: idx===0 ? '2px solid #0f172a' : '1px solid #e2e8f0', padding:'0', background:'#fff', cursor:'pointer', position:'relative'} ,
+      const t = h('button', { type:'button', 'aria-label': `View image ${idx+1}`, style:{flex:'0 0 64px', width:'64px', height:'78px', borderRadius:'10px', overflow:'hidden', border: idx===0 ? '2px solid #0f172a' : '1px solid #e2e8f0', padding:'0', background:'#fff', cursor:'pointer', position:'relative', scrollSnapAlign:'start'} ,
         onclick: () => setActive(idx)
       },
         h('img',{src: thumbSrc, alt:`${product.name} ${idx+1}`, style:{width:'100%', height:'100%', objectFit:'cover'}, onerror:(e)=>imgFallback(e.currentTarget, {name:product.name}) })
       );
       thumbRow.append(t);
     });
-    // video thumb if exists
+    // video thumb — clicking switches main to video player
+    let videoActive = false;
+    const videoEl = videoSrc ? h('video', { controls:true, playsinline:true, preload:'metadata', poster: mainSrc, style:{width:'100%', height:'100%', objectFit:'contain', background:'#0f172a', display:'none'}, src: videoSrc }) : null;
     if (videoSrc) {
-      const vt = h('button', { type:'button', style:{flex:'0 0 64px', width:'64px', height:'78px', borderRadius:'10px', overflow:'hidden', border:'1px solid #e2e8f0', background:'#0f172a', color:'#fff', display:'grid', placeItems:'center', fontSize:'20px'} , onclick:()=> window.open(resolveImageUrl(videoSrc), '_blank') }, '▶');
+      // overlay video element inside galleryCard for inline playback
+      const vidWrap = h('div', { style:{position:'absolute', inset:'0', display:'none', background:'#0f172a', zIndex:'3'} }, videoEl);
+      mainWrap.append(vidWrap);
+      const vt = h('button', { type:'button', 'aria-label':'Play video', style:{flex:'0 0 64px', width:'64px', height:'78px', borderRadius:'10px', overflow:'hidden', border:'1px solid #e2e8f0', background:'#0f172a', color:'#fff', display:'grid', placeItems:'center', fontSize:'20px', position:'relative', cursor:'pointer'} ,
+        onclick:()=> setActive('video') },
+        h('span',{style:{fontSize:'22px'}},'▶'),
+        h('span',{style:{position:'absolute', bottom:'4px', left:'50%', transform:'translateX(-50%)', fontSize:'8px', fontWeight:'700', letterSpacing:'0.05em', background:'rgba(255,255,255,0.15)', padding:'2px 6px', borderRadius:'999px'}}, 'VIDEO')
+      );
       thumbRow.append(vt);
+      // helper to toggle video visibility
+      thumbRow._videoWrap = vidWrap;
+      thumbRow._videoBtn = vt;
     }
-
+    function goNext(){ if (videoActive) { setActive(0); return; } const nxt = (activeIdx + 1) % images.length; setActive(nxt); }
+    function goPrev(){ if (videoActive) { setActive(images.length-1); return; } const prv = (activeIdx - 1 + images.length) % images.length; setActive(prv); }
     function setActive(idx){
-      activeIdx = idx;
-      const src = images[idx] ? resolveImageUrl(images[idx]) : productImage(product);
-      mainImg.src = src;
-      // update thumbs border
+      // handle video mode
+      if (idx === 'video' && videoSrc) {
+        videoActive = true;
+        const vw = thumbRow._videoWrap;
+        if (vw) { vw.style.display='block'; if (videoEl) { try{ videoEl.currentTime=0; videoEl.play().catch(()=>{});}catch{}} }
+        mainImg.style.opacity='0';
+        // highlight video thumb
+        [...thumbRow.children].forEach(el=>{ el.style.border='1px solid #e2e8f0'; el.style.transform='none'; });
+        const vbtn = thumbRow._videoBtn;
+        if (vbtn) { vbtn.style.border='2px solid #0f172a'; vbtn.style.transform='scale(0.98)'; }
+        countPill.textContent = `▶ Video`;
+        // scroll video thumb into view
+        try{ thumbRow._videoBtn.scrollIntoView({ behavior:'smooth', inline:'center', block:'nearest' }); }catch{}
+        return;
+      }
+      // exit video mode if was active
+      if (videoActive) {
+        videoActive = false;
+        const vw = thumbRow._videoWrap;
+        if (vw) vw.style.display='none';
+        if (videoEl) try{ videoEl.pause(); }catch{}
+        mainImg.style.opacity='1';
+      }
+      activeIdx = Number(idx);
+      // cross-fade
+      mainImg.style.opacity='0.3';
+      const nextSrc = images[activeIdx] ? resolveImageUrl(images[activeIdx]) : productImage(product);
+      // preload then swap
+      const tmp = new Image();
+      tmp.onload = ()=>{ mainImg.src = nextSrc; mainImg.style.opacity='1'; };
+      tmp.onerror = ()=>{ mainImg.src = nextSrc; mainImg.style.opacity='1'; imgFallback(mainImg, product); };
+      tmp.src = nextSrc;
       [...thumbRow.children].forEach((el,i)=> {
-        if (el.tagName==='BUTTON') {
-          const isActive = i===idx;
-          el.style.border = isActive ? '2px solid #0f172a' : '1px solid #e2e8f0';
-          el.style.transform = isActive ? 'scale(0.98)' : 'none';
-        }
+        const isActive = i===activeIdx;
+        // skip video button border toggling if video exists — its index is images.length
+        if (videoSrc && i === images.length) return;
+        el.style.border = isActive ? '2px solid #0f172a' : '1px solid #e2e8f0';
+        el.style.transform = isActive ? 'scale(0.98)' : 'none';
       });
-      const countPill = mainWrap.querySelector('div[style*="bottom:12px"]');
-      if (countPill) countPill.textContent = `${idx+1} / ${images.length}`;
+      if (videoSrc && thumbRow._videoBtn) { thumbRow._videoBtn.style.border='1px solid #e2e8f0'; thumbRow._videoBtn.style.transform='none'; }
+      countPill.textContent = `${activeIdx+1} / ${images.length}` + (videoSrc ? ' + video' : '');
+      // scroll active thumb into view (horizontal)
+      try{ thumbRow.children[activeIdx]?.scrollIntoView({ behavior:'smooth', inline:'center', block:'nearest' }); }catch{}
     }
-    // zoom on click
-    mainWrap.addEventListener('click', ()=>{
+    // clicking main image advances to NEXT (scroll right) — as requested
+    mainWrap.addEventListener('click', (e)=>{
+      if (e.target === prevBtn || e.target === nextBtn || e.target.closest('button')) return;
+      if (videoActive) { setActive(0); return; }
+      goNext();
+    });
+    // double-click zooms — shows modal with full image
+    mainWrap.addEventListener('dblclick', (e)=>{
+      e.preventDefault();
+      if (videoActive && videoEl) return; // don't zoom video
       const src = mainImg.src;
       const zoom = h('div', {style:{display:'flex', flexDirection:'column', alignItems:'center', gap:'12px'}},
         h('img',{src, style:{maxWidth:'100%', maxHeight:'70vh', borderRadius:'12px', objectFit:'contain', background:'#f8fafc'}}),
-        h('div',{style:{fontSize:'12px', color:'#64748b'}}, `${activeIdx+1} / ${images.length} — ${product.name}`)
+        h('div',{style:{fontSize:'12px', color:'#64748b'}}, `${activeIdx+1} / ${images.length} — ${product.name} • Double-click image was zoom, single click now advances`),
+        h('div',{style:{display:'flex', gap:'8px'}},
+          h('button',{class:'btn btn-ghost btn-sm', onclick:()=>{ goPrev(); const im=document.querySelector('.overlay img'); if(im) im.src = mainImg.src; }}, '‹ Prev'),
+          h('button',{class:'btn btn-ghost btn-sm', onclick:()=>{ goNext(); const im=document.querySelector('.overlay img'); if(im) im.src = mainImg.src; }}, 'Next ›')
+        )
       );
       modal(zoom);
     });
+    // swipe / drag to navigate
+    let startX = 0, dragging=false;
+    mainWrap.addEventListener('touchstart', (e)=>{ startX = e.touches[0].clientX; dragging=true; }, {passive:true});
+    mainWrap.addEventListener('touchend', (e)=>{ if(!dragging) return; const dx = e.changedTouches[0].clientX - startX; if (Math.abs(dx) > 40) { if(dx<0) goNext(); else goPrev(); } dragging=false; }, {passive:true});
+    let mouseDownX=0, isMouseDrag=false;
+    mainWrap.addEventListener('mousedown', (e)=>{ mouseDownX=e.clientX; isMouseDrag=true; });
+    mainWrap.addEventListener('mouseup', (e)=>{ if(!isMouseDrag) return; const dx=e.clientX - mouseDownX; if(Math.abs(dx)>50){ if(dx<0) goNext(); else goPrev(); } isMouseDrag=false; });
+    // keyboard arrows when gallery focused
+    mainWrap.setAttribute('tabindex','0');
+    mainWrap.addEventListener('keydown', (e)=>{ if(e.key==='ArrowRight') { e.preventDefault(); goNext(); } if(e.key==='ArrowLeft'){ e.preventDefault(); goPrev(); } });
 
-    const gallery = h('div', { style:{display:'flex', flexDirection:'column'} }, galleryCard, images.length>1 ? thumbRow : null);
+    // inline video block below thumbnails when video exists — live visible player
+    const videoBlock = videoSrc ? h('div', { style:{marginTop:'12px', borderRadius:'16px', overflow:'hidden', background:'#0f172a', border:'1px solid #1e293b', boxShadow:'0 8px 24px rgba(15,23,42,0.12)'} },
+      h('div', { style:{padding:'10px 14px', display:'flex', justifyContent:'space-between', alignItems:'center', background:'linear-gradient(135deg,#0f172a,#1e293b)', color:'#e2e8f0'} },
+        h('span',{style:{fontSize:'11px', fontWeight:'800', letterSpacing:'0.08em'}}, '▶ PRODUCT VIDEO • LIVE'),
+        h('span',{style:{fontSize:'11px', color:'#93c5fd'}}, 'Tap to play')
+      ),
+      h('video', { controls:true, playsinline:true, preload:'metadata', style:{width:'100%', maxHeight:'360px', display:'block', background:'#000'}, src: videoSrc, poster: mainSrc, onerror:(e)=>{ e.currentTarget.style.display='none'; e.currentTarget.parentNode.append(h('div',{style:{padding:'14px', color:'#94a3b8', fontSize:'13px', textAlign:'center'}}, 'Video unavailable — but gallery images are live.')); } })
+    ) : null;
+
+    const gallery = h('div', { style:{display:'flex', flexDirection:'column'} }, galleryCard, thumbRow, videoBlock);
 
     // ── Variant state ──
     let selColor = (product.colors && product.colors[0]) || null;
@@ -194,25 +275,32 @@ export async function Product({ params }) {
     const buyBtn = h('button', { class: 'btn btn-primary', type: 'button', style:{flex:'1', padding:'14px 18px', borderRadius:'12px', background:'#0f172a', borderColor:'#0f172a', fontWeight:'800', letterSpacing:'0.02em', boxShadow:'0 8px 20px rgba(15,23,42,0.18)'}, onclick: () => addToBag(true) }, 'Buy now');
 
     async function addToBag(buyNow) {
-      if (product.colors?.length && !selColor) { toast('Please select a color', 'warning'); return; }
-      if (product.sizes?.length && !selSize) { toast('Please select a size', 'warning'); return; }
+      if (product.colors?.length && !selColor) { toast('Please select a color', 'warning'); // pulse color section
+        try{ colorRow.scrollIntoView({behavior:'smooth', block:'center'}); }catch{}
+        return; }
+      if (product.sizes?.length && !selSize) { toast('Please select a size', 'warning');
+        try{ sizeRow.scrollIntoView({behavior:'smooth', block:'center'}); }catch{}
+        return; }
       const variant = selColor && selSize ? { color: selColor, size: selSize } : null;
       const q = Math.max(1, Math.min(10, Number(qtyInput.value) || 1));
       const imageSrc = (product.images && product.images[0]) || null;
-      // Buy Now → go straight to checkout proceed/address section as requested
+      // Buy Now → directly go to checkout DETAILS section (like Proceed to checkout) — highlights address
       if (buyNow) {
+        // visual feedback: disable button
+        try{ buyBtn.disabled=true; buyBtn.textContent='Adding…'; }catch{}
         if (!Store.isAuthed()) {
           Store.addGuestItem({ productId: product.id, name: product.name, price: product.price, mrp: product.mrp, slug: product.slug, image: imageSrc || productImage(product), module: 'shop', quantity: q, variant, isCustom: false });
-          toast('Added to bag — sign in to continue to checkout', 'success');
-          location.hash = '#/checkout?module=shop';
+          toast('Added to bag — sign in to continue', 'success');
+          // go to checkout with buyNow flag so checkout auto-focuses details/proceed area
+          location.hash = '#/checkout?module=shop&from=buyNow&scroll=details';
           return;
         }
         try {
           await api.post('/cart/items?module=shop', { productId: product.id, quantity: q, variant });
           await refreshCart();
-          toast('Proceeding to checkout', 'success');
-          location.hash = '#/checkout?module=shop';
-        } catch (e) { toast(e.message, 'error'); }
+          toast('Proceeding to checkout — details', 'success');
+          location.hash = '#/checkout?module=shop&from=buyNow&scroll=details';
+        } catch (e) { toast(e.message, 'error'); try{ buyBtn.disabled=false; buyBtn.textContent='Buy now'; }catch{} }
         return;
       }
       // Add to Bag → show popup drawer with cart preview (no redirect)

@@ -37,23 +37,62 @@ function timeline(order) {
 
 export async function Orders() {
   const root = h('div', { class: 'container section' });
-  if (!Store.isAuthed()) { root.append(emptyState({ icon: '🔐', title: 'Sign in to see orders', action: h('a', { class: 'btn btn-primary', href: '#/login' }, 'Sign in') })); return root; }
-  root.append(h('h1', {}, 'Your orders'));
+  if (!Store.isAuthed()) { root.append(emptyState({ icon: '🔐', title: 'Sign in to see orders', desc:'Create an account to track every order — live status, tracking and invoices.', action: h('a', { class: 'btn btn-primary', href: '#/login' }, 'Sign in') })); return root; }
+  const head = h('div', { style:{display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:'12px', marginBottom:'16px'} },
+    h('div',{},
+      h('h1', { style:{margin:'0', fontFamily:'var(--font-display)'} }, 'Order history'),
+      h('p', { class:'muted text-sm', style:{margin:'4px 0 0'} }, 'Track every order — tap any card for live timeline, invoice & tracking.')
+    ),
+    h('a', { class:'btn btn-outline btn-sm', href:'#/shop' }, 'Continue shopping →')
+  );
+  root.append(head);
+  // filter tabs — All / Active / Delivered / Cancelled
+  let filter = new URLSearchParams(location.hash.split('?')[1]||'').get('filter') || 'all';
+  const tabs = h('div', { class:'row gap-2 wrap', style:{marginBottom:'16px'} },
+    ...[
+      ['all','All orders'], ['active','Active'], ['shipped','Shipped'], ['delivered','Delivered'], ['cancelled','Cancelled']
+    ].map(([k,label])=> h('button', { class:'chip'+(filter===k?' active':'') , onclick:()=>{ location.hash='#/orders'+(k==='all'?'':'?filter='+k); } }, label))
+  );
+  root.append(tabs);
   const grid = h('div', { class: 'col gap-4' });
   root.append(grid);
+  const countEl = h('div', { class:'muted text-xs', style:{marginBottom:'8px'} }, 'Loading orders…');
+  root.append(countEl);
   try {
-    const { orders } = await api.get('/orders');
-    if (!orders.length) grid.append(emptyState({ icon: '📦', title: 'No orders yet', desc: 'Your next order could start here.', action: h('a', { class: 'btn btn-primary', href: '#/shop' }, 'Explore products') }));
-    else orders.forEach((o) => grid.append(orderCard(o)));
-  } catch (e) { grid.append(errorState(e.message, () => location.reload())); }
+    const { orders: allOrders } = await api.get('/orders');
+    let orders = allOrders;
+    if (filter==='active') orders = allOrders.filter(o=> !['DELIVERED','CANCELLED','REFUNDED','FAILED'].includes(o.status));
+    if (filter==='shipped') orders = allOrders.filter(o=> ['SHIPPED','OUT_FOR_DELIVERY'].includes(o.status));
+    if (filter==='delivered') orders = allOrders.filter(o=> o.status==='DELIVERED');
+    if (filter==='cancelled') orders = allOrders.filter(o=> ['CANCELLED','FAILED','REFUNDED'].includes(o.status));
+    countEl.textContent = `${orders.length} of ${allOrders.length} orders` + (filter!=='all' ? ` • filtered: ${filter}` : '');
+    if (!orders.length) {
+      if (!allOrders.length) grid.append(emptyState({ icon: '📦', title: 'No orders yet', desc: 'Your next order could start here. Orders appear here instantly after checkout — COD or online.', action: h('a', { class: 'btn btn-primary', href: '#/shop' }, 'Explore products') }));
+      else grid.append(emptyState({ icon: '🔍', title: `No ${filter} orders`, desc: 'Try another filter.', action: h('button', { class:'btn btn-ghost', onclick:()=> location.hash='#/orders' }, 'Clear filter') }));
+    } else orders.forEach((o) => grid.append(orderCard(o)));
+  } catch (e) { grid.append(errorState(e.message, () => location.reload())); countEl.textContent=''; }
   return root;
 }
 
 function orderCard(o) {
-  return h('a', { class: 'card card-pad', href: '#/orders/' + o.id, style: { textDecoration: 'none', color: 'inherit', display: 'block' } },
-    h('div', { class: 'row between' }, h('div', {}, h('div', { class: 'fw-600' }, o.order_number), h('div', { class: 'muted text-sm' }, o.module + ' · ' + new Date(o.created_at).toLocaleDateString('en-IN'))),
-      statusBadge(o.status)),
-    h('div', { class: 'row between', style: { marginTop: '8px' } }, h('span', { class: 'muted text-sm' }, money(o.total)), h('span', { class: 'fw-600' }, 'View →')));
+  const tracking = o.printroveTrackingNumber || o.printrove_tracking_number || o.printroveTracking || null;
+  const courier = o.printroveCourier || o.printrove_courier || null;
+  const date = (()=>{ try{ return new Date(o.created_at).toLocaleDateString('en-IN', {day:'2-digit', month:'short', year:'numeric'});}catch{ return o.created_at; }})();
+  return h('a', { class: 'card card-pad', href: '#/orders/' + o.id, style: { textDecoration: 'none', color: 'inherit', display: 'block', borderLeft: o.status==='DELIVERED' ? '4px solid #16a34a' : o.status==='CANCELLED' ? '4px solid #dc2626' : '4px solid #0f172a' } },
+    h('div', { class: 'row between', style:{alignItems:'flex-start', gap:'12px'} },
+      h('div', { style:{minWidth:0, flex:'1'} },
+        h('div', { class: 'fw-600', style:{display:'flex', gap:'8px', alignItems:'center', flexWrap:'wrap'} }, h('span',{}, o.order_number), statusBadge(o.status)),
+        h('div', { class: 'muted text-sm', style:{marginTop:'4px'} }, `${o.module || 'shop'} · ${date} · ${money(o.total)}`),
+        tracking ? h('div', { style:{marginTop:'6px', display:'inline-flex', gap:'6px', alignItems:'center', background:'#eff6ff', border:'1px solid #bfdbfe', padding:'4px 8px', borderRadius:'999px', fontSize:'11px', fontWeight:'700', color:'#1e40af'} }, `↗ Tracking: ${tracking}${courier?` (${courier})`:''}`) : null,
+        o.printroveStatus || o.printrove_status ? h('div',{style:{marginTop:'4px', fontSize:'11px', color:'#334155'}}, `Fulfillment: ${o.printroveStatus || o.printrove_status}`) : null
+      ),
+      h('span', { class: 'fw-600', style:{fontSize:'12px', color:'#0f172a', whiteSpace:'nowrap'} }, 'Track →')
+    ),
+    h('div', { class: 'row between', style: { marginTop: '10px', paddingTop:'10px', borderTop:'1px dashed #e2e8f0' } },
+      h('span', { class: 'muted text-sm' }, 'Tap for timeline, invoice & re-order'),
+      h('span', { class: 'badge badge-info' }, 'View details')
+    )
+  );
 }
 
 export async function OrderDetail({ params }) {
@@ -62,12 +101,22 @@ export async function OrderDetail({ params }) {
   try {
     const { order } = await api.get('/orders/' + params.id);
     root.innerHTML = '';
-    root.append(h('a', { href: '#/orders', class: 'text-sm fw-600' }, '← All orders'),
-      h('div', { class: 'row between', style: { margin: '12px 0', alignItems: 'center' } },
-        h('h1', { style: { margin: 0, fontFamily: 'var(--font-display)' } }, order.order_number),
-        h('div', { class: 'row gap-2' }, statusBadge(order.status), h('button', { class: 'btn btn-ghost btn-sm', onclick: () => window.print() }, 'Print invoice'))));
+    const tracking = order.printroveTrackingNumber || order.printrove_tracking_number || null;
+    const courier = order.printroveCourier || order.printrove_courier || null;
+    const fulfillment = order.printroveStatus || order.printrove_status || order.printroveStatus || null;
+    root.append(h('a', { href: '#/orders', class: 'text-sm fw-600' }, '← All orders / Order history'),
+      h('div', { class: 'row between', style: { margin: '12px 0', alignItems: 'center', flexWrap:'wrap', gap:'10px' } },
+        h('h1', { style: { margin: 0, fontFamily: 'var(--font-display)', fontSize:'22px' } }, order.order_number),
+        h('div', { class: 'row gap-2', style:{flexWrap:'wrap'} }, statusBadge(order.status), tracking ? h('span', { class:'badge badge-info', style:{background:'#eff6ff', color:'#1e40af', border:'1px solid #bfdbfe'} }, `↗ ${tracking}${courier?` · ${courier}`:''}`) : null, h('button', { class: 'btn btn-ghost btn-sm', onclick: () => window.print() }, 'Print invoice'))),
+      tracking ? h('div', { class:'card', style:{padding:'12px', background:'#eff6ff', border:'1px solid #bfdbfe', marginBottom:'12px', display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:'8px'} },
+        h('div',{}, h('div',{style:{fontWeight:'800', color:'#1e40af', fontSize:'13px'}}, `Tracking: ${tracking}`), h('div',{style:{fontSize:'11px', color:'#334155'}}, `${courier||'Courier'} • ${fulfillment||order.status}`)),
+        h('a', { href: tracking ? `https://www.google.com/search?q=${encodeURIComponent(tracking+' '+ (courier||''))}` : '#', target:'_blank', class:'btn btn-primary btn-sm', style:{background:'#1e40af'} }, 'Track shipment →')
+      ) : null,
+      fulfillment ? h('div', { class:'muted text-xs', style:{marginBottom:'8px'} }, `Fulfillment status: ${fulfillment} • Updates from Printrove sync`) : null
+    );
     const card = h('div', { class: 'card card-pad' },
-      h('h3', {}, 'Order tracking'),
+      h('h3', {}, 'Order tracking — live timeline'),
+      h('p', { class:'muted text-xs', style:{margin:'4px 0 8px'} }, 'Every status change is recorded — from payment to delivery. Admin updates reflect here instantly.'),
       timeline(order),
       h('div', { class: 'divider' }),
       h('h3', {}, 'Items'),

@@ -105,7 +105,11 @@ export function apiOrigin() {
     const ls = (typeof localStorage !== 'undefined') ? localStorage.getItem('ZUNO_API_BASE') : null;
     if (ls !== null) {
       const v = String(ls).trim();
-      if (v === '' || v.toLowerCase() === 'local' || v === '/api') return '';
+      if (v === '' || v.toLowerCase() === 'local' || v === '/api') {
+        // On Vercel, same-origin /api is proxied, but /uploads is NOT proxied — must use direct backend
+        try { const host = (typeof window !== 'undefined' && window.location && window.location.hostname) ? window.location.hostname : ''; if (host && host.endsWith('.vercel.app')) return 'https://zuno-ydl3.onrender.com'; } catch {}
+        return '';
+      }
       const full = v.replace(/\/$/, '') + (v.replace(/\/$/, '').endsWith('/api') ? '' : '/api');
       return full.replace(/\/api$/, '');
     }
@@ -113,10 +117,16 @@ export function apiOrigin() {
   try {
     const win = (typeof window !== 'undefined' && window.ZUNO_API_BASE) ? String(window.ZUNO_API_BASE).trim() : '';
     if (win) {
+      if (win === '' || win.toLowerCase() === 'local' || win === '/api') {
+        try { const host = (typeof window !== 'undefined' && window.location && window.location.hostname) ? window.location.hostname : ''; if (host && host.endsWith('.vercel.app')) return 'https://zuno-ydl3.onrender.com'; } catch {}
+        return '';
+      }
       const full = win.replace(/\/$/, '') + (win.replace(/\/$/, '').endsWith('/api') ? '' : '/api');
       return full.replace(/\/api$/, '');
     }
   } catch {}
+  // Split deploy: Vercel frontend must fetch uploads from backend directly
+  try { const host = (typeof window !== 'undefined' && window.location && window.location.hostname) ? window.location.hostname : ''; if (host && host.endsWith('.vercel.app')) return 'https://zuno-ydl3.onrender.com'; } catch {}
   return '';
 }
 export function resolveImageUrl(src) {
@@ -125,6 +135,7 @@ export function resolveImageUrl(src) {
   if (src.startsWith('/uploads/') || src.startsWith('uploads/')) {
     const path = src.startsWith('/') ? src : '/' + src;
     const origin = apiOrigin();
+    // Live uploads: always absolute when on Vercel so images are instantly visible site-wide
     return origin ? origin + path : path;
   }
   return src;

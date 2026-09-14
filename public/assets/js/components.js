@@ -15,7 +15,7 @@ const MOBILE_NAV = [
   { label: 'Home', href: '#/', key: 'home', em: '◐' },
   { label: 'Shop', href: '#/shop', key: 'shop', em: '▭' },
   { label: 'Custom', href: '#/customize', key: 'custom', em: '✦' },
-  { label: 'Wishlist', href: '#/wishlist', key: 'wishlist', em: '♡' },
+  { label: 'Orders', href: '#/orders', key: 'orders', em: '📦' },
   { label: 'Bag', href: '#/cart', key: 'cart', em: '◧' },
 ];
 
@@ -33,6 +33,7 @@ export function topBar(active) {
 
   const isAdmin = user && user.role === 'ADMIN';
   const actions = h('div', { class: 'nav-actions' },
+    h('a', { class: 'icon-btn', href: '#/orders', title: 'Orders & Tracking', 'aria-label': 'Orders' }, '📦'),
     isAdmin ? h('a', { class: 'btn btn-ghost btn-sm', href: '#/admin', style:{background:'#0f172a', color:'#fff', fontWeight:'700', letterSpacing:'0.02em'} }, 'Admin') : null,
     h('a', { class: 'icon-btn', href: '#/wishlist', title: 'Wishlist', 'aria-label': 'Wishlist' }, '♡', wishCount ? h('span', { class: 'cart-count', style: { background: 'var(--primary-denim)' } }, String(wishCount)) : null),
     h('a', { class: 'icon-btn', href: '#/cart', title: 'Bag', 'aria-label': 'Bag' },

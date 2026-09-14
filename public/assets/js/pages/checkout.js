@@ -32,6 +32,27 @@ export async function Checkout() {
   renderNotes();
   renderSummary();
   renderPaymentMethod();
+  // Buy Now → auto-scroll to details/proceed section (address + payment) like Proceed flow
+  try {
+    const qs = new URLSearchParams(location.hash.split('?')[1] || '');
+    if (qs.get('from') === 'buyNow' || qs.get('scroll') === 'details') {
+      setTimeout(() => {
+        const addrEl = left.querySelector('[data-marker="address"]');
+        const payEl = left.querySelector('[data-marker="paymethod"]');
+        const target = addrEl || payEl || left;
+        if (target) {
+          target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          const origBg = target.style.background;
+          const origBo = target.style.border;
+          target.style.border = '2px solid #0f172a';
+          target.style.background = '#f8fafc';
+          target.style.transition = 'all 0.3s ease';
+          setTimeout(() => { target.style.border = origBo; target.style.background = origBg; }, 1800);
+          toast('Details ready — choose address and payment, then Place order', 'info');
+        }
+      }, 380);
+    }
+  } catch {}
 
   function renderNotes() {
     const box = h('div', { class: 'card card-pad' },
