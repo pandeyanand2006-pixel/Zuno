@@ -255,7 +255,7 @@ export function VerifyEmail() {
   const btn = h('button', { class:'btn btn-primary btn-block btn-lg', type:'button' }, 'Verify Email');
   const resend = h('button', { class:'btn btn-outline btn-block', type:'button', style:{marginTop:'8px'} }, 'Resend Code');
   let resendTimer = null; let countdown = 0;
-  function startCountdown(sec=60) {
+  function startCountdown(sec=30) {
     countdown = sec;
     resend.disabled = true;
     const tick = () => {
@@ -290,21 +290,20 @@ export function VerifyEmail() {
       toast('Verification code resent — check inbox and Spam','success');
       msg.textContent='New code sent — check email (and Spam).'; msg.style.color='#16a34a';
       if (data && data.devOtp) { msg.textContent += ' Dev OTP: ' + data.devOtp; }
-      startCountdown(60);
+      startCountdown(30);
     }catch(e){
       const m=friendlyError(e);
       if (e.code==='ALREADY_VERIFIED') { toast('Email already verified — please log in','success'); location.hash='#/login'; return; }
-      if (e.code==='COOLDOWN' || e.code==='RATE_LIMITED' || m.includes('wait 60') || m.includes('Too many requests')) {
-        msg.textContent='Please wait 60 seconds before requesting another code'; msg.style.color='#f59e0b';
+      if (e.code==='COOLDOWN' || e.code==='RATE_LIMITED' || m.includes('wait 30') || m.includes('wait 60') || m.includes('Too many requests')) {
+        msg.textContent='Please wait 30 seconds before requesting another code'; msg.style.color='#f59e0b';
         toast('Please wait before resending','warning');
-        startCountdown(60);
+        startCountdown(30);
         return;
       }
       toast(m,'error'); msg.textContent=m; msg.style.color='#dc2626'; resend.disabled=false; resend.textContent='Resend Code';
     }
   };
-  // Auto-start countdown if navigated from register (avoid spam)
-  setTimeout(()=> startCountdown(30), 500);
+  // No auto-countdown — user can resend immediately if needed (backend will enforce 30s cooldown)
   card.append(
     h('div', { class:'center', style:{marginBottom:'20px'} }, h('div', { class:'brand', style:{justifyContent:'center'} }, 'ZUNO')),
     h('h2', { class:'center' }, 'Verify Your Email'),
@@ -337,7 +336,7 @@ export function ForgotPassword() {
   // Also allow direct navigation to full page
   const fullPageLink = h('div', { style:{textAlign:'center', marginTop:'12px'}}, h('a', { href:'#', style:{fontSize:'12px', color:'#64748b'}, onclick:(e)=>{ e.preventDefault(); const em=emailF.input.value.trim(); if(em) location.hash='#/verify-otp?email='+encodeURIComponent(em); else location.hash='#/verify-otp'; }}, 'Having trouble? Open full OTP page'));
   let cooldown = 0; let timer = null;
-  function startCooldown(sec=60){
+  function startCooldown(sec=30){
     cooldown = sec;
     btn.disabled = true;
     const tick = () => {
@@ -366,16 +365,16 @@ export function ForgotPassword() {
       msg.style.color='#16a34a';
       toast('OTP sent — check email (and Spam / Promotions folder)','success');
       if (data && data.devOtp) { preview.style.display='block'; preview.textContent='Dev OTP: '+data.devOtp+' (expires 10m)'; }
-      startCooldown(60);
+      startCooldown(30);
       showOtpStep(email);
       // Also keep auto-redirect as fallback after 1.5s but inline is now primary
       setTimeout(()=> { if (otpWrap.style.display==='block') msg.textContent += ' — Enter OTP below or Go to full verify page'; }, 500);
     } catch(e){
       const m=friendlyError(e);
-      if (e.code === 'COOLDOWN' || m.includes('wait 60')) {
-        msg.textContent='Please wait 60 seconds before requesting another OTP'; msg.style.color='#f59e0b';
+      if (e.code === 'COOLDOWN' || m.includes('wait 30') || m.includes('wait 60')) {
+        msg.textContent='Please wait 30 seconds before requesting another OTP'; msg.style.color='#f59e0b';
         toast('Please wait before resending','warning');
-        startCooldown(60);
+        startCooldown(30);
         showOtpStep(email);
       } else if (e.code === 'NETWORK_ERROR' || m.includes('Network error')) {
         msg.textContent='Network error — please wait 10s and retry. If on Render free tier, server may be waking.'; msg.style.color='#dc2626';
@@ -494,7 +493,7 @@ export function VerifyOtp() {
     btn.disabled=false; btn.textContent='Verify OTP';
   };
   let verifyOtpCountdown = 0; let verifyOtpTimer = null;
-  function startVerifyCountdown(sec=60){
+  function startVerifyCountdown(sec=30){
     verifyOtpCountdown = sec;
     resend.disabled = true;
     const tick = () => {
@@ -510,12 +509,12 @@ export function VerifyOtp() {
     if(!em || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)){ toast('Enter valid email','error'); return; }
     if (verifyOtpCountdown > 0) return;
     resend.disabled=true; resend.textContent='Sending…';
-    try{ await api.post('/auth/forgot-password', {email:em}, {auth:false}); toast('OTP resent — check email (and Spam)','success'); msg.textContent='A new OTP has been sent — check email (and Spam).'; msg.style.color='#16a34a'; startVerifyCountdown(60); }catch(e){
+    try{ await api.post('/auth/forgot-password', {email:em}, {auth:false}); toast('OTP resent — check email (and Spam)','success'); msg.textContent='A new OTP has been sent — check email (and Spam).'; msg.style.color='#16a34a'; startVerifyCountdown(30); }catch(e){
       const m=friendlyError(e);
-      if (e.code==='COOLDOWN' || e.code==='RATE_LIMITED' || m.includes('wait 60') || m.includes('Too many requests')) {
-        msg.textContent='Please wait 60 seconds before requesting another OTP'; msg.style.color='#f59e0b';
+      if (e.code==='COOLDOWN' || e.code==='RATE_LIMITED' || m.includes('wait 30') || m.includes('wait 60') || m.includes('Too many requests')) {
+        msg.textContent='Please wait 30 seconds before requesting another OTP'; msg.style.color='#f59e0b';
         toast('Please wait before resending','warning');
-        startVerifyCountdown(60);
+        startVerifyCountdown(30);
         return;
       }
       toast(m,'error'); msg.textContent=m; msg.style.color='#dc2626'; resend.disabled=false; resend.textContent='Resend OTP';

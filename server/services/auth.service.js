@@ -173,15 +173,18 @@ export const authService = {
 
   async resendVerification({ email }) {
     const normalized = String(email).toLowerCase().trim();
-    const cooldownMs = 60 * 1000;
+    const cooldownMs = 30 * 1000;
     let user = null;
     if (useMongo()) {
       user = await User.findOne({ email: normalized });
       if (!user) throw new Error('NOT_FOUND');
       if (user.email_verified) throw new Error('ALREADY_VERIFIED');
-      // Cooldown 60s
+      // Cooldown 30s — use created_at for accuracy
       const recent = await OtpCode.findOne({ email: normalized, purpose: 'verify' }).sort({ created_at: -1 });
-      if (recent && new Date(recent.expires_at).getTime() > Date.now() + (VERIFICATION_EXPIRES_MINUTES * 60 * 1000 - cooldownMs)) {
+      if (recent && recent.created_at && new Date(recent.created_at).getTime() > Date.now() - cooldownMs) {
+        throw new Error('COOLDOWN');
+      } else if (recent && !recent.created_at && new Date(recent.expires_at).getTime() > Date.now() + (VERIFICATION_EXPIRES_MINUTES * 60 * 1000 - cooldownMs)) {
+        // fallback if created_at missing
         throw new Error('COOLDOWN');
       }
       const otp = generateOtp();
@@ -199,8 +202,10 @@ export const authService = {
     user = db.prepare('SELECT id, email_verified FROM users WHERE email = ?').get(normalized);
     if (!user) throw new Error('NOT_FOUND');
     if (user.email_verified) throw new Error('ALREADY_VERIFIED');
-    const recentRow = db.prepare('SELECT expires_at FROM otp_codes WHERE email = ? AND purpose = ? ORDER BY id DESC LIMIT 1').get(normalized, 'verify');
-    if (recentRow && recentRow.expires_at && new Date(recentRow.expires_at).getTime() > Date.now() + (VERIFICATION_EXPIRES_MINUTES * 60 * 1000 - cooldownMs)) {
+    const recentRow = db.prepare('SELECT created_at, expires_at FROM otp_codes WHERE email = ? AND purpose = ? ORDER BY id DESC LIMIT 1').get(normalized, 'verify');
+    if (recentRow && recentRow.created_at && new Date(recentRow.created_at).getTime() > Date.now() - cooldownMs) {
+      throw new Error('COOLDOWN');
+    } else if (recentRow && recentRow.expires_at && new Date(recentRow.expires_at).getTime() > Date.now() + (VERIFICATION_EXPIRES_MINUTES * 60 * 1000 - cooldownMs)) {
       throw new Error('COOLDOWN');
     }
     const otp = generateOtp();
@@ -351,17 +356,20 @@ export const authService = {
     }
     if (!user) return { message: genericMessage };
 
-    // Cooldown: if OTP was sent within last 60s, don't spam (prevents duplicate emails from double-click/fallback retry)
-    const cooldownMs = 60 * 1000;
+    // Cooldown: if OTP was sent within last 30s, don't spam (prevents duplicate emails from double-click/fallback retry)
+    const cooldownMs = 30 * 1000;
     if (useMongo()) {
       const existing = await User.findOne({ email: normalized });
-      if (existing && existing.resetOtpExpires && new Date(existing.resetOtpExpires).getTime() > Date.now() + (OTP_EXPIRES_MINUTES * 60 * 1000 - cooldownMs)) {
-        throw new Error('COOLDOWN');
+      if (existing && existing.resetOtpExpires) {
+        // created ≈ expires - OTP_EXPIRES; check if created was within cooldown window
+        const createdMs = new Date(existing.resetOtpExpires).getTime() - OTP_EXPIRES_MINUTES * 60 * 1000;
+        if (createdMs > Date.now() - cooldownMs) throw new Error('COOLDOWN');
       }
     } else {
       const row = db.prepare('SELECT reset_otp_expires FROM users WHERE email = ?').get(normalized);
-      if (row && row.reset_otp_expires && new Date(row.reset_otp_expires).getTime() > Date.now() + (OTP_EXPIRES_MINUTES * 60 * 1000 - cooldownMs)) {
-        throw new Error('COOLDOWN');
+      if (row && row.reset_otp_expires) {
+        const createdMs = new Date(row.reset_otp_expires).getTime() - OTP_EXPIRES_MINUTES * 60 * 1000;
+        if (createdMs > Date.now() - cooldownMs) throw new Error('COOLDOWN');
       }
     }
 

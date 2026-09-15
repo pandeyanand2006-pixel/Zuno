@@ -46,7 +46,7 @@ export async function resendVerification(req, res) {
   } catch (err) {
     if (err.message === 'NOT_FOUND') return fail(res, 'User not found', 404);
     if (err.message === 'ALREADY_VERIFIED') return fail(res, 'Email already verified', 400, 'ALREADY_VERIFIED');
-    if (err.message === 'COOLDOWN') return fail(res, 'Please wait 60 seconds before requesting another code', 429, 'COOLDOWN');
+    if (err.message === 'COOLDOWN') return fail(res, 'Please wait 30 seconds before requesting another code', 429, 'COOLDOWN');
     logger.error('resendVerification', err);
     return serverError(res);
   }
@@ -121,7 +121,7 @@ export async function forgotPassword(req, res) {
     const data = result._devOtp ? { devOtp: result._devOtp } : null;
     return ok(res, data, result.message);
   } catch (err) {
-    if (err.message === 'COOLDOWN') return fail(res, 'Please wait 60 seconds before requesting another OTP', 429, 'COOLDOWN');
+    if (err.message === 'COOLDOWN') return fail(res, 'Please wait 30 seconds before requesting another OTP', 429, 'COOLDOWN');
     logger.error('user forgotPassword', err);
     return serverError(res);
   }
