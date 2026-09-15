@@ -54,9 +54,10 @@ async function doFetch(url, method, headers, body, timeoutMs) {
   return data ? data.data : null;
 }
 
-async function request(method, path, { body, auth = true, query, timeout } = {}) {
-  // Email OTP endpoints need longer timeout (Render cold start + Vercel proxy ~8s)
-  const defaultTimeout = path.includes('/forgot-password') || path.includes('/verify-otp') || path.includes('/verify-email') || path.includes('/resend') ? 30000 : 15000;
+async function request(method, path, { body, auth = true, query, timeout, _retried } = {}) {
+  const isCatalog = path === '/products' || path.startsWith('/products') || path === '/categories' || path === '/config';
+  const defaultTimeout = path.includes('/forgot-password') || path.includes('/verify-otp') || path.includes('/verify-email') || path.includes('/resend') ? 30000
+    : isCatalog ? 25000 : 15000;
   const timeoutMs = timeout || defaultTimeout;
   let url = API + path;
   if (query) {
@@ -70,37 +71,47 @@ async function request(method, path, { body, auth = true, query, timeout } = {})
   const token = Store.getToken();
   if (auth && token) headers['Authorization'] = 'Bearer ' + token;
 
-  try {
-    return await doFetch(url, method, headers, body, timeoutMs);
-  } catch (err) {
-    // Network failure on Vercel proxy: fallback to direct Render origin (once) for resilience
-    // CRITICAL: Do NOT fallback for auth OTP POSTs — they are not idempotent (each retry generates new OTP → duplicate emails)
-    const isAuthOtp = path.includes('/forgot-password') || path.includes('/verify-otp') || path.includes('/verify-email') || path.includes('/resend');
-    const isNetworkError = !err.status || err.message === 'Failed to fetch' || err.name === 'AbortError' || String(err.message).includes('NetworkError') || String(err.message).includes('Load failed');
-    const shouldFallback = isNetworkError && API === '/api' && DIRECT_API_FALLBACK !== '/api' && !path.startsWith('/config') && !isAuthOtp;
-    if (shouldFallback) {
-      try {
-        const altUrl = DIRECT_API_FALLBACK + path + (query ? '?' + new URLSearchParams(Object.entries(query).filter(([, v]) => v !== undefined && v !== '')).toString() : '');
-        return await doFetch(altUrl, method, headers, body, timeoutMs);
-      } catch (fallbackErr) {
-        // Prefer original error but enhance message for mobile users
-        if (fallbackErr.name === 'AbortError' || String(fallbackErr.message).includes('Failed to fetch')) {
-          const nice = new Error('Network error — please check your connection and try again. The server may be waking up (wait 10s and retry).');
-          nice.status = fallbackErr.status || 0;
-          nice.code = 'NETWORK_ERROR';
-          throw nice;
+  // Auto-retry for idempotent GET catalog requests on Render cold start (first request wakes server in 8-15s)
+  const maxRetries = (method === 'GET' && isCatalog) ? 2 : 0;
+  let attempt = 0;
+  while (true) {
+    try {
+      return await doFetch(url, method, headers, body, timeoutMs);
+    } catch (err) {
+      const isNetworkError = !err.status || err.message === 'Failed to fetch' || err.name === 'AbortError' || String(err.message).includes('NetworkError') || String(err.message).includes('Load failed');
+      const isColdStart = isNetworkError || err.code === 'NETWORK_ERROR' || err.status === 502 || err.status === 503 || err.status === 504;
+      // Retry idempotent GETs on cold start / timeout
+      if (attempt < maxRetries && isColdStart && !_retried) {
+        attempt++;
+        const delay = attempt === 1 ? 1200 : 2200;
+        await new Promise(r => setTimeout(r, delay));
+        // On retry, also bump timeout for waking server
+        try { return await doFetch(url, method, headers, body, timeoutMs + 8000); } catch (e2) {
+          if (attempt >= maxRetries) throw e2;
+          continue;
         }
-        throw fallbackErr;
       }
+      // Network failure on Vercel proxy: fallback to direct Render origin (once) for resilience
+      const isAuthOtp = path.includes('/forgot-password') || path.includes('/verify-otp') || path.includes('/verify-email') || path.includes('/resend');
+      const shouldFallback = isNetworkError && API === '/api' && DIRECT_API_FALLBACK !== '/api' && !path.startsWith('/config') && !isAuthOtp && !_retried;
+      if (shouldFallback) {
+        try {
+          const altUrl = DIRECT_API_FALLBACK + path + (query ? '?' + new URLSearchParams(Object.entries(query).filter(([, v]) => v !== undefined && v !== '')).toString() : '');
+          return await doFetch(altUrl, method, headers, body, timeoutMs);
+        } catch (fallbackErr) {
+          if (fallbackErr.name === 'AbortError' || String(fallbackErr.message).includes('Failed to fetch')) {
+            const nice = new Error('Network error — please check your connection and try again. The server may be waking up (wait 10s and retry).');
+            nice.status = fallbackErr.status || 0; nice.code = 'NETWORK_ERROR'; throw nice;
+          }
+          throw fallbackErr;
+        }
+      }
+      if (!err.status && (err.message === 'Failed to fetch' || err.name === 'AbortError' || String(err.message).includes('NetworkError'))) {
+        const nice = new Error('Network error — please check your connection and try again. If on mobile, ensure you have internet and retry in a few seconds.');
+        nice.status = 0; nice.code = 'NETWORK_ERROR'; throw nice;
+      }
+      throw err;
     }
-    // Enhance generic Failed to fetch into user-friendly message across all cases
-    if (!err.status && (err.message === 'Failed to fetch' || err.name === 'AbortError' || String(err.message).includes('NetworkError'))) {
-      const nice = new Error('Network error — please check your connection and try again. If on mobile, ensure you have internet and retry in a few seconds.');
-      nice.status = 0;
-      nice.code = 'NETWORK_ERROR';
-      throw nice;
-    }
-    throw err;
   }
 }
 

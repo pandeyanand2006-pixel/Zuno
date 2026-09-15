@@ -22,6 +22,11 @@ export async function connectMongo() {
     await mongoose.connect(env.mongoUri, {
       dbName: 'zuno',
       maxPoolSize: 10,
+      serverSelectionTimeoutMS: 4000,
+      connectTimeoutMS: 4000,
+      socketTimeoutMS: 10000,
+      heartbeatFrequencyMS: 10000,
+      retryWrites: true,
     });
     isConnected = true;
     global._mongooseConnection = mongoose.connection;
@@ -32,7 +37,7 @@ export async function connectMongo() {
     if (e.message?.includes('whitelist') || e.message?.includes('Could not connect to any servers')) {
       logger.error('-> Atlas IP whitelist: add 0.0.0.0/0 or your IP in Atlas > Network Access');
     }
-    // fallback to SQLite — don't crash
+    // fallback to SQLite — don't crash, serve from SQLite instantly
     return false;
   }
 }

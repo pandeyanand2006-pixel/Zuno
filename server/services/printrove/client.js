@@ -94,17 +94,17 @@ export const printroveClient = {
     return list.find((p) => String(p.sku || p.code || p.SKU).toLowerCase() === String(sku).toLowerCase()) || null;
   },
 
-  // Serviceability
+  // Serviceability — Printrove expects cod as string "true"/"false" (not 0/1).
   async checkServiceability({ country = 'India', pincode, weight = 300, cod = false } = {}) {
     if (!pincode) throw new Error('PINCODE_REQUIRED');
-    // Try GET first (Printrove docs show GET), fallback to POST
+    const codStr = cod ? 'true' : 'false';
     try {
-      const data = await request('GET', '/api/external/serviceability', { query: { pincode: String(pincode), country, weight, cod: cod ? 1 : 0 } });
+      const data = await request('GET', '/api/external/serviceability', { query: { pincode: String(pincode), country, weight, cod: codStr } });
       return data;
     } catch (e) {
       if (e.status === 404 || e.status === 405) {
         const data = await request('POST', '/api/external/serviceability', {
-          body: { country, pincode: String(pincode), weight, cod: cod ? 1 : 0 },
+          body: { country, pincode: String(pincode), weight, cod: codStr },
         });
         return data;
       }

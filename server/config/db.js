@@ -34,6 +34,10 @@ console.log(`[db] using ${effectivePath}`);
 export const db = new DatabaseSync(effectivePath, { enableForeignKeyConstraints: true });
 db.exec('PRAGMA journal_mode = WAL');
 db.exec('PRAGMA foreign_keys = ON');
+db.exec('PRAGMA busy_timeout = 5000');
+db.exec('PRAGMA synchronous = NORMAL');
+db.exec('PRAGMA cache_size = -64000');
+db.exec('PRAGMA temp_store = MEMORY');
 
 export function initializeSchema() {
   db.exec(`

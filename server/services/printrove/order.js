@@ -28,31 +28,39 @@ function getPrintroveOrderFields(order, address, user, printroveItems) {
   const address2 = line2.slice(0, 200);
   const address3 = (address.landmark || '').slice(0, 200);
 
-  const retailPrice = Math.round((order.total || 0) / 100); // paise to rupees? Printrove may expect paisa? Assuming rupees
-  // Build order_products array
+  const retailPrice = Math.round((order.total || 0) / 100);
+  // Build order_products array — Printrove expects integer IDs where possible
   const order_products = printroveItems.map(({ zunoItem, mapping }) => {
-    // Quantity
     const quantity = zunoItem.quantity || 1;
-    const base = {
-      quantity,
-      // Printrove variant/product logic: prefer variant_id, fallback product_id
-      // is_plain: if customization_data null → plain product (no print)
+    const base = { quantity };
+    // Variant ID takes priority; send as number if numeric, else original string
+    const asInt = (v) => {
+      if (v == null || v === '') return null;
+      const n = Number(v);
+      return Number.isFinite(n) && String(n) === String(v).trim() ? n : v;
     };
-    if (mapping.variantId) base.variant_id = mapping.variantId;
-    if (mapping.productId) base.product_id = mapping.productId;
-    if (mapping.sku) base.sku = mapping.sku;
-    // is_plain flag per variant
+    const vId = asInt(mapping.variantId);
+    const pId = asInt(mapping.productId);
+    if (vId != null) base.variant_id = vId;
+    if (pId != null) base.product_id = pId;
+    if (!base.variant_id && !base.product_id && mapping.sku) base.sku = String(mapping.sku).trim();
     const isCustom = !!zunoItem.customization_data;
     base.is_plain = isCustom ? false : true;
-    // Some Printrove APIs require sku instead of product_id/variant_id
     if (!base.product_id && !base.variant_id && !base.sku) {
-      base.product_id = mapping.productId || mapping.sku;
+      base.product_id = pId || mapping.sku;
     }
     return base;
   });
 
   const codFlag = String(order.payment_method).toLowerCase() === 'cod' ? 1 : 0;
-  // Reference number must be unique — use Zuno order_number
+  // Validate required address fields — fail fast instead of silently shipping to placeholder
+  if (!pincode || !/^\d{6}$/.test(pincode)) {
+    throw new Error(`PRINTROVE_ADDRESS_INVALID: pincode must be 6 digits, got '${pincode}'`);
+  }
+  if (!city || city.length < 2) throw new Error(`PRINTROVE_ADDRESS_INVALID: city is required`);
+  if (!state || state.length < 2) throw new Error(`PRINTROVE_ADDRESS_INVALID: state is required`);
+  if (!address1 || address1.length < 5) throw new Error(`PRINTROVE_ADDRESS_INVALID: address1 is too short`);
+
   const payload = {
     reference_number: order.order_number,
     retail_price: retailPrice,
@@ -64,19 +72,17 @@ function getPrintroveOrderFields(order, address, user, printroveItems) {
       phone: phone.slice(0, 15) || '9999999999',
     },
     shipping_address: {
-      address1: address1 || 'Address1',
-      address2: address2 || '',
-      address3: address3 || '',
-      city: city || 'City',
-      state: state || 'State',
+      address1: address1.slice(0, 200),
+      address2: address2.slice(0, 200) || '',
+      address3: address3.slice(0, 200) || '',
+      city: city.slice(0, 100),
+      state: state.slice(0, 100),
       country: 'India',
-      pincode: pincode || '110001',
+      pincode,
     },
     order_products,
-    is_cod: codFlag,
   };
 
-  // If Printrove uses flat fields instead of nested
   const flatPayload = {
     reference_number: payload.reference_number,
     cod: codFlag,
@@ -270,8 +276,16 @@ export async function createPrintroveOrder(zunoOrderId) {
     logger.warn(`[PRINTROVE] Serviceability check error for ${order.order_number}: ${e.message} — proceeding anyway`);
   }
 
-  // Build payload — try nested first, fallback to flat if Printrove rejects
-  const { nested, flat } = getPrintroveOrderFields(order, address, user, printroveItems);
+  // Build payload — validate address before calling Printrove, then try nested then flat
+  let nested, flat;
+  try {
+    ({ nested, flat } = getPrintroveOrderFields(order, address, user, printroveItems));
+  } catch (e) {
+    const msg = e.message || 'Invalid address/payload';
+    logger.error(`[PRINTROVE] Payload validation failed for ${order.order_number}: ${msg}`);
+    await updateOrderPrintroveError(order.id || zunoOrderId, msg);
+    throw e;
+  }
   logger.info(`[PRINTROVE] Creating order for Zuno ${order.order_number} with ${printroveItems.length} Printrove items`);
 
   let printroveOrder = null;

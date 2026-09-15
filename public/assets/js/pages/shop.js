@@ -196,9 +196,16 @@ function Shop() {
   loadSidebar();
   reload();
 
+  let _shopRetry = 0;
+  function wakingNode(attempt) {
+    return h('div', { class: 'empty' },
+      h('div', { class: 'em-ic', style: { animation: 'pulse 1.2s ease infinite' } }, '⏳'),
+      h('h3', {}, 'Waking up the store…'),
+      h('p', { class: 'muted' }, `Server is starting — retrying (${attempt}/3)… Your t-shirts load automatically.`));
+  }
   async function reload() {
     const q = routerQuery();
-    grid.innerHTML = ''; grid.append(skeletonGrid(8));
+    if (_shopRetry === 0) { grid.innerHTML = ''; grid.append(skeletonGrid(8)); }
     try {
       const params = { module: 'shop', limit: 32, sort: q.sort || 'popular' };
       if (q.category) params.category = q.category;
@@ -208,12 +215,21 @@ function Shop() {
       if (q.fit) params.fit = q.fit;
       if (q.collection) params.collection = q.collection;
       const { items, total } = await api.get('/products', params);
+      _shopRetry = 0;
       grid.innerHTML = '';
       countEl.textContent = total + ' products';
       if (!items.length) grid.append(emptyState({ icon: '◐', title: 'No products found', desc: 'Try adjusting your filters.' }));
       else grid.append(...items.map(ProductCard));
     } catch (err) {
-      grid.innerHTML = ''; grid.append(errorState(err.message, reload));
+      const isNetwork = !err.status || err.code === 'NETWORK_ERROR' || String(err.message).toLowerCase().includes('network') || String(err.message).includes('waking');
+      if (isNetwork && _shopRetry < 2) {
+        _shopRetry++;
+        grid.innerHTML = ''; grid.append(wakingNode(_shopRetry));
+        setTimeout(reload, _shopRetry === 1 ? 1500 : 3000);
+        return;
+      }
+      _shopRetry = 0;
+      grid.innerHTML = ''; grid.append(errorState(err.message, () => { _shopRetry = 0; reload(); }));
     }
   }
 

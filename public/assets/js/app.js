@@ -105,6 +105,9 @@ Store.on(() => {
   } catch {}
 });
 
+// Wake Render before first product fetch — fire-and-forget health ping so first
+// /products doesn't pay the 10-15s cold-start tax on zunoshopping.store.
+try { fetch((window.ZUNO_API_BASE ? String(window.ZUNO_API_BASE).replace(/\/$/, '') + '/api' : '/api') + '/health', { cache: 'no-store' }).catch(()=>{}); } catch {}
 // Start routing immediately so first paint is never blocked on the API.
 // Auth/config/cart/wishlist hydrate in the background in parallel.
 startRouter({ main, top, bottom: bot });

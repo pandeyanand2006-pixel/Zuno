@@ -75,18 +75,35 @@ export async function Home() {
 
   main.append(hero, catRow, feedSection, studio, trust);
 
-  // ── DATA ──
-  (async () => {
+  // ── DATA — auto-retries Render cold start so first visit never shows error; fallback retry built into api.js
+  function wakingState(msg) {
+    return h('div', { class: 'empty' },
+      h('div', { class: 'em-ic', style: { animation: 'pulse 1.2s ease infinite' } }, '⏳'),
+      h('h3', {}, 'Waking up the store…'),
+      h('p', { class: 'muted' }, msg || 'Server is starting (Render free tier sleeps after inactivity). Your t-shirts appear in a few seconds — no click needed.'),
+      h('div', { style: { width: '120px', height: '4px', background: '#e2e8f0', borderRadius: '999px', margin: '14px auto', overflow: 'hidden' } },
+        h('div', { style: { height: '100%', width: '50%', background: '#0f172a', borderRadius: '999px', animation: 'shimmer 1s ease infinite' } })));
+  }
+  let _homeRetry = 0;
+  async function loadProducts() {
     try {
       const { items } = await api.get('/products', { module: 'shop', limit: 8, sort: 'newest' });
       productGrid.innerHTML = '';
       if (items.length) productGrid.append(...items.map(ProductCard));
       else productGrid.append(emptyState({ title: 'New drops coming soon' }));
     } catch (e) {
+      const isNetwork = !e.status || e.code === 'NETWORK_ERROR' || String(e.message).toLowerCase().includes('network') || String(e.message).includes('waking');
+      if (isNetwork && _homeRetry < 2) {
+        _homeRetry++;
+        productGrid.innerHTML = ''; productGrid.append(wakingState(`Connection blip — retrying (${_homeRetry}/3)…`));
+        setTimeout(loadProducts, _homeRetry === 1 ? 1500 : 3000);
+        return;
+      }
       productGrid.innerHTML = '';
-      productGrid.append(errorState(e.message, () => location.reload()));
+      productGrid.append(errorState(e.message, () => { _homeRetry = 0; productGrid.innerHTML = ''; productGrid.append(skeletonGrid(8)); loadProducts(); }));
     }
-  })();
+  }
+  loadProducts();
 
   // No carousel timer — static hero
   main._cleanup = () => {};

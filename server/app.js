@@ -79,8 +79,8 @@ app.use((req, _res, next) => {
 
 const limiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 300, standardHeaders: true, legacyHeaders: false });
 app.use('/api/', limiter);
-// Live data must not be cached by browsers/CDN — products, reviews, media must stay stable and instant
-app.use('/api/products', (req, res, next) => { res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate'); res.setHeader('Pragma', 'no-cache'); next(); });
+// Catalog speed: short CDN cache for product list (stale content is revalidated client-side via api.js retries)
+app.use('/api/products', (req, res, next) => { res.setHeader('Cache-Control', 'public, max-age=5, stale-while-revalidate=30'); res.setHeader('Pragma', 'no-cache'); next(); });
 app.use('/api/reviews', (req, res, next) => { res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate'); res.setHeader('Pragma', 'no-cache'); next(); });
 
 app.get('/api/health', (_req, res) => {
