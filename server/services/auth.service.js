@@ -227,8 +227,9 @@ export const authService = {
       if (!user) throw new Error('INVALID_CREDENTIALS');
       const okPass = await comparePassword(password, user.password_hash);
       if (!okPass) throw new Error('INVALID_CREDENTIALS');
-      // Enforce email verification if email is present
-      if (user.email && !user.email_verified) throw new Error('EMAIL_NOT_VERIFIED');
+      // FIX: allow login with correct password even if email not verified
+      // Previously: if (user.email && !user.email_verified) throw EMAIL_NOT_VERIFIED -> blocked admin zunoworld3121@gmail.com
+      // Owner requested: correct email+password must log in directly, no OTP
       const pub = await toPublicUser(user.toObject());
       const token = signToken({ sub: pub.id, role: pub.role_id, jti: generateId() });
       return { token, user: pub };
@@ -237,7 +238,7 @@ export const authService = {
     if (!user) throw new Error('INVALID_CREDENTIALS');
     const okPass = await comparePassword(password, user.password_hash);
     if (!okPass) throw new Error('INVALID_CREDENTIALS');
-    if (user.email && !user.email_verified) throw new Error('EMAIL_NOT_VERIFIED');
+    // FIX: allow login with correct password even if email not verified
     const pub = await toPublicUser(user);
     const token = signToken({ sub: pub.id, role: pub.role_id, jti: generateId() });
     return { token, user: pub };
