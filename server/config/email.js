@@ -31,6 +31,44 @@ let transporter = null;
 let initialized = false;
 let initPromise = null;
 
+// ── Circuit breaker: if Render cannot reach Gmail SMTP, skip SMTP and use HTTPS fallback ──
+let smtpAvailable = true;
+let smtpUnavailableUntil = 0;
+const SMTP_CIRCUIT_BREAKER_MS = 5 * 60 * 1000; // 5 min
+
+function isNetworkBlockError(msg) {
+  const m = String(msg || '');
+  return m.includes('ENETUNREACH') || m.includes('ETIMEDOUT') || m.includes('ECONNREFUSED') || m.includes('EHOSTUNREACH') || m.includes('ENOTFOUND') || m.includes('timeout') || m.includes('Connection timeout') || m.includes('Greeting timeout');
+}
+
+function markSmtpUnavailable(reason) {
+  smtpAvailable = false;
+  smtpUnavailableUntil = Date.now() + SMTP_CIRCUIT_BREAKER_MS;
+  logger.warn(`[email] SMTP marked unavailable for ${SMTP_CIRCUIT_BREAKER_MS / 1000}s — reason: ${reason} — will use HTTPS fallback`);
+}
+
+function isSmtpCurrentlyAvailable() {
+  if (smtpAvailable) return true;
+  if (Date.now() >= smtpUnavailableUntil) {
+    logger.info('[email] SMTP circuit breaker expired — will retry SMTP');
+    smtpAvailable = true;
+    smtpUnavailableUntil = 0;
+    return true;
+  }
+  return false;
+}
+
+async function fetchWithTimeout(url, options, ms = 10000) {
+  const controller = new AbortController();
+  const t = setTimeout(() => controller.abort(), ms);
+  try {
+    const res = await fetch(url, { ...options, signal: controller.signal });
+    return res;
+  } finally {
+    clearTimeout(t);
+  }
+}
+
 export function validateEmailConfig() {
   const missing = [];
   if (!env.smtp.host) missing.push('SMTP_HOST');
@@ -89,18 +127,25 @@ export async function initializeEmailService() {
       pool: env.isProduction ? false : true,
       maxConnections: 3,
       maxMessages: 100,
-      connectionTimeout: 7000,
-      greetingTimeout: 7000,
-      socketTimeout: 15000,
+      connectionTimeout: 5000,
+      greetingTimeout: 5000,
+      socketTimeout: 10000,
       tls: { rejectUnauthorized: true, minVersion: 'TLSv1.2' },
       auth: { user: env.smtp.user, pass: env.smtp.pass },
     };
     transporter = nodemailer.createTransport(cfg);
-    // Verify in background — don't block boot (Render free tier blocks SMTP, verify will timeout ~7s)
+    // Verify in background — don't block boot (Render free tier blocks SMTP, verify will timeout ~5s)
+    // If verify fails with network error, mark SMTP unavailable so sendEmail skips SMTP and uses HTTPS fallback immediately
     transporter.verify().then(() => {
       logger.info(`Email service ready — ${env.smtp.host}:${env.smtp.port} as ${env.smtp.user.slice(0, 3)}***`);
+      smtpAvailable = true;
+      smtpUnavailableUntil = 0;
     }).catch(err => {
-      logger.warn('[email] SMTP verify failed: ' + err.message + ' — will use fallback (Vercel/Brevo) at send time');
+      const msg = String(err.message || err);
+      logger.warn('[email] SMTP verify failed: ' + msg + ' — will use fallback (Vercel/Brevo) at send time');
+      if (isNetworkBlockError(msg)) {
+        markSmtpUnavailable('verify ENETUNREACH/ETIMEDOUT');
+      }
       if (String(err.message).includes('535') || String(err.message).includes('Authentication')) {
         logger.error('[email] SMTP auth failed — verify SMTP_USER and SMTP_PASS (Gmail App Password, 16 chars, no spaces)');
       }
@@ -126,9 +171,9 @@ function getTransporter() {
     pool: env.isProduction ? false : true,
     maxConnections: 3,
     maxMessages: 100,
-    connectionTimeout: 7000,
-    greetingTimeout: 7000,
-    socketTimeout: 15000,
+    connectionTimeout: 5000,
+    greetingTimeout: 5000,
+    socketTimeout: 10000,
     tls: { rejectUnauthorized: true, minVersion: 'TLSv1.2' },
     auth: env.smtp.user && env.smtp.pass ? { user: env.smtp.user, pass: env.smtp.pass } : undefined,
   };
@@ -146,9 +191,9 @@ function getFreshTransporter(overridePort) {
     requireTLS: !is465,
     lookup: ipv4Lookup,
     pool: false,
-    connectionTimeout: 7000,
-    greetingTimeout: 7000,
-    socketTimeout: 15000,
+    connectionTimeout: 5000,
+    greetingTimeout: 5000,
+    socketTimeout: 10000,
     auth: env.smtp.user && env.smtp.pass ? { user: env.smtp.user, pass: env.smtp.pass } : undefined,
     tls: { rejectUnauthorized: true, minVersion: 'TLSv1.2' },
   });
@@ -161,9 +206,9 @@ async function trySmtpWithFallback(mailOpts) {
     const t = primaryPort === 465 ? getFreshTransporter(465) : getTransporter();
     return await t.sendMail(mailOpts);
   } catch (e) {
-    const isNet = String(e.message).includes('ENETUNREACH') || String(e.message).includes('ETIMEDOUT') || String(e.message).includes('ECONNREFUSED') || String(e.message).includes('timeout') || String(e.message).includes('Connection timeout');
+    const isNet = isNetworkBlockError(e.message);
     if (isNet) {
-      logger.warn(`[email] SMTP ${primaryPort} blocked (timeout) — trying fallback port ${fallbackPort}`);
+      logger.warn(`[email] SMTP ${primaryPort} blocked — trying fallback port ${fallbackPort}`);
       try {
         const alt = getFreshTransporter(fallbackPort);
         return await alt.sendMail(mailOpts);
@@ -194,16 +239,21 @@ async function sendViaVercelProxy({ to, subject, html, text }) {
   for (const url of urls) {
     try {
       logger.info(`[email] Trying Vercel SMTP proxy ${url} for ${to.slice(0, 3)}***`);
-      const res = await fetch(url, {
+      const res = await fetchWithTimeout(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-internal-secret': env.jwtSecret || '' },
         body: JSON.stringify({ to, subject, html, text }),
-      });
+      }, 10000);
       const data = await res.json().catch(() => ({}));
-      if (res.ok && data.success) return { messageId: data.messageId || 'vercel-' + Date.now(), via: 'vercel' };
+      if (res.ok && data.success) {
+        logger.info(`[email] Vercel proxy succeeded via ${url} — ${data.messageId || 'ok'}`);
+        return { messageId: data.messageId || 'vercel-' + Date.now(), via: 'vercel' };
+      }
       logger.warn(`[email] Vercel proxy ${url} failed: ${res.status} ${JSON.stringify(data).slice(0,200)}`);
     } catch (e) {
-      logger.warn(`[email] Vercel proxy ${url} error: ${e.message}`);
+      const m = String(e.message || '');
+      if (m.includes('abort') || m.includes('AbortError')) logger.warn(`[email] Vercel proxy ${url} timeout (10s)`);
+      else logger.warn(`[email] Vercel proxy ${url} error: ${m}`);
     }
   }
   return null;
@@ -213,7 +263,7 @@ async function sendViaHttp({ to, subject, html, text }) {
   const from = env.smtp.from || env.smtp.user || 'ZUNO <zunoworld3121@gmail.com>';
   if (env.brevo.apiKey) {
     try {
-      const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+      const res = await fetchWithTimeout('https://api.brevo.com/v3/smtp/email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'api-key': env.brevo.apiKey },
         body: JSON.stringify({
@@ -223,21 +273,21 @@ async function sendViaHttp({ to, subject, html, text }) {
           htmlContent: html,
           textContent: text,
         }),
-      });
+      }, 10000);
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(`Brevo ${res.status}`);
+      if (!res.ok) throw new Error(`Brevo ${res.status} ${JSON.stringify(data).slice(0,150)}`);
       return { messageId: data.messageId || 'brevo-' + Date.now(), via: 'brevo' };
     } catch (e) { logger.warn('Brevo HTTPS failed: ' + e.message); }
   }
   if (env.resend.apiKey) {
     try {
-      const res = await fetch('https://api.resend.com/emails', {
+      const res = await fetchWithTimeout('https://api.resend.com/emails', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${env.resend.apiKey}` },
         body: JSON.stringify({ from, to, subject, html, text }),
-      });
+      }, 10000);
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(`Resend ${res.status}`);
+      if (!res.ok) throw new Error(`Resend ${res.status} ${JSON.stringify(data).slice(0,150)}`);
       return { messageId: data.id || 'resend-' + Date.now(), via: 'resend' };
     } catch (e) { logger.warn('Resend HTTPS failed: ' + e.message); }
   }
@@ -252,6 +302,8 @@ function maskEmail(email) {
 
 /**
  * Centralized sendEmail — TalkSpace pattern
+ * Exactly-once delivery: SMTP -> (if network block) Vercel -> Brevo/Resend -> error
+ * No duplicate sends: success at any stage returns immediately; only on definitive failure we try next stage.
  * @param {{to: string, subject: string, html: string, text?: string}} opts
  */
 export async function sendEmail({ to, subject, html, text }) {
@@ -277,6 +329,19 @@ export async function sendEmail({ to, subject, html, text }) {
     headers: { 'X-Mailer': 'ZUNO', 'X-Priority': '1', 'Importance': 'high' },
     envelope: { from: env.smtp.user, to },
   };
+
+  // ── Circuit breaker: if SMTP is known-unavailable, skip it and go straight to HTTPS fallback ──
+  if (!isSmtpCurrentlyAvailable()) {
+    logger.info(`[email] SMTP unavailable (circuit breaker) for ${masked} — using HTTPS fallback directly`);
+    const vercelRes = await sendViaVercelProxy({ to, subject, html, text: mailOpts.text });
+    if (vercelRes) return vercelRes;
+    const httpRes = await sendViaHttp({ to, subject, html, text: mailOpts.text });
+    if (httpRes) return httpRes;
+    logger.error(`[email] All transports failed for ${masked} (circuit-breaker path)`);
+    throw new Error('EMAIL_FAILED');
+  }
+
+  // ── Try SMTP exactly once (primary + fallback port inside) ──
   try {
     const info = await trySmtpWithFallback(mailOpts);
     if (info.rejected && info.rejected.length) {
@@ -287,6 +352,7 @@ export async function sendEmail({ to, subject, html, text }) {
       logger.error(`[email] Not accepted for ${masked}`);
       throw new Error('EMAIL_FAILED');
     }
+    // Success — exactly once, do NOT proceed to fallback
     logger.info(`[email] Sent to ${masked} — ${info.messageId || 'ok'} via SMTP`);
     return { messageId: info.messageId, accepted: info.accepted };
   } catch (err) {
@@ -296,37 +362,27 @@ export async function sendEmail({ to, subject, html, text }) {
       logger.error(`[email] Invalid recipient ${masked}: ${msg}`);
       throw new Error('EMAIL_FAILED');
     }
-    const isNetworkBlock = msg.includes('ENETUNREACH') || msg.includes('ETIMEDOUT') || msg.includes('ECONNREFUSED') || msg.includes('timeout');
+    // Auth failure — do NOT treat as network block; fallback via same Gmail creds will also fail
+    if (msg.includes('535') || msg.includes('Authentication') || msg.includes('Invalid credentials')) {
+      logger.error(`[email] SMTP auth failed for ${masked}: ${msg} — check Gmail App Password`);
+      throw new Error('EMAIL_FAILED');
+    }
+    const isNetworkBlock = isNetworkBlockError(msg);
     if (isNetworkBlock) {
+      // Mark SMTP unavailable for next requests (circuit breaker)
+      markSmtpUnavailable(msg.slice(0, 80));
       logger.warn(`[email] SMTP blocked for ${masked} — trying Vercel proxy then HTTPS fallback`);
+      // Exactly-once: try Vercel once, then Brevo/Resend once, then fail. No second SMTP retry to avoid duplicates.
       const vercelRes = await sendViaVercelProxy({ to, subject, html, text: mailOpts.text });
       if (vercelRes) return vercelRes;
       const httpRes = await sendViaHttp({ to, subject, html, text: mailOpts.text });
       if (httpRes) return httpRes;
-    }
-    // Retry via fresh transporter
-    try {
-      logger.warn(`[email] Retrying via fresh connection for ${masked}`);
-      const fresh = getFreshTransporter();
-      const r2 = await fresh.sendMail(mailOpts);
-      if (r2.rejected && r2.rejected.length) throw new Error('EMAIL_REJECTED: ' + r2.rejected.join(','));
-      logger.info(`[email] Retry sent to ${masked} — ${r2.messageId}`);
-      return { messageId: r2.messageId };
-    } catch (e2) {
-      const m2 = String(e2.message || '');
-      if (m2.includes('550') && m2.includes('5.1.1')) {
-        logger.error(`[email] Invalid recipient on retry ${masked}`);
-        throw new Error('EMAIL_FAILED');
-      }
-      if (m2.includes('ENETUNREACH') || m2.includes('ETIMEDOUT')) {
-        const v2 = await sendViaVercelProxy({ to, subject, html, text: mailOpts.text });
-        if (v2) return v2;
-        const h2 = await sendViaHttp({ to, subject, html, text: mailOpts.text });
-        if (h2) return h2;
-      }
-      logger.error(`[email] Failed for ${masked}: ${m2} — host=${env.smtp.host} port=${env.smtp.port} user=${env.smtp.user ? env.smtp.user.slice(0, 3) + '***' : 'none'}`);
+      logger.error(`[email] All fallbacks failed for ${masked}: ${msg} — host=${env.smtp.host} port=${env.smtp.port}`);
       throw new Error('EMAIL_FAILED');
     }
+    // Unknown error — log and fail (do not blindly retry to avoid duplicates)
+    logger.error(`[email] Failed for ${masked}: ${msg} — host=${env.smtp.host} port=${env.smtp.port} user=${env.smtp.user ? env.smtp.user.slice(0, 3) + '***' : 'none'}`);
+    throw new Error('EMAIL_FAILED');
   }
 }
 
@@ -334,4 +390,8 @@ export function isEmailReady() {
   return initialized && !!(env.smtp.user && env.smtp.pass);
 }
 
-export default { initializeEmailService, validateEmailConfig, sendEmail, isEmailReady };
+// For testing / health checks
+export function isSmtpAvailable() { return isSmtpCurrentlyAvailable(); }
+export function getSmtpCircuitState() { return { available: isSmtpCurrentlyAvailable(), unavailableUntil: smtpUnavailableUntil }; }
+
+export default { initializeEmailService, validateEmailConfig, sendEmail, isEmailReady, isSmtpAvailable, getSmtpCircuitState };
