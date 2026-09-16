@@ -91,10 +91,11 @@ html { scrollbar-gutter: stable; }
 .footer h4 { color: var(--pure-white); font-size: var(--fs-sm); text-transform: uppercase; letter-spacing: 0.04em; }
 .footer .muted { color: #94a3b8; }
 
-/* Bottom mobile nav */
-.bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; height: var(--bottom-nav-h); background: var(--pure-white); border-top: 1px solid var(--light-indigo); display: none; z-index: 100; padding-bottom: env(safe-area-inset-bottom); }
-.bottom-nav a { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; color: var(--ink-500); font-size: 11px; font-weight: 600; position: relative; text-decoration: none; }
-.bottom-nav a.active { color: var(--primary-denim); }
+/* Bottom mobile nav — high visibility on white */
+.bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; height: var(--bottom-nav-h); background: #fff; border-top: 1px solid #e2e8f0; display: none; z-index: 100; padding-bottom: env(safe-area-inset-bottom); box-shadow: 0 -2px 12px rgba(15,23,42,0.06); }
+.bottom-nav a { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; color: #58595b; font-size: 11px; font-weight: 600; position: relative; text-decoration: none; font-family: "Source Sans Pro", sans-serif; transition: all 0.2s ease; }
+.bottom-nav a.active { color: var(--primary-denim); background: rgba(43,76,126,0.08); }
+.bottom-nav a svg { width: 22px; height: 22px; }
 .bottom-nav a .em { font-size: 20px; }
 .bottom-nav .cart-count { top: 6px; right: 50%; transform: translateX(14px); }
 
