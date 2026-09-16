@@ -1,6 +1,7 @@
+const SVG_TAGS = new Set(['svg','path','circle','rect','g','defs','linearGradient','stop','clipPath','mask','use','text','tspan','image']);
 export function h(tag, props, ...children) {
   if (typeof tag === 'function') return tag(props || {}, ...children);
-  const el = document.createElement(tag);
+  const el = SVG_TAGS.has(tag) ? document.createElementNS('http://www.w3.org/2000/svg', tag) : document.createElement(tag);
   if (props) {
     for (const [k, v] of Object.entries(props)) {
       if (k === 'class' || k === 'className') el.className = v;
