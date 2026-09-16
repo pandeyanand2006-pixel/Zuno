@@ -47,7 +47,7 @@ async function mongoHasProducts() {
   try {
     const n = await Promise.race([
       Product.countDocuments({}),
-      new Promise((_, rej) => setTimeout(() => rej(new Error('mongoHas timeout')), 2500))
+      new Promise((_, rej) => setTimeout(() => rej(new Error('mongoHas timeout')), 1200))
     ]);
     const result = Number(n) > 0;
     _mongoHasProductsCache = { value: result, t: Date.now() };
@@ -64,12 +64,12 @@ export const productService = {
     const hit = _listCache.get(cacheKey);
     if (hit && Date.now() - hit.t < LIST_TTL) return hit.data;
 
-    // Try Mongo only if connected and has products — with timeout so SQLite path is instant on cold start
+    // Try Mongo only if connected and has products — with tight timeout so SQLite fallback is instant (fixes T-shirt load delay)
     if (useMongo()) {
       try {
         const hasProducts = await Promise.race([
           mongoHasProducts(),
-          new Promise((_, rej) => setTimeout(() => rej(new Error('mongoHasProducts timeout')), 3000))
+          new Promise((_, rej) => setTimeout(() => rej(new Error('mongoHasProducts timeout')), 1400))
         ]);
         if (hasProducts) {
           const filter = { active: true, module };
@@ -94,11 +94,11 @@ export const productService = {
           if (maxPrice) filter.price = { ...(filter.price||{}), $lte: Number(maxPrice) };
           const sortMap = { popular: { rating_count: -1, rating: -1 }, price_low: { price: 1 }, price_high: { price: -1 }, newest: { created_at: -1 }, rating: { rating: -1 } };
           const sortObj = sortMap[sort] || sortMap.popular;
-          const total = await Product.countDocuments(filter).maxTimeMS(3000);
+          const total = await Product.countDocuments(filter).maxTimeMS(2000);
           const offset = (Number(page) - 1) * Number(limit);
-          const rows = await Product.find(filter).sort(sortObj).skip(offset).limit(Number(limit)).maxTimeMS(4000).lean();
+          const rows = await Product.find(filter).sort(sortObj).skip(offset).limit(Number(limit)).maxTimeMS(2500).lean();
           const ids = rows.map(r => r._id);
-          const variants = ids.length ? await ProductVariant.find({ product_id: { $in: ids } }).maxTimeMS(3000).lean() : [];
+          const variants = ids.length ? await ProductVariant.find({ product_id: { $in: ids } }).maxTimeMS(2000).lean() : [];
           const byPid = {};
           variants.forEach(v => { const k = String(v.product_id); (byPid[k] ||= []).push(v); });
           const items = rows.map(r => { r._variants = byPid[String(r._id)] || []; return serializeProduct(r); });
