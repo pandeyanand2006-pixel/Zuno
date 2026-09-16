@@ -56,14 +56,33 @@ export const Store = {
   setUser(u) { this._user = u; this.emit(); },
   isAuthed() { return !!this._token; },
 
+  _isTokenExpired(token) {
+    try {
+      const parts = String(token).split('.');
+      if (parts.length !== 3) return false;
+      const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+      if (!payload.exp) return false;
+      return Date.now() >= payload.exp * 1000;
+    } catch { return false; }
+  },
   async loadMe() {
     if (!this._token) return null;
+    // Proactively clear expired JWT before network call — eliminates 401 console error on stale token
+    if (this._isTokenExpired(this._token)) {
+      this.setToken(null); this._user = null;
+      return null;
+    }
     try {
       const { user } = await (await import('./api.js')).api.get('/auth/me');
       this._user = user;
       this.emit();
       return user;
-    } catch {
+    } catch (e) {
+      // 401 = session expired/invalid — clear locally, don't spam console
+      if (e && e.status === 401) {
+        this.setToken(null); this._user = null;
+        return null;
+      }
       this.setToken(null); this._user = null;
       return null;
     }

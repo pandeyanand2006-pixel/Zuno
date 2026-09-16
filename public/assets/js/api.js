@@ -49,6 +49,7 @@ async function doFetch(url, method, headers, body, timeoutMs) {
     const err = new Error((data && data.message) || `Request failed (${res.status})`);
     err.status = res.status;
     err.code = data && data.code;
+    // Suppress console 401 noise for background auth checks — caller handles it silently
     throw err;
   }
   return data ? data.data : null;
@@ -56,6 +57,8 @@ async function doFetch(url, method, headers, body, timeoutMs) {
 
 async function request(method, path, { body, auth = true, query, timeout, _retried } = {}) {
   const isCatalog = path === '/products' || path.startsWith('/products') || path === '/categories' || path === '/config';
+  // Catalog is public — never send Authorization header (avoids 401 noise on expired token)
+  if (isCatalog) auth = false;
   const defaultTimeout = path.includes('/forgot-password') || path.includes('/verify-otp') || path.includes('/verify-email') || path.includes('/resend') ? 20000
     : isCatalog ? 12000 : 10000;
   const timeoutMs = timeout || defaultTimeout;
