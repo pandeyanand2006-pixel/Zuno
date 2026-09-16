@@ -12,12 +12,24 @@ const NAV = [
 ];
 
 const MOBILE_NAV = [
-  { label: 'Home', href: '#/', key: 'home', em: '◐' },
-  { label: 'Shop', href: '#/shop', key: 'shop', em: '▭' },
-  { label: 'Custom', href: '#/customize', key: 'custom', em: '✦' },
-  { label: 'Orders', href: '#/orders', key: 'orders', em: '📦' },
-  { label: 'Bag', href: '#/cart', key: 'cart', em: '◧' },
+  { label: 'Home', href: '#/', key: 'home', icon: 'home' },
+  { label: 'Shop', href: '#/shop', key: 'shop', icon: 'shop' },
+  { label: 'Custom', href: '#/customize', key: 'custom', icon: 'custom' },
+  { label: 'Orders', href: '#/orders', key: 'orders', icon: 'orders' },
+  { label: 'Bag', href: '#/cart', key: 'cart', icon: 'bag' },
 ];
+
+function navIcon(type, size=20){
+  const base = { width: String(size), height: String(size), viewBox:'0 0 24 24', fill:'none', stroke:'currentColor', 'stroke-width':'1.9', 'stroke-linecap':'round', 'stroke-linejoin':'round', style:'display:block', 'aria-hidden':'true' };
+  if(type==='home') return h('svg', base, h('path', { d:'M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1h-5v-6H9v6H4a1 1 0 01-1-1V9.5z' }));
+  if(type==='shop') return h('svg', base, h('rect', { x:'3', y:'3', width:'7', height:'7', rx:'1' }), h('rect', { x:'14', y:'3', width:'7', height:'7', rx:'1' }), h('rect', { x:'3', y:'14', width:'7', height:'7', rx:'1' }), h('rect', { x:'14', y:'14', width:'7', height:'7', rx:'1' }));
+  if(type==='custom') return h('svg', base, h('path', { d:'M12 2l1.7 5.3H19l-4.3 3.1 1.6 5.3L12 12.6 7.7 15.7l1.6-5.3L5 7.3h5.3L12 2z' }));
+  if(type==='orders') return h('svg', base, h('path', { d:'M21 8.5l-9-5-9 5 9 5 9-5z' }), h('path', { d:'M3 8.5v7l9 5 9-5v-7' }), h('path', { d:'M12 13.5v7' }));
+  if(type==='bag') return h('svg', base, h('path', { d:'M6 7h12l-1 11a2 2 0 01-2 1.8H9a2 2 0 01-2-1.8L6 7z' }), h('path', { d:'M9 7V5a3 3 0 016 0v2' }));
+  if(type==='heart') return h('svg', base, h('path', { d:'M12 21s-6-4.3-6-9a3.5 3.5 0 016-2.5A3.5 3.5 0 0118 12c0 4.7-6 9-6 9z' }));
+  if(type==='search') return h('svg', base, h('circle', { cx:'11', cy:'11', r:'6' }), h('path', { d:'M15.5 15.5L20 20' }));
+  return h('svg', base, h('circle', { cx:'12', cy:'12', r:'7' }));
+}
 
 export function topBar(active) {
   const user = Store.getUser();
@@ -32,16 +44,17 @@ export function topBar(active) {
     }, n.label)));
 
   const isAdmin = user && user.role === 'ADMIN';
-  // Order icon REMOVED from top bar — Orders already exists in bottom nav & drawer, per screenshot fix
+  // Premium top icons — SVG outline (advanced/beautiful), balanced spacing, high contrast on dark
+  const topIconBtnStyle = { background:'rgba(245,247,240,0.08)', borderColor:'rgba(245,247,240,0.14)', color:'rgb(245,247,240)', width:'40px', height:'40px', borderRadius:'10px', display:'grid', placeItems:'center', transition:'all 0.2s ease' };
   const actions = h('div', { class: 'nav-actions' },
-    isAdmin ? h('a', { class: 'btn btn-ghost btn-sm', href: '#/admin', style:{background:'#0f172a', color:'#fff', fontWeight:'700', letterSpacing:'0.02em'} }, 'Admin') : null,
-    h('a', { class: 'icon-btn', href: '#/wishlist', title: 'Wishlist', 'aria-label': 'Wishlist' }, h('span', { style:{fontSize:'18px', lineHeight:'1'} }, '♡'), wishCount ? h('span', { class: 'cart-count', style: { background: 'var(--primary-denim)' } }, String(wishCount)) : null),
-    h('a', { class: 'icon-btn', href: '#/cart', title: 'Bag', 'aria-label': 'Bag' },
-      h('span', { style:{fontSize:'16px', lineHeight:'1'} }, '◧'), cartCount ? h('span', { class: 'cart-count' }, String(cartCount)) : null),
-    h('a', { class: 'icon-btn', href: '#/search', title: 'Search', 'aria-label': 'Search' }, h('span', { style:{fontSize:'16px', lineHeight:'1'} }, '⌕')),
+    isAdmin ? h('a', { class: 'btn btn-ghost btn-sm', href: '#/admin', style:{background:'#fff', color:'#0f172a', fontWeight:'800', letterSpacing:'0.06em', border:'0.67px solid #cbc6c6', borderRadius:'999px', padding:'8px 14px'} }, 'Admin') : null,
+    h('a', { class: 'icon-btn', href: '#/wishlist', title: 'Wishlist', 'aria-label': 'Wishlist', style: topIconBtnStyle, onmouseenter:(e)=>{ e.currentTarget.style.background='rgba(245,247,240,0.16)'; e.currentTarget.style.transform='translateY(-1px)'; }, onmouseleave:(e)=>{ e.currentTarget.style.background='rgba(245,247,240,0.08)'; e.currentTarget.style.transform=''; } }, navIcon('heart',18), wishCount ? h('span', { class: 'cart-count', style: { background: '#fff', color:'#0f172a', border:'1.5px solid #0f172a', fontWeight:'800' } }, String(wishCount)) : null),
+    h('a', { class: 'icon-btn', href: '#/cart', title: 'Bag', 'aria-label': 'Bag', style: topIconBtnStyle, onmouseenter:(e)=>{ e.currentTarget.style.background='rgba(245,247,240,0.16)'; e.currentTarget.style.transform='translateY(-1px)'; }, onmouseleave:(e)=>{ e.currentTarget.style.background='rgba(245,247,240,0.08)'; e.currentTarget.style.transform=''; } },
+      navIcon('bag',18), cartCount ? h('span', { class: 'cart-count', style:{background:'#fff', color:'#0f172a', border:'1.5px solid #0f172a', fontWeight:'800'} }, String(cartCount)) : null),
+    h('a', { class: 'icon-btn', href: '#/search', title: 'Search', 'aria-label': 'Search', style: topIconBtnStyle, onmouseenter:(e)=>{ e.currentTarget.style.background='rgba(245,247,240,0.16)'; e.currentTarget.style.transform='translateY(-1px)'; }, onmouseleave:(e)=>{ e.currentTarget.style.background='rgba(245,247,240,0.08)'; e.currentTarget.style.transform=''; } }, navIcon('search',18)),
     user
-      ? h('a', { class: 'avatar', href: '#/profile', title: user.name, style: { textDecoration: 'none', background: 'var(--primary-denim)', color: '#fff' } }, initials(user.name))
-      : h('a', { class: 'btn btn-primary btn-sm', href: '#/login', style: { background: 'var(--primary-denim)', borderColor: 'var(--primary-denim)', letterSpacing: '0.04em' } }, 'Sign in'));
+      ? h('a', { class: 'avatar', href: '#/profile', title: user.name, style: { textDecoration: 'none', background: '#fff', color: '#0f172a', border:'1.5px solid rgba(245,247,240,0.3)', boxShadow:'0 2px 10px rgba(0,0,0,0.16)', fontWeight:'800' } }, initials(user.name))
+      : h('a', { class: 'btn btn-primary', href: '#/login', style: { background: '#fff', color:'#0f172a', border:'0.67px solid #fff', borderRadius:'999px', padding:'10px 18px', fontWeight:'800', letterSpacing:'0.05em', fontFamily:'"Source Sans Pro", sans-serif', textTransform:'uppercase', fontSize:'13px', boxShadow:'0 4px 12px rgba(0,0,0,0.16)', transition:'all 0.2s ease' }, onmouseenter:(e)=>{ e.currentTarget.style.background='rgb(245,247,240)'; e.currentTarget.style.transform='translateY(-1px)'; }, onmouseleave:(e)=>{ e.currentTarget.style.background='#fff'; e.currentTarget.style.transform=''; } }, 'Sign in'));
 
   // ── "E" element fix — hamburger is now a functional navigation drawer (not decorative)
   // Provides useful ZUNO navigation: Shop, Studio, Orders, etc. with hover/focus feedback.
@@ -140,13 +153,17 @@ export function topBar(active) {
 export function bottomNav(active) {
   const cartCount = Store.cartCount();
   return h('nav', { class: 'bottom-nav', 'aria-label': 'Mobile' },
-    ...MOBILE_NAV.map((n) => h('a', { 
-      href: n.href, 
-      class: active === n.key ? 'active' : '',
-    },
-      h('span', { class: 'em' }, n.em),
-      n.key === 'cart' && cartCount ? h('span', { class: 'cart-count' }, String(cartCount)) : null,
-      h('span', {}, n.label))));
+    ...MOBILE_NAV.map((n) => {
+      const isActive = active === n.key;
+      return h('a', { 
+        href: n.href, 
+        class: isActive ? 'active' : '',
+        style: isActive ? { color:'var(--primary-denim)', background:'rgba(43,76,126,0.08)' } : {}
+      },
+        h('span', { style:{display:'grid', placeItems:'center', width:'22px', height:'22px'} }, navIcon(n.icon, 20)),
+        n.key === 'cart' && cartCount ? h('span', { class: 'cart-count' }, String(cartCount)) : null,
+        h('span', { style:{fontSize:'11px', fontWeight:'700', letterSpacing:'0.02em', marginTop:'2px'} }, n.label));
+    }));
 }
 
 function socialSvg(type) {
