@@ -150,7 +150,7 @@ export function bottomNav(active) {
 }
 
 function socialSvg(type) {
-  const base = { width:'20', height:'20', viewBox:'0 0 24 24', fill:'currentColor', 'aria-hidden':'true', style:'display:block' };
+  const base = { width:'22', height:'22', viewBox:'0 0 24 24', fill:'currentColor', 'aria-hidden':'true', style:'display:block' };
   if (type==='youtube') return h('svg', { ...base, viewBox:'0 0 24 24' },
     h('path', { d:'M23 12s0-3.6-.46-5.33a1.9 1.9 0 00-1.34-1.34C19.47 5 12 5 12 5s-7.47 0-9.2.33A1.9 1.9 0 001.46 6.67C1 8.4 1 12 1 12s0 3.6.46 5.33a1.9 1.9 0 001.34 1.34C4.53 19 12 19 12 19s7.47 0 9.2-.33a1.9 1.9 0 001.34-1.34C23 15.6 23 12 23 12z', fill:'currentColor' }),
     h('path', { d:'M10 15.5 L16 12 L10 8.5 Z', fill:'#fff' }));
