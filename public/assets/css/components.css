@@ -1,25 +1,29 @@
-/* ---------- Buttons — Denim Spec: 0.2s ease-in → --secondary-wash ---------- */
+/* ---------- Buttons — ZUNO + Souled Store Spec: 0.67px #cbc6c6, 4px, 4px 6px, uppercase Source Sans Pro ---------- */
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: var(--sp-2);
-  border: 1px solid transparent; border-radius: var(--r-md); padding: 10px 18px;
-  font-size: var(--fs-sm); font-weight: 600;
-  transition: transform var(--dur) var(--ease), background var(--dur) var(--ease), box-shadow var(--dur) var(--ease), border-color var(--dur) var(--ease);
-  background: var(--ink-100); color: var(--ink-800); white-space: nowrap; user-select: none;
+  border: 0.67px solid #cbc6c6; border-radius: 4px; padding: 4px 6px;
+  font-family: "Source Sans Pro", var(--font-ui), sans-serif; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.02em;
+  transition: all 0.2s ease;
+  background: #fff; color: #58595b; white-space: nowrap; user-select: none;
 }
 .btn:hover { text-decoration: none; }
 .btn:active { transform: translateY(1px) scale(0.99); }
-.btn-primary { background: var(--primary-denim); color: var(--pure-white); box-shadow: var(--shadow-sm); transition: background 0.2s ease-in, transform 0.2s ease-in, box-shadow 0.2s ease-in; }
-.btn-primary:hover { background: var(--secondary-wash); }
-.btn-accent { background: var(--primary-denim); color: var(--pure-white); transition: background 0.2s ease-in; }
+.btn-primary { background: var(--primary-denim); color: var(--pure-white); border-color: var(--primary-denim); box-shadow: var(--shadow-sm); transition: all 0.2s ease; }
+.btn-primary:hover { background: var(--secondary-wash); border-color: var(--secondary-wash); }
+.btn-accent { background: var(--primary-denim); color: var(--pure-white); border-color: var(--primary-denim); transition: all 0.2s ease; }
 .btn-accent:hover { background: var(--secondary-wash); }
-.btn-ghost { background: transparent; color: var(--ink-700); }
+.btn-ghost { background: transparent; color: var(--ink-700); border-color: transparent; }
 .btn-ghost:hover { background: var(--light-indigo); }
 .btn-outline { background: transparent; border-color: var(--ink-200); color: var(--ink-700); }
 .btn-outline:hover { border-color: var(--primary-denim); color: var(--primary-denim); }
-.btn-danger { background: var(--zuno-danger); color: #fff; }
+.btn-white { background: #fff; color: #58595b; border: 0.67px solid #cbc6c6; }
+.btn-white:hover { background: #f8f8f8; }
+.btn-grey { background: #f5f5f5; color: #58595b; border: 0.67px solid #cbc6c6; }
+.btn-grey:hover { background: #eee; }
+.btn-danger { background: var(--zuno-danger); color: #fff; border-color: var(--zuno-danger); }
 .btn-danger:hover { filter: brightness(0.95); }
-.btn-sm { padding: 7px 12px; font-size: var(--fs-xs); border-radius: var(--r-sm); }
-.btn-lg { padding: 14px 22px; font-size: var(--fs-md); }
+.btn-sm { padding: 4px 6px; font-size: 13px; border-radius: 4px; }
+.btn-lg { padding: 10px 18px; font-size: var(--fs-md); border-radius: 8px; }
 .btn-block { width: 100%; }
 .btn:disabled { opacity: 0.55; cursor: not-allowed; }
 
@@ -139,10 +143,12 @@
 @media (min-width: 760px) { .modal { border-radius: var(--r-xl); } }
 @keyframes rise { from { transform: translateY(24px); opacity: 0.6; } to { transform: none; opacity: 1; } }
 
-/* Tabs */
-.tabs { display: flex; gap: var(--sp-2); border-bottom: 1px solid var(--light-indigo); overflow-x: auto; }
-.tab { padding: var(--sp-3) var(--sp-4); font-weight: 600; color: var(--ink-500); border-bottom: 2px solid transparent; white-space: nowrap; background: none; border-top: none; border-left: none; border-right: none; transition: color 0.2s ease-in, border-color 0.2s ease-in; }
-.tab.active { color: var(--primary-denim); border-bottom-color: var(--primary-denim); }
+/* Tabs — Souled Store: centered, light right divider, active bold bottom border, Source Sans Pro uppercase */
+.tabs { display: flex; gap: 0; border-bottom: 1px solid #e5e5e5; overflow-x: auto; background: #fff; }
+.tab { flex: 1; text-align: center; padding: 10px 14px; font-family: "Source Sans Pro", sans-serif; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.02em; color: #58595b; border-bottom: 3px solid transparent; border-right: 1px solid #f0f0f0; white-space: nowrap; background: none; border-top: none; border-left: none; transition: all 0.2s ease; }
+.tab:last-child { border-right: none; }
+.tab:hover { color: var(--primary-denim); background: #fafafa; }
+.tab.active { color: var(--primary-denim); border-bottom-color: var(--primary-denim); font-weight: 700; background: #fff; }
 
 /* Stepper */
 .stepper { display: flex; align-items: center; gap: var(--sp-2); }

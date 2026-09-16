@@ -45,9 +45,29 @@ function activeKey(path) {
 
 let mainEl, topEl, botEl;
 
+// Hover-to-prefetch: warm product/category API on link hover for instant tab switching (Souled Store quick response)
+const prefetched = new Set();
+function prefetchOnHover(e){
+  const a = e.target.closest('a[href^="#/"]');
+  if(!a) return;
+  const href = a.getAttribute('href')||'';
+  if(prefetched.has(href)) return;
+  prefetched.add(href);
+  // Prefetch shop data on hover
+  if(href.startsWith('#/shop') || href.startsWith('#/product')){
+    import('./api.js').then(m=>{
+      const q = href.includes('?') ? Object.fromEntries(new URLSearchParams(href.split('?')[1])) : {};
+      if(href.startsWith('#/shop')) m.api.get('/products', {module:'shop', limit:8, ...q}).catch(()=>{});
+      if(href.startsWith('#/product/')) m.api.get('/products/suggestions', {q: href.split('/').pop(), limit:1}).catch(()=>{});
+    }).catch(()=>{});
+  }
+}
+
 export function startRouter({ main, top, bottom }) {
   mainEl = main; topEl = top; botEl = bottom;
   window.addEventListener('hashchange', render);
+  document.addEventListener('mouseover', prefetchOnHover, {passive:true});
+  document.addEventListener('focusin', prefetchOnHover, {passive:true});
   // Render first paint immediately; refresh the bag count in the background
   // (previously first paint waited on the cart API).
   render();
@@ -105,9 +125,15 @@ async function render() {
     console.error('route error', err);
     page = h('div', { class: 'container section' }, h('h2', {}, 'Page error'), h('p', { class: 'muted' }, err.message));
   }
-  mainEl.classList.remove('page-enter'); void mainEl.offsetWidth; mainEl.classList.add('page-enter');
-  mount(mainEl, page);
-  window.scrollTo({ top: 0, behavior: 'instant' in window ? 'instant' : 'auto' });
+  // View Transitions API — fade+slide app-like navigation (Souled Store quick opening)
+  const doMount = () => {
+    mainEl.classList.remove('page-enter'); void mainEl.offsetWidth; mainEl.classList.add('page-enter');
+    mount(mainEl, page);
+    window.scrollTo({ top: 0, behavior: 'instant' in window ? 'instant' : 'auto' });
+  };
+  if (document.startViewTransition) {
+    try { document.startViewTransition(doMount); } catch { doMount(); }
+  } else { doMount(); }
 }
 
 function notFound() {

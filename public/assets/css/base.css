@@ -125,10 +125,27 @@ pre, code { white-space: pre-wrap; word-break: break-word; overflow-wrap: anywhe
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* Smooth transitions for interactive elements — 0.2s ease-in per Denim spec */
-.btn, .product-card, .hero-card, .cat-bubble__circle, .icon-btn, .size-pill {
-  transition: transform 0.2s ease-in, box-shadow 0.2s ease-in, background 0.2s ease-in, border-color 0.2s ease-in, color 0.2s ease-in;
+/* Smooth transitions for interactive elements — Souled Store 0.2s ease */
+.btn, .product-card, .hero-card, .cat-bubble__circle, .icon-btn, .size-pill, .tab, .chip, a {
+  transition: all 0.2s ease;
 }
+
+/* Souled Store mview — mobile first */
+body.mview { padding-right: 0 !important; margin-top: 0; }
+@media screen and (max-width: 991px) { body { font-size: 14px; } }
+
+/* Sticky top nav — ensures quick response feel */
+.topbar { position: sticky; top: 0; z-index: 100; }
+
+/* View Transitions API — fade+slide app-like (Souled Store quick opening) */
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: 0.22s; animation-timing-function: ease; }
+::view-transition-old(root) { animation-name: vt-fade-out; }
+::view-transition-new(root) { animation-name: vt-fade-slide-in; }
+@keyframes vt-fade-out { from { opacity: 1; } to { opacity: 0; } }
+@keyframes vt-fade-slide-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+/* Souled Store button typography override */
+.btn, .tab, .chip { font-family: "Source Sans Pro", var(--font-ui), sans-serif; }
 
 .btn:hover {
   transform: translateY(-1px);
