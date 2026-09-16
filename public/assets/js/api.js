@@ -56,8 +56,8 @@ async function doFetch(url, method, headers, body, timeoutMs) {
 
 async function request(method, path, { body, auth = true, query, timeout, _retried } = {}) {
   const isCatalog = path === '/products' || path.startsWith('/products') || path === '/categories' || path === '/config';
-  const defaultTimeout = path.includes('/forgot-password') || path.includes('/verify-otp') || path.includes('/verify-email') || path.includes('/resend') ? 30000
-    : isCatalog ? 25000 : 15000;
+  const defaultTimeout = path.includes('/forgot-password') || path.includes('/verify-otp') || path.includes('/verify-email') || path.includes('/resend') ? 20000
+    : isCatalog ? 12000 : 10000;
   const timeoutMs = timeout || defaultTimeout;
   let url = API + path;
   if (query) {
@@ -71,7 +71,8 @@ async function request(method, path, { body, auth = true, query, timeout, _retri
   const token = Store.getToken();
   if (auth && token) headers['Authorization'] = 'Bearer ' + token;
 
-  // Auto-retry for idempotent GET catalog requests on Render cold start (first request wakes server in 8-15s)
+  // Auto-retry for idempotent GET catalog requests on Render cold start (first request wakes server)
+  // Reduced delays so user sees products fast; error UI only after genuine failure.
   const maxRetries = (method === 'GET' && isCatalog) ? 2 : 0;
   let attempt = 0;
   while (true) {
@@ -80,13 +81,13 @@ async function request(method, path, { body, auth = true, query, timeout, _retri
     } catch (err) {
       const isNetworkError = !err.status || err.message === 'Failed to fetch' || err.name === 'AbortError' || String(err.message).includes('NetworkError') || String(err.message).includes('Load failed');
       const isColdStart = isNetworkError || err.code === 'NETWORK_ERROR' || err.status === 502 || err.status === 503 || err.status === 504;
-      // Retry idempotent GETs on cold start / timeout
+      // Retry idempotent GETs on cold start / timeout with shorter backoff
       if (attempt < maxRetries && isColdStart && !_retried) {
         attempt++;
-        const delay = attempt === 1 ? 1200 : 2200;
+        const delay = attempt === 1 ? 800 : 1500;
         await new Promise(r => setTimeout(r, delay));
-        // On retry, also bump timeout for waking server
-        try { return await doFetch(url, method, headers, body, timeoutMs + 8000); } catch (e2) {
+        // On retry, bump timeout modestly for waking server (12s -> 18s)
+        try { return await doFetch(url, method, headers, body, timeoutMs + 6000); } catch (e2) {
           if (attempt >= maxRetries) throw e2;
           continue;
         }

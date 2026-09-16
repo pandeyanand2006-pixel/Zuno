@@ -1,4 +1,4 @@
-import { h, skeletonGrid, emptyState, errorState } from '../ui.js';
+import { h, skeletonGrid, productSkeletonCard, emptyState, errorState } from '../ui.js';
 import { api } from '../api.js';
 import { ProductCard } from '../components.js';
 
@@ -51,9 +51,14 @@ export async function Home() {
       h('a', { href: '#/shop?sort=newest', style: { fontSize: '13px', fontWeight: '700', color: 'var(--primary-denim)', textDecoration: 'none' } }, 'View all →')));
   const productGrid = h('div', { class: 'grid grid-products' });
   feedSection.append(productGrid);
-  productGrid.append(skeletonGrid(8));
+  // Premium skeleton loading state — matches ZUNO design, not generic
+  {
+    const sk = skeletonGrid(8);
+    // skeletonGrid returns a grid wrapper; unwrap cards into productGrid for correct layout
+    productGrid.append(...[...sk.children]);
+  }
 
-  // ── CUSTOM STUDIO TEASER ──
+  // ── CUSTOM STUDIO TEASER — Large square with premium ZUNO logo (fixed visibility) ──
   const studio = h('section', { class: 'studio-teaser', style: { background: 'var(--dark-charcoal)', color: 'var(--pure-white)', padding: '48px 20px', margin: '32px 0' } },
     h('div', { class: 'studio-teaser-inner', style: { maxWidth: '1320px', margin: '0 auto', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px', alignItems: 'center' } },
       h('div', {},
@@ -62,9 +67,11 @@ export async function Home() {
         h('p', { style: { opacity: '0.7', marginTop: '12px', maxWidth: '36ch' } }, 'Create a T-shirt that is completely yours. Add text, upload artwork — see it live.'),
         h('a', { href: '#/customize', style: { display: 'inline-block', marginTop: '20px', background: 'var(--pure-white)', color: 'var(--dark-charcoal)', padding: '14px 28px', borderRadius: '999px', fontWeight: '700', textDecoration: 'none', transition: 'background 0.2s ease-in' }, onmouseenter:(e)=>e.target.style.background='var(--light-indigo)', onmouseleave:(e)=>e.target.style.background='var(--pure-white)' }, 'START DESIGNING →')),
       h('div', { style: { display: 'flex', justifyContent: 'center' } },
-        h('div', { style: { width: '280px', height: '360px', background: 'var(--pure-white)', borderRadius: '12px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--dark-charcoal)' } },
-          h('div', { style: { fontSize: '12px', letterSpacing: '0.12em', opacity: '0.5', border: '1px dashed #c9d2e3', padding: '6px 12px', borderRadius: '999px' } }, 'YOUR DESIGN HERE'),
-          h('div', { style: { fontSize: '48px', marginTop: '12px' } }, '✦')))));
+        // Large square — premium ZUNO circle logo, centered, high contrast, responsive, not clipped
+        h('div', { class: 'zuno-logo-square', style: { width: 'min(320px, 86vw)', height: 'min(320px, 86vw)', aspectRatio: '1 / 1', background: 'rgb(245,247,240)', borderRadius: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'rgb(16,20,29)', position: 'relative', overflow: 'hidden', boxShadow: '0 20px 50px rgba(0,0,0,0.35)', padding: '20px', boxSizing: 'border-box' } },
+          h('div', { style: { width: 'min(150px, 42vw)', height: 'min(150px, 42vw)', borderRadius: '50%', background: 'rgb(16,20,29)', display: 'grid', placeItems: 'center', color: 'rgb(245,247,240)', fontFamily: 'Manrope, sans-serif', fontWeight: '800', fontSize: 'clamp(28px, 7vw, 44px)', letterSpacing: '0.12em', lineHeight: '1', boxShadow: '0 10px 30px rgba(0,0,0,0.25)', flexShrink: '0', position: 'relative', zIndex: '1', border: '1.5px solid rgba(245,247,240,0.12)' } }, 'ZUNO'),
+          h('div', { style: { marginTop: '14px', fontFamily: '"DM Mono", monospace', fontSize: '10px', letterSpacing: '0.18em', color: 'rgba(16,20,29,0.55)', fontWeight: '700', textAlign: 'center' } }, 'WEAR YOUR ATTITUDE'),
+          h('div', { style: { marginTop: '6px', fontSize: '11px', letterSpacing: '0.08em', color: 'rgba(16,20,29,0.45)', fontWeight: '600', border: '1px dashed #cbd5e1', padding: '5px 10px', borderRadius: '999px', background: 'rgba(255,255,255,0.6)' } }, '✦  PREVIEW YOUR DESIGN  ✦')))));
 
   // ── TRUST ──
   const trust = h('section', { class: 'trust-grid', style: { maxWidth: '1320px', margin: '32px auto', padding: '20px', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', textAlign: 'center', borderTop: '1px solid var(--light-indigo)', borderBottom: '1px solid var(--light-indigo)' } },
@@ -75,12 +82,12 @@ export async function Home() {
 
   main.append(hero, catRow, feedSection, studio, trust);
 
-  // ── DATA — auto-retries Render cold start so first visit never shows error; fallback retry built into api.js
+  // ── DATA — professional loading: skeleton first, graceful waking, error only on genuine failure
   function wakingState(msg) {
-    return h('div', { class: 'empty' },
+    return h('div', { class: 'empty', style: { gridColumn: '1 / -1' } },
       h('div', { class: 'em-ic', style: { animation: 'pulse 1.2s ease infinite' } }, '⏳'),
       h('h3', {}, 'Waking up the store…'),
-      h('p', { class: 'muted' }, msg || 'Server is starting (Render free tier sleeps after inactivity). Your t-shirts appear in a few seconds — no click needed.'),
+      h('p', { class: 'muted' }, msg || 'Server is starting — your T-shirts appear in a few seconds. No click needed.'),
       h('div', { style: { width: '120px', height: '4px', background: '#e2e8f0', borderRadius: '999px', margin: '14px auto', overflow: 'hidden' } },
         h('div', { style: { height: '100%', width: '50%', background: '#0f172a', borderRadius: '999px', animation: 'shimmer 1s ease infinite' } })));
   }
@@ -90,17 +97,25 @@ export async function Home() {
       const { items } = await api.get('/products', { module: 'shop', limit: 8, sort: 'newest' });
       productGrid.innerHTML = '';
       if (items.length) productGrid.append(...items.map(ProductCard));
-      else productGrid.append(emptyState({ title: 'New drops coming soon' }));
+      else productGrid.append(emptyState({ title: 'New drops coming soon', desc: 'Check back soon — fresh essentials are on the way.' }));
     } catch (e) {
       const isNetwork = !e.status || e.code === 'NETWORK_ERROR' || String(e.message).toLowerCase().includes('network') || String(e.message).includes('waking');
       if (isNetwork && _homeRetry < 2) {
         _homeRetry++;
         productGrid.innerHTML = ''; productGrid.append(wakingState(`Connection blip — retrying (${_homeRetry}/3)…`));
-        setTimeout(loadProducts, _homeRetry === 1 ? 1500 : 3000);
+        setTimeout(loadProducts, _homeRetry === 1 ? 900 : 1600);
         return;
       }
       productGrid.innerHTML = '';
-      productGrid.append(errorState(e.message, () => { _homeRetry = 0; productGrid.innerHTML = ''; productGrid.append(skeletonGrid(8)); loadProducts(); }));
+      // Premium error: "We couldn't load the collection." with Try Again recovery
+      const msg = e.message && !/Network error|Failed to fetch/i.test(e.message) ? e.message : "We couldn't load the collection. Please check your connection and try again.";
+      productGrid.append(errorState(msg, () => {
+        _homeRetry = 0;
+        productGrid.innerHTML = '';
+        const sk2 = skeletonGrid(8);
+        productGrid.append(...[...sk2.children]);
+        loadProducts();
+      }));
     }
   }
   loadProducts();

@@ -49,15 +49,20 @@
 .hero-carousel__arrow--next { right: clamp(12px, 2vw, 24px); }
 @media (max-width: 640px) { .hero-carousel__arrow { display: none; } }
 
-/* Category Circles — genuine horizontal scroll row (native touch scrolling) */
-.cat-bubbles { display: flex; flex-wrap: nowrap; gap: 20px; width: 100%; max-width: 100vw; overflow-x: auto; overflow-y: hidden; padding: 24px 20px; box-sizing: border-box; scrollbar-width: none; -ms-overflow-style: none; scroll-padding-right: 20px; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; }
+/* Category Circles — genuine horizontal scroll row (native touch scrolling) — Order removed, rebalanced premium spacing */
+.cat-bubbles { display: flex; flex-wrap: nowrap; gap: 18px; width: 100%; max-width: 100vw; overflow-x: auto; overflow-y: hidden; padding: 24px 20px; box-sizing: border-box; scrollbar-width: none; -ms-overflow-style: none; scroll-padding-right: 20px; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; justify-content: flex-start; }
 .cat-bubbles::-webkit-scrollbar { display: none; }
 .cat-bubbles::after { content: ""; flex: 0 0 4px; }
+@media (min-width: 900px) { .cat-bubbles { gap: 22px; padding: 28px 24px; justify-content: center; } }
 .cat-bubble { flex: 0 0 auto; width: 88px; text-align: center; text-decoration: none; display: flex; flex-direction: column; align-items: center; gap: 8px; min-height: 44px; }
 .cat-bubble__circle { width: 88px; height: 88px; border-radius: 50%; overflow: hidden; border: 2px solid var(--light-indigo); background: var(--light-indigo); transition: transform 0.2s ease-in, border-color 0.2s ease-in, box-shadow 0.2s ease-in; flex-shrink: 0; }
 .cat-bubble:hover .cat-bubble__circle { transform: scale(1.06); border-color: var(--secondary-wash); box-shadow: 0 8px 24px rgba(28,37,65,0.12); }
+.cat-bubble:focus-visible .cat-bubble__circle { outline: 2px solid var(--primary-denim); outline-offset: 2px; }
 .cat-bubble__circle img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .cat-bubble__label { font-size: 13px; font-weight: 600; color: var(--dark-charcoal); line-height: 1.3; }
+/* Premium ZUNO logo square — ensure fully visible, centered, not clipped */
+.zuno-logo-square { max-width: 100%; box-sizing: border-box; }
+.zuno-logo-square > div[style*="border-radius: 50%"] { line-height: 1; text-rendering: geometricPrecision; }
 
 /* Shop category tab bar — outer scrolls, inner track sizes to content */
 .category-bar { width: 100%; max-width: 100vw; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; -ms-overflow-style: none; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; box-sizing: border-box; }

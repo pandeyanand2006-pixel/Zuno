@@ -198,14 +198,14 @@ function Shop() {
 
   let _shopRetry = 0;
   function wakingNode(attempt) {
-    return h('div', { class: 'empty' },
+    return h('div', { class: 'empty', style: { gridColumn: '1 / -1' } },
       h('div', { class: 'em-ic', style: { animation: 'pulse 1.2s ease infinite' } }, '⏳'),
       h('h3', {}, 'Waking up the store…'),
-      h('p', { class: 'muted' }, `Server is starting — retrying (${attempt}/3)… Your t-shirts load automatically.`));
+      h('p', { class: 'muted' }, `Server is starting — retrying (${attempt}/3)… Your T-shirts load automatically.`));
   }
   async function reload() {
     const q = routerQuery();
-    if (_shopRetry === 0) { grid.innerHTML = ''; grid.append(skeletonGrid(8)); }
+    if (_shopRetry === 0) { grid.innerHTML = ''; const sk = skeletonGrid(8); grid.append(...[...sk.children]); }
     try {
       const params = { module: 'shop', limit: 32, sort: q.sort || 'popular' };
       if (q.category) params.category = q.category;
@@ -225,11 +225,12 @@ function Shop() {
       if (isNetwork && _shopRetry < 2) {
         _shopRetry++;
         grid.innerHTML = ''; grid.append(wakingNode(_shopRetry));
-        setTimeout(reload, _shopRetry === 1 ? 1500 : 3000);
+        setTimeout(reload, _shopRetry === 1 ? 900 : 1600);
         return;
       }
       _shopRetry = 0;
-      grid.innerHTML = ''; grid.append(errorState(err.message, () => { _shopRetry = 0; reload(); }));
+      const msg = err.message && !/Network error|Failed to fetch/i.test(err.message) ? err.message : "We couldn't load the collection. Please check your connection and try again.";
+      grid.innerHTML = ''; grid.append(errorState(msg, () => { _shopRetry = 0; const sk2 = skeletonGrid(8); grid.innerHTML=''; grid.append(...[...sk2.children]); reload(); }));
     }
   }
 

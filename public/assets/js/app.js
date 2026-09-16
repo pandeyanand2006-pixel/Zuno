@@ -107,16 +107,18 @@ Store.on(() => {
 
 // Wake Render before first product fetch — fire-and-forget health ping so first
 // /products doesn't pay the 10-15s cold-start tax on zunoshopping.store.
-try { fetch((window.ZUNO_API_BASE ? String(window.ZUNO_API_BASE).replace(/\/$/, '') + '/api' : '/api') + '/health', { cache: 'no-store' }).catch(()=>{}); } catch {}
+try { fetch((window.ZUNO_API_BASE ? String(window.ZUNO_API_BASE).replace(/\/$/, '') + '/api' : '/api') + '/health', { cache: 'no-store', keepalive: true }).catch(()=>{}); } catch {}
 // Start routing immediately so first paint is never blocked on the API.
-// Auth/config/cart/wishlist hydrate in the background in parallel.
+// Auth/config/cart/wishlist hydrate in the background IN PARALLEL (not sequential)
+// so homepage product fetch is never blocked on auth.
 startRouter({ main, top, bottom: bot });
 (async () => {
-  try { await Store.loadMe().catch(() => {}); } catch {}
-  try {
-    const cfg = await api.get('/config').catch(() => null);
-    if (cfg) Store.setConfig(cfg);
-  } catch {}
-  try { await refreshCart().catch(() => {}); } catch {}
-  try { await Store.loadWishlist().catch(() => {}); } catch {}
+  const tasks = [];
+  // Auth must resolve first to know user context, but don't block other fetches
+  tasks.push(Store.loadMe().catch(() => null));
+  tasks.push(api.get('/config').then(cfg => { if(cfg) Store.setConfig(cfg); }).catch(()=>null));
+  // cart & wishlist depend on auth but we fire them concurrently; they self-guard via isAuthed()
+  tasks.push(refreshCart().catch(()=>null));
+  tasks.push(Store.loadWishlist().catch(()=>null));
+  await Promise.allSettled(tasks);
 })();

@@ -204,7 +204,7 @@ export function confirmDialog({ title, message, confirmText = 'Confirm', danger 
 }
 
 export function skeletonGrid(n = 8) {
-  return h('div', { class: 'grid grid-products' }, ...Array.from({ length: n }, () => h('div', { class: 'sk-card skeleton' })));
+  return h('div', { class: 'grid grid-products' }, ...Array.from({ length: n }, () => productSkeletonCard()));
 }
 
 export function emptyState({ icon = '📭', title, desc, action }) {
@@ -216,11 +216,23 @@ export function emptyState({ icon = '📭', title, desc, action }) {
 }
 
 export function errorState(message, onRetry) {
+  const isCollectionError = !message || /network|waking|fetch|load/i.test(String(message));
   return h('div', { class: 'empty' },
     h('div', { class: 'em-ic' }, '⚠️'),
-    h('h3', {}, 'Something went wrong'),
+    h('h3', {}, isCollectionError ? "We couldn't load the collection." : 'Something went wrong'),
     h('p', { class: 'muted' }, message || 'We couldn’t complete that request. Please try again.'),
-    onRetry && h('button', { class: 'btn btn-primary', onclick: onRetry }, 'Try again'));
+    onRetry && h('button', { class: 'btn btn-primary', style: { borderRadius: '999px', padding: '12px 22px', fontWeight: '700' }, onclick: onRetry }, 'Try Again'));
+}
+
+export function productSkeletonCard() {
+  return h('div', { class: 'sk-card', style: { background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', overflow: 'hidden', display: 'flex', flexDirection: 'column' } },
+    h('div', { class: 'skeleton', style: { aspectRatio: '4 / 5', width: '100%', borderRadius: '0' } }),
+    h('div', { style: { padding: '12px', display: 'flex', flexDirection: 'column', gap: '8px' } },
+      h('div', { class: 'skeleton', style: { height: '14px', width: '80%', borderRadius: '6px' } }),
+      h('div', { class: 'skeleton', style: { height: '11px', width: '45%', borderRadius: '6px' } }),
+      h('div', { style: { display: 'flex', gap: '8px', marginTop: '4px' } },
+        h('div', { class: 'skeleton', style: { height: '16px', width: '72px', borderRadius: '999px' } }),
+        h('div', { class: 'skeleton', style: { height: '11px', width: '46px', borderRadius: '6px' } }))));
 }
 
 export function spinner(size = 20) {
