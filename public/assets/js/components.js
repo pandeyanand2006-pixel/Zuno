@@ -32,13 +32,13 @@ export function topBar(active) {
     }, n.label)));
 
   const isAdmin = user && user.role === 'ADMIN';
+  // Order icon REMOVED from top bar — Orders already exists in bottom nav & drawer, per screenshot fix
   const actions = h('div', { class: 'nav-actions' },
-    h('a', { class: 'icon-btn', href: '#/orders', title: 'Orders & Tracking', 'aria-label': 'Orders' }, '📦'),
     isAdmin ? h('a', { class: 'btn btn-ghost btn-sm', href: '#/admin', style:{background:'#0f172a', color:'#fff', fontWeight:'700', letterSpacing:'0.02em'} }, 'Admin') : null,
-    h('a', { class: 'icon-btn', href: '#/wishlist', title: 'Wishlist', 'aria-label': 'Wishlist' }, '♡', wishCount ? h('span', { class: 'cart-count', style: { background: 'var(--primary-denim)' } }, String(wishCount)) : null),
+    h('a', { class: 'icon-btn', href: '#/wishlist', title: 'Wishlist', 'aria-label': 'Wishlist' }, h('span', { style:{fontSize:'18px', lineHeight:'1'} }, '♡'), wishCount ? h('span', { class: 'cart-count', style: { background: 'var(--primary-denim)' } }, String(wishCount)) : null),
     h('a', { class: 'icon-btn', href: '#/cart', title: 'Bag', 'aria-label': 'Bag' },
-      '◧', cartCount ? h('span', { class: 'cart-count' }, String(cartCount)) : null),
-    h('a', { class: 'icon-btn', href: '#/search', title: 'Search', 'aria-label': 'Search' }, '⌕'),
+      h('span', { style:{fontSize:'16px', lineHeight:'1'} }, '◧'), cartCount ? h('span', { class: 'cart-count' }, String(cartCount)) : null),
+    h('a', { class: 'icon-btn', href: '#/search', title: 'Search', 'aria-label': 'Search' }, h('span', { style:{fontSize:'16px', lineHeight:'1'} }, '⌕')),
     user
       ? h('a', { class: 'avatar', href: '#/profile', title: user.name, style: { textDecoration: 'none', background: 'var(--primary-denim)', color: '#fff' } }, initials(user.name))
       : h('a', { class: 'btn btn-primary btn-sm', href: '#/login', style: { background: 'var(--primary-denim)', borderColor: 'var(--primary-denim)', letterSpacing: '0.04em' } }, 'Sign in'));
@@ -150,23 +150,24 @@ export function bottomNav(active) {
 }
 
 function socialSvg(type) {
-  const base = { width:'18', height:'18', viewBox:'0 0 24 24', fill:'currentColor', 'aria-hidden':'true', style:'display:block' };
+  const base = { width:'20', height:'20', viewBox:'0 0 24 24', fill:'currentColor', 'aria-hidden':'true', style:'display:block' };
   if (type==='youtube') return h('svg', { ...base, viewBox:'0 0 24 24' },
     h('path', { d:'M23 12s0-3.6-.46-5.33a1.9 1.9 0 00-1.34-1.34C19.47 5 12 5 12 5s-7.47 0-9.2.33A1.9 1.9 0 001.46 6.67C1 8.4 1 12 1 12s0 3.6.46 5.33a1.9 1.9 0 001.34 1.34C4.53 19 12 19 12 19s7.47 0 9.2-.33a1.9 1.9 0 001.34-1.34C23 15.6 23 12 23 12z', fill:'currentColor' }),
-    h('path', { d:'M10 15.5l5-3.5-5-3.5z', fill:'#0a0a0a' }));
+    h('path', { d:'M10 15.5 L16 12 L10 8.5 Z', fill:'#fff' }));
   if (type==='instagram') return h('svg', base,
-    h('path', { d:'M7 2h10a5 5 0 015 5v10a5 5 0 01-5 5H7a5 5 0 01-5-5V7a5 5 0 015-5zm5 4.5A5.5 5.5 0 1017.5 12 5.5 5.5 0 0012 6.5zm0 2A3.5 3.5 0 1112 15.5 3.5 3.5 0 0112 8.5zm5.75-2.25a1.25 1.25 0 11-1.25 1.25 1.25 1.25 0 011.25-1.25z' }));
-  // facebook
-  return h('svg', base, h('path', { d:'M14 8h2V5h-2c-2.2 0-4 1.8-4 4v2H8v3h2v5h3v-5h2l1-3h-3V9c0-.6.4-1 1-1z' }));
+    h('path', { d:'M12 2.2c3.2 0 3.6 0 4.9.1 1.2.1 1.9.3 2.3.5.5.2.9.5 1.3.9.4.4.7.8.9 1.3.2.4.4 1.1.5 2.3.1 1.3.1 1.7.1 4.9s0 3.6-.1 4.9c-.1 1.2-.3 1.9-.5 2.3-.2.5-.5.9-.9 1.3-.4.4-.8.7-1.3.9-.4.2-1.1.4-2.3.5-1.3.1-1.7.1-4.9.1s-3.6 0-4.9-.1c-1.2-.1-1.9-.3-2.3-.5a3.2 3.2 0 01-1.3-.9 3.2 3.2 0 01-.9-1.3c-.2-.4-.4-1.1-.5-2.3C2.2 15.6 2.2 15.2 2.2 12s0-3.6.1-4.9c.1-1.2.3-1.9.5-2.3.2-.5.5-.9.9-1.3.4-.4.8-.7 1.3-.9.4-.2 1.1-.4 2.3-.5C8.4 2.2 8.8 2.2 12 2.2zm0 1.8c-3.1 0-3.5 0-4.8.1-1 .1-1.6.2-1.9.4-.4.1-.7.4-1 .7-.3.3-.5.6-.7 1-.1.3-.3.9-.4 1.9C3.1 8.5 3 8.9 3 12s0 3.5.1 4.8c.1 1 .2 1.6.4 1.9.1.4.4.7.7 1 .3.3.6.5 1 .7.3.1.9.3 1.9.4 1.3.1 1.7.1 4.8.1s3.5 0 4.8-.1c1-.1 1.6-.2 1.9-.4.4-.1.7-.4 1-.7.3-.3.5-.6.7-1 .1-.3.3-.9.4-1.9.1-1.3.1-1.7.1-4.8s0-3.5-.1-4.8c-.1-1-.2-1.6-.4-1.9-.1-.4-.4-.7-.7-1-.3-.3-.6-.5-1-.7-.3-.1-.9-.3-1.9-.4-1.3-.1-1.7-.1-4.8-.1zm0 3.2a5 5 0 110 10 5 5 0 010-10zm0 1.8a3.2 3.2 0 100 6.4 3.2 3.2 0 000-6.4zm5.2-2.1a1.2 1.2 0 11-2.4 0 1.2 1.2 0 012.4 0z' }));
+  // facebook - bold f
+  return h('svg', base, h('path', { d:'M13.5 21v-7h2.3l.3-2.7h-2.6v-1.7c0-.8.2-1.3 1.3-1.3h1.4V5.1C15.6 5 14.7 5 13.6 5c-2.3 0-3.9 1.4-3.9 4v2.3H7.5V14h2.2v7h3.8z' }));
 }
 export function footer() {
+  // High-visibility social rectangle — white icons on dark bg, clear hover/focus, centered rectangle
   const socialLink = (href, label, type) => h('a', {
     href, target: '_blank', rel: 'noopener noreferrer',
-    class: 'icon-btn',
+    class: 'social-btn',
     'aria-label': label, title: label,
-    style: { color: '#fff', borderColor: 'rgba(255,255,255,0.22)', background: 'rgba(255,255,255,0.06)', width:'42px', height:'42px', borderRadius:'10px', display:'grid', placeItems:'center', transition:'background 0.2s ease, border-color 0.2s ease, transform 0.2s ease' },
-    onmouseenter: (e)=>{ e.currentTarget.style.background='rgba(255,255,255,0.14)'; e.currentTarget.style.borderColor='rgba(255,255,255,0.35)'; e.currentTarget.style.transform='translateY(-1px)'; },
-    onmouseleave: (e)=>{ e.currentTarget.style.background='rgba(255,255,255,0.06)'; e.currentTarget.style.borderColor='rgba(255,255,255,0.22)'; e.currentTarget.style.transform=''; },
+    style: { color: 'rgb(16,20,29)', background: '#fff', border: '1px solid #fff', width:'44px', height:'44px', borderRadius:'10px', display:'grid', placeItems:'center', transition:'background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease', boxShadow:'0 2px 10px rgba(0,0,0,0.18)', textDecoration:'none' },
+    onmouseenter: (e)=>{ e.currentTarget.style.background='#E9EEF5'; e.currentTarget.style.transform='translateY(-2px)'; e.currentTarget.style.boxShadow='0 6px 18px rgba(0,0,0,0.24)'; },
+    onmouseleave: (e)=>{ e.currentTarget.style.background='#fff'; e.currentTarget.style.transform=''; e.currentTarget.style.boxShadow='0 2px 10px rgba(0,0,0,0.18)'; },
     onfocus: (e)=>{ e.currentTarget.style.outline='2px solid #fff'; e.currentTarget.style.outlineOffset='2px'; },
     onblur: (e)=>{ e.currentTarget.style.outline=''; }
   }, socialSvg(type));
@@ -176,14 +177,14 @@ export function footer() {
         h('div', {},
           h('div', { class: 'brand', style: { color: '#fff', fontFamily: 'var(--font-display)', letterSpacing: '0.08em' } }, 'ZUNO'),
           h('p', { class: 'muted', style: { maxWidth: '30ch', marginTop: '12px', lineHeight: '1.6' } }, 'Modern everyday clothing. Designed for people who don\'t follow the ordinary. Made in India, worn everywhere.'),
-          // Rectangle social section — FOLLOW ZUNO with polished icons
-          h('div', { style: { marginTop: '18px', padding:'14px 14px', borderRadius:'12px', background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.1)', maxWidth:'320px' } },
-            h('div', { style:{fontSize:'11px', letterSpacing:'0.14em', fontWeight:'800', color:'#fff', marginBottom:'10px'} }, 'FOLLOW ZUNO'),
-            h('div', { class: 'row', style: { gap:'10px', flexWrap:'wrap' } },
-              socialLink('https://www.youtube.com/@Zunoworld18', 'ZUNO on YouTube', 'youtube'),
-              socialLink('https://www.instagram.com/zunoworld18?stkn=eHdxZG5tbDR1NmEy', 'ZUNO on Instagram', 'instagram'),
-              socialLink('https://www.facebook.com/share/19LNT6nuMH/', 'ZUNO on Facebook', 'facebook'))),
-          h('div', { style:{marginTop:'10px', fontSize:'11px', color:'#94a3b8', letterSpacing:'0.02em'} }, 'Tap an icon to open the official ZUNO profile →')),
+          // Rectangle social section — FOLLOW ZUNO with high-contrast premium icons
+          h('div', { class: 'social-rectangle', style: { marginTop: '18px', padding:'16px 16px', borderRadius:'14px', background:'rgba(255,255,255,0.08)', border:'1px solid rgba(255,255,255,0.16)', maxWidth:'340px', backdropFilter:'blur(6px)' } },
+            h('div', { style:{fontSize:'11px', letterSpacing:'0.16em', fontWeight:'800', color:'#fff', marginBottom:'12px', textAlign:'left'} }, 'FOLLOW ZUNO'),
+            h('div', { class: 'row', style: { gap:'12px', flexWrap:'wrap', justifyContent:'flex-start', alignItems:'center' } },
+              h('div', { style:{display:'flex', flexDirection:'column', alignItems:'center', gap:'6px'} }, socialLink('https://www.youtube.com/@Zunoworld18', 'ZUNO on YouTube — opens https://www.youtube.com/@Zunoworld18', 'youtube'), h('span', {style:{fontSize:'10px', color:'#cbd5e1', fontWeight:'600', letterSpacing:'0.02em'}}, 'YouTube')),
+              h('div', { style:{display:'flex', flexDirection:'column', alignItems:'center', gap:'6px'} }, socialLink('https://www.instagram.com/zunoworld18?stkn=eHdxZG5tbDR1NmEy', 'ZUNO on Instagram — opens https://www.instagram.com/zunoworld18', 'instagram'), h('span', {style:{fontSize:'10px', color:'#cbd5e1', fontWeight:'600', letterSpacing:'0.02em'}}, 'Instagram')),
+              h('div', { style:{display:'flex', flexDirection:'column', alignItems:'center', gap:'6px'} }, socialLink('https://www.facebook.com/share/19LNT6nuMH/', 'ZUNO on Facebook — opens https://www.facebook.com/share/19LNT6nuMH/', 'facebook'), h('span', {style:{fontSize:'10px', color:'#cbd5e1', fontWeight:'600', letterSpacing:'0.02em'}}, 'Facebook')))),
+          h('div', { style:{marginTop:'10px', fontSize:'11px', color:'#e2e8f0', letterSpacing:'0.02em', fontWeight:'500'} }, 'Tap an icon → official ZUNO profile (new tab) →')),
         footerCol('SHOP', [['All T-shirts', '#/shop'], ['New Drops', '#/shop?sort=newest'], ['Best Sellers', '#/shop?sort=popular'], ['Custom T-shirts', '#/customize']]),
         footerCol('HELP', [['Contact Us', '#/'], ['Shipping', '#/'], ['Returns', '#/'], ['Size Guide', '#/'], ['FAQs', '#/']]),
         footerCol('COMPANY', [['About ZUNO', '#/'], ['Our Story', '#/'], ['Careers', '#/']]),
