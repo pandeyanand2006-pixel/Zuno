@@ -33,6 +33,8 @@ function match(path) {
 function activeKey(path) {
   if (path === '/') return 'home';
   if (path.startsWith('/shop')) return 'shop';
+  if (path.startsWith('/custom')) return 'custom';
+  if (path === '/customize' || path.startsWith('/customize')) return 'custom';
   if (path.startsWith('/grocery')) return 'grocery';
   if (path.startsWith('/food')) return 'food';
   if (path.startsWith('/services')) return 'services';

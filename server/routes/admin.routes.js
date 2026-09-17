@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { validate } from '../middleware/validate.js';
 import { slugify } from '../utils/id.js';
 import { orderService } from '../services/order.service.js';
+import { clearProductCache } from '../services/product.service.js';
 import multer from 'multer';
 import path from 'node:path';
 import fs from 'node:fs';
@@ -203,7 +204,8 @@ const productSchema = z.object({
   description: z.string().optional(), images: z.array(z.string()).optional(),
   colors: z.array(z.string()).optional(), sizes: z.array(z.string()).optional(),
   fit: z.string().optional(), fabric: z.string().optional(), collection: z.string().optional(),
-  customizable: z.boolean().optional(), featured: z.boolean().optional(), newArrival: z.boolean().optional(),
+  gender: z.string().optional(), customizable: z.boolean().optional(), featured: z.boolean().optional(), newArrival: z.boolean().optional(),
+  printAreaFront: z.any().optional(), printAreaBack: z.any().optional(), customExtraFront: z.number().optional(), customExtraBack: z.number().optional(),
 });
 
 router.get('/products', async (req, res) => {
@@ -284,10 +286,18 @@ router.post('/products', upload.fields([{ name: 'images', maxCount: 10 }, { name
     const fit = body.fit || null;
     const fabric = body.fabric || null;
     const collection = body.collection || null;
+    const gender = body.gender ? String(body.gender).toLowerCase() : null;
     const customizable = parseBool(body.customizable);
     const featured = parseBool(body.featured);
     const newArrival = parseBool(body.newArrival || body.new_arrival);
     const module = body.module || 'shop';
+    let printAreaFront = null; let printAreaBack = null;
+    try { if (body.printAreaFront) printAreaFront = typeof body.printAreaFront === 'string' ? JSON.parse(body.printAreaFront) : body.printAreaFront; } catch {}
+    try { if (body.printAreaBack) printAreaBack = typeof body.printAreaBack === 'string' ? JSON.parse(body.printAreaBack) : body.printAreaBack; } catch {}
+    try { if (body.print_area_front) printAreaFront = typeof body.print_area_front === 'string' ? JSON.parse(body.print_area_front) : body.print_area_front; } catch {}
+    try { if (body.print_area_back) printAreaBack = typeof body.print_area_back === 'string' ? JSON.parse(body.print_area_back) : body.print_area_back; } catch {}
+    const customExtraFront = body.customExtraFront ? Number(body.customExtraFront) : body.custom_extra_front ? Number(body.custom_extra_front) : 10000;
+    const customExtraBack = body.customExtraBack ? Number(body.customExtraBack) : body.custom_extra_back ? Number(body.custom_extra_back) : 10000;
     // Printrove POD mapping
     const printroveEnabled = parseBool(body.printroveEnabled || body.printrove_enabled);
     const printroveProductId = body.printroveProductId || body.printrove_product_id || body.printroveProductID || null;
@@ -353,13 +363,14 @@ router.post('/products', upload.fields([{ name: 'images', maxCount: 10 }, { name
         catId = cat._id;
       }
       const slug = slugify(name) + '-' + Math.random().toString(36).slice(2, 6);
-      const prod = await Product.create({ category_id: catId, name, slug, description, price, mrp, stock, images, video_url: videoUrl, module, colors, sizes, fit, fabric, collection, customizable, featured, new_arrival: newArrival, care_instructions: 'Machine wash cold', active: true, printroveEnabled, printroveProductId, printroveVariantId, printroveSku });
+      const prod = await Product.create({ category_id: catId, name, slug, description, price, mrp, stock, images, video_url: videoUrl, module, colors, sizes, fit, fabric, collection, gender, customizable, featured, new_arrival: newArrival, care_instructions: 'Machine wash cold', active: true, printAreaFront, printAreaBack, customExtraFront, customExtraBack, printroveEnabled, printroveProductId, printroveVariantId, printroveSku });
       if (colors.length && sizes.length) {
         for (const color of colors) for (const size of sizes) {
           const sku = `ZUNO-${prod._id}-${color.toUpperCase().replace(/[^A-Z0-9]/g, '')}-${size}`;
           try { await ProductVariant.create({ product_id: prod._id, sku, color, size, stock: Math.floor(stock / (colors.length * sizes.length)) + 5, price }); } catch {}
         }
       }
+      try { clearProductCache(); } catch {}
       return ok(res, { id: String(prod._id) }, 'Product created', 201);
     }
     const slug = slugify(name) + '-' + Math.random().toString(36).slice(2, 6);
@@ -369,8 +380,8 @@ router.post('/products', upload.fields([{ name: 'images', maxCount: 10 }, { name
       if (!row) return fail(res, 'Category not found', 404);
       catIdNum = row.id;
     }
-    const info = db.prepare('INSERT INTO products (seller_id, category_id, name, slug, description, price, mrp, stock, images, video_url, module, colors, sizes, fit, fabric, collection, customizable, featured, new_arrival, care_instructions, printrove_enabled, printrove_product_id, printrove_variant_id, printrove_sku) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-      .run(null, catIdNum, name, slug, description, price, mrp, stock, JSON.stringify(images), videoUrl, module, JSON.stringify(colors), JSON.stringify(sizes), fit, fabric, collection, customizable ? 1 : 0, featured ? 1 : 0, newArrival ? 1 : 0, 'Machine wash cold', printroveEnabled ? 1 : 0, printroveProductId || null, printroveVariantId || null, printroveSku || null);
+    const info = db.prepare('INSERT INTO products (seller_id, category_id, name, slug, description, price, mrp, stock, images, video_url, module, colors, sizes, fit, fabric, collection, gender, print_area_front, print_area_back, custom_extra_front, custom_extra_back, customizable, featured, new_arrival, care_instructions, printrove_enabled, printrove_product_id, printrove_variant_id, printrove_sku) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(null, catIdNum, name, slug, description, price, mrp, stock, JSON.stringify(images), videoUrl, module, JSON.stringify(colors), JSON.stringify(sizes), fit, fabric, collection, gender, printAreaFront ? JSON.stringify(printAreaFront) : null, printAreaBack ? JSON.stringify(printAreaBack) : null, customExtraFront, customExtraBack, customizable ? 1 : 0, featured ? 1 : 0, newArrival ? 1 : 0, 'Machine wash cold', printroveEnabled ? 1 : 0, printroveProductId || null, printroveVariantId || null, printroveSku || null);
     if (colors.length && sizes.length) {
       const varIns = db.prepare('INSERT INTO product_variants (product_id, sku, color, size, stock, price) VALUES (?, ?, ?, ?, ?, ?)');
       for (const color of colors) for (const size of sizes) {
@@ -378,6 +389,7 @@ router.post('/products', upload.fields([{ name: 'images', maxCount: 10 }, { name
         try { varIns.run(info.lastInsertRowid, sku, color, size, Math.floor(stock / (colors.length * sizes.length)) + 5, price); } catch {}
       }
     }
+    try { clearProductCache(); } catch {}
     return ok(res, { id: info.lastInsertRowid }, 'Product created', 201);
   } catch (e) {
     if (e.message && e.message.includes('Only images')) return fail(res, e.message, 400);
@@ -466,15 +478,23 @@ router.put('/products/:id', upload.fields([{ name: 'images', maxCount: 10 }, { n
       if (body.fit !== undefined) existing.fit = body.fit;
       if (body.fabric !== undefined) existing.fabric = body.fabric;
       if (body.collection !== undefined) existing.collection = body.collection;
-      if (body.customizable !== undefined) existing.customizable = body.customizable === 'true' || body.customizable === true;
+      if (body.gender !== undefined) existing.gender = String(body.gender).toLowerCase();
+      if (body.customizable !== undefined) existing.customizable = body.customizable === 'true' || body.customizable === true || body.customizable === '1';
       if (body.featured !== undefined) existing.featured = body.featured === 'true' || body.featured === true;
       if (body.newArrival !== undefined || body.new_arrival !== undefined) existing.new_arrival = (body.newArrival === 'true' || body.newArrival === true || body.new_arrival === 'true');
+      try { if (body.printAreaFront !== undefined) existing.printAreaFront = typeof body.printAreaFront === 'string' ? JSON.parse(body.printAreaFront) : body.printAreaFront; } catch {}
+      try { if (body.printAreaBack !== undefined) existing.printAreaBack = typeof body.printAreaBack === 'string' ? JSON.parse(body.printAreaBack) : body.printAreaBack; } catch {}
+      try { if (body.print_area_front !== undefined) existing.printAreaFront = typeof body.print_area_front === 'string' ? JSON.parse(body.print_area_front) : body.print_area_front; } catch {}
+      try { if (body.print_area_back !== undefined) existing.printAreaBack = typeof body.print_area_back === 'string' ? JSON.parse(body.print_area_back) : body.print_area_back; } catch {}
+      if (body.customExtraFront !== undefined || body.custom_extra_front !== undefined) existing.customExtraFront = Number(body.customExtraFront ?? body.custom_extra_front);
+      if (body.customExtraBack !== undefined || body.custom_extra_back !== undefined) existing.customExtraBack = Number(body.customExtraBack ?? body.custom_extra_back);
       if (body.printroveEnabled !== undefined || body.printrove_enabled !== undefined) existing.printroveEnabled = body.printroveEnabled === 'true' || body.printroveEnabled === true || body.printrove_enabled === 'true' || body.printrove_enabled === true;
       if (body.printroveProductId !== undefined || body.printrove_product_id !== undefined) existing.printroveProductId = body.printroveProductId || body.printrove_product_id || null;
       if (body.printroveVariantId !== undefined || body.printrove_variant_id !== undefined) existing.printroveVariantId = body.printroveVariantId || body.printrove_variant_id || null;
       if (body.printroveSku !== undefined || body.printrove_sku !== undefined) existing.printroveSku = body.printroveSku || body.printrove_sku || null;
       await existing.save();
       if (price) try { await ProductVariant.updateMany({ product_id: req.params.id }, { price }); } catch {}
+      try { clearProductCache(); } catch {}
       return ok(res, null, 'Product updated');
     }
     const existing = db.prepare('SELECT * FROM products WHERE id = ?').get(req.params.id);
@@ -489,8 +509,12 @@ router.put('/products/:id', upload.fields([{ name: 'images', maxCount: 10 }, { n
        imagesJson = JSON.stringify(newImages);
      }
     let videoVal = newVideo !== null ? newVideo : null;
-    const colors = parseArray(body.colors);
+     const colors = parseArray(body.colors);
     const sizes = parseArray(body.sizes);
+    let printFrontJson = null; try { if (body.printAreaFront) printFrontJson = typeof body.printAreaFront === 'string' ? body.printAreaFront : JSON.stringify(body.printAreaFront); } catch {}
+    try { if (body.print_area_front) printFrontJson = typeof body.print_area_front === 'string' ? body.print_area_front : JSON.stringify(body.print_area_front); } catch {}
+    let printBackJson = null; try { if (body.printAreaBack) printBackJson = typeof body.printAreaBack === 'string' ? body.printAreaBack : JSON.stringify(body.printAreaBack); } catch {}
+    try { if (body.print_area_back) printBackJson = typeof body.print_area_back === 'string' ? body.print_area_back : JSON.stringify(body.print_area_back); } catch {}
     db.prepare(`
       UPDATE products SET
         name = COALESCE(?, name),
@@ -507,6 +531,11 @@ router.put('/products/:id', upload.fields([{ name: 'images', maxCount: 10 }, { n
         fit = COALESCE(?, fit),
         fabric = COALESCE(?, fabric),
         collection = COALESCE(?, collection),
+        gender = COALESCE(?, gender),
+        print_area_front = COALESCE(?, print_area_front),
+        print_area_back = COALESCE(?, print_area_back),
+        custom_extra_front = COALESCE(?, custom_extra_front),
+        custom_extra_back = COALESCE(?, custom_extra_back),
         customizable = COALESCE(?, customizable),
         featured = COALESCE(?, featured),
         new_arrival = COALESCE(?, new_arrival),
@@ -530,6 +559,11 @@ router.put('/products/:id', upload.fields([{ name: 'images', maxCount: 10 }, { n
       body.fit ?? null,
       body.fabric ?? null,
       body.collection ?? null,
+      body.gender ? String(body.gender).toLowerCase() : null,
+      printFrontJson,
+      printBackJson,
+      body.customExtraFront !== undefined || body.custom_extra_front !== undefined ? Number(body.customExtraFront ?? body.custom_extra_front) : null,
+      body.customExtraBack !== undefined || body.custom_extra_back !== undefined ? Number(body.customExtraBack ?? body.custom_extra_back) : null,
       body.customizable !== undefined ? (body.customizable === 'true' || body.customizable === true || body.customizable === '1' ? 1 : 0) : null,
       body.featured !== undefined ? (body.featured === 'true' || body.featured === true ? 1 : 0) : null,
       (body.newArrival !== undefined || body.new_arrival !== undefined) ? ((body.newArrival === 'true' || body.newArrival === true || body.new_arrival === 'true') ? 1 : 0) : null,
@@ -540,6 +574,7 @@ router.put('/products/:id', upload.fields([{ name: 'images', maxCount: 10 }, { n
       req.params.id
     );
     if (price) { try { db.prepare('UPDATE product_variants SET price = ? WHERE product_id = ?').run(price, req.params.id); } catch {} }
+    try { clearProductCache(); } catch {}
     return ok(res, null, 'Product updated');
   } catch (e) {
     return fail(res, e.message || 'Could not update product', 400);

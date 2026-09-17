@@ -18,8 +18,9 @@ import { ServiceProviders, Provider } from './pages/services.js';
 import { Search } from './pages/search.js';
 import { SellerDashboard, RestaurantDashboard, ProviderDashboard } from './pages/partner.js';
 import { Customize } from './pages/customize.js';
+import { CustomListing } from './pages/custom.js';
 import { About } from './pages/about.js';
-import { Admin, AdminLogin, AdminDashboard, AdminOrders, AdminProducts, AdminInventory, AdminCustomers, AdminOrderDetail, AdminProfile, AdminPassword, AdminForgotPassword, AdminVerifyOtp, AdminResetPassword } from './pages/admin.js';
+import { Admin, AdminLogin, AdminDashboard, AdminOrders, AdminProducts, AdminInventory, AdminCustomers, AdminOrderDetail, AdminProfile, AdminPassword, AdminForgotPassword, AdminVerifyOtp, AdminResetPassword, AdminCustom } from './pages/admin.js';
 
 // Register routes
 route('/', Home);
@@ -46,6 +47,8 @@ route('/food/checkout', FoodCheckout);
 route('/services', ServiceProviders);
 route('/services/:slug', Provider);
 route('/search', Search);
+route('/custom', CustomListing);
+route('/custom/:slug', Customize);
 route('/customize', Customize);
 route('/about', About);
 route('/seller', SellerDashboard);
@@ -60,6 +63,7 @@ route('/admin/reset-password', AdminResetPassword);
 route('/admin/orders', AdminOrders);
 route('/admin/orders/:id', AdminOrderDetail);
 route('/admin/products', AdminProducts);
+route('/admin/custom', AdminCustom);
 route('/admin/inventory', AdminInventory);
 route('/admin/customers', AdminCustomers);
 route('/admin/profile', AdminProfile);

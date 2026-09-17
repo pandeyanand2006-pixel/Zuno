@@ -41,6 +41,7 @@ function adminShell(activeKey, contentNode) {
       h('a', { class:'admin-sidebar__link'+(activeKey==='overview'?' active':''), href:'#/admin' }, h('span',{class:'ic'},'◧'), 'Dashboard'),
       h('a', { class:'admin-sidebar__link'+(activeKey==='orders'?' active':''), href:'#/admin/orders' }, h('span',{class:'ic'},'≡'), 'Orders'),
       h('a', { class:'admin-sidebar__link'+(activeKey==='products'?' active':''), href:'#/admin/products' }, h('span',{class:'ic'},'▭'), 'Products'),
+      h('a', { class:'admin-sidebar__link'+(activeKey==='custom'?' active':''), href:'#/admin/custom' }, h('span',{class:'ic'},'✦'), 'Custom T-Shirts'),
       h('a', { class:'admin-sidebar__link'+(activeKey==='inventory'?' active':''), href:'#/admin/inventory' }, h('span',{class:'ic'},'▦'), 'Inventory'),
       h('a', { class:'admin-sidebar__link'+(activeKey==='customers'?' active':''), href:'#/admin/customers' }, h('span',{class:'ic'},'◐'), 'Customers'),
       h('a', { class:'admin-sidebar__link'+(activeKey==='profile'?' active':''), href:'#/admin/profile' }, h('span',{class:'ic'},'👤'), 'Profile'),
@@ -60,7 +61,7 @@ function adminShell(activeKey, contentNode) {
 
   const overlay = h('div', { class:'admin-overlay', id:'adminOverlay', onclick:()=>{ sidebar.classList.remove('open'); overlay.classList.remove('open'); } });
 
-  const topTitleMap = { overview:'Dashboard', orders:'Orders', products:'Products', inventory:'Inventory', customers:'Customers', profile:'Profile', password:'Reset Password' };
+  const topTitleMap = { overview:'Dashboard', orders:'Orders', products:'Products', custom:'Custom T-Shirts', inventory:'Inventory', customers:'Customers', profile:'Profile', password:'Reset Password' };
   const searchInput = h('input', { placeholder:'Search orders, products…', onkeydown:(e)=>{ if(e.key==='Enter'){ const v=e.target.value.trim(); if(!v) return; if(activeKey==='orders') location.hash='#/admin/orders?q='+encodeURIComponent(v); else if(activeKey==='products') location.hash='#/admin/products?q='+encodeURIComponent(v); else location.hash='#/admin/orders?q='+encodeURIComponent(v); } } });
 
   // Admin profile dropdown
@@ -631,8 +632,10 @@ export async function AdminOrderDetail(ctx){
 
 // ── Products ──
 async function loadProducts(qp){
+  const isCustom = qp.custom === '1' || qp.custom === true || qp.custom === 1 || qp.custom === 'true';
+  const activeKey = isCustom ? 'custom' : 'products';
   const guard = await guardOrRedirect();
-  if (guard && guard.nodeType) return adminShell('products', guard);
+  if (guard && guard.nodeType) return adminShell(activeKey, guard);
   if (!guard) return h('div',{},'Redirecting…');
 
   const q = qp.q||'';
@@ -640,23 +643,38 @@ async function loadProducts(qp){
   const page = Number(qp.page)||1;
   const limit = 20;
   const container = h('div', { style:{display:'flex', flexDirection:'column', gap:'16px'} });
+  if (isCustom) {
+    container.append(h('div', { style:{display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:'12px'} },
+      h('div',{},
+        h('h2', { style:{margin:'0', fontFamily:'var(--font-display)', fontSize:'22px'} }, 'Custom T-Shirts'),
+        h('p', { class:'muted', style:{fontSize:'13px', marginTop:'4px'} }, 'Manage customizable products — these appear in CUSTOM listing')
+      ),
+      h('button', { class:'admin-btn admin-btn-primary', onclick:()=> showProductModal(null, { presetCustom:true }) }, '+ Add Custom T-Shirt')
+    ));
+  }
+  const baseHash = isCustom ? '#/admin/custom' : '#/admin/products';
   const controls = h('div', { class:'admin-search-row' },
-    h('input', { class:'admin-input', placeholder:'Search products…', value:q, style:{flex:'1', maxWidth:'320px'}, onkeydown:(e)=>{ if(e.key==='Enter'){ const u=new URLSearchParams(location.hash.split('?')[1]||''); const v=e.target.value.trim(); if(v) u.set('q',v); else u.delete('q'); u.delete('page'); location.hash='#/admin/products'+(u.toString()?'?'+u.toString():''); } } }),
-    h('select', { class:'admin-select', onchange:(e)=>{ const u=new URLSearchParams(location.hash.split('?')[1]||''); u.set('sort',e.target.value); location.hash='#/admin/products?'+u.toString(); } },
+    h('input', { class:'admin-input', placeholder: isCustom ? 'Search custom products…' : 'Search products…', value:q, style:{flex:'1', maxWidth:'320px'}, onkeydown:(e)=>{ if(e.key==='Enter'){ const u=new URLSearchParams(location.hash.split('?')[1]||''); const v=e.target.value.trim(); if(v) u.set('q',v); else u.delete('q'); u.delete('page'); location.hash=baseHash+(u.toString()?'?'+u.toString():''); } } }),
+    h('select', { class:'admin-select', onchange:(e)=>{ const u=new URLSearchParams(location.hash.split('?')[1]||''); u.set('sort',e.target.value); location.hash=baseHash+'?'+u.toString(); } },
       h('option',{value:'newest', selected:sort==='newest'},'Newest'),
       h('option',{value:'price_low', selected:sort==='price_low'},'Price low'),
       h('option',{value:'price_high', selected:sort==='price_high'},'Price high'),
       h('option',{value:'stock_low', selected:sort==='stock_low'},'Stock low'),
       h('option',{value:'name', selected:sort==='name'},'Name')
     ),
-    h('button', { class:'admin-btn admin-btn-primary', onclick:()=> showProductModal() }, '+ Add Product')
+    isCustom ? null : h('button', { class:'admin-btn admin-btn-primary', onclick:()=> showProductModal() }, '+ Add Product')
   );
   const listWrap = h('div', { class:'admin-card' }, h('div',{style:{padding:'20px', textAlign:'center', color:'#64748b'}},'Loading…'));
   async function render(){
     try{
       const params={ page, limit, sort };
       if(q) params.q=q;
-      const { products, total } = await api.get('/admin/products', params);
+      let { products, total } = await api.get('/admin/products', params);
+      if (isCustom) {
+        // Filter to customizable only — dedicated Custom T-Shirts management
+        products = products.filter(p => p.customizable === 1 || p.customizable === true || p.customizable === '1');
+        total = products.length;
+      }
       listWrap.innerHTML='';
       if(!products.length){ listWrap.append(h('div',{class:'admin-empty'}, h('h3',{},'No products'), h('p',{},'Add your first product'))); return; }
       const table = h('table', { class:'admin-table' },
@@ -689,18 +707,18 @@ async function loadProducts(qp){
       );
       const totalPages=Math.max(1, Math.ceil(total/limit));
       const pagination=h('div',{class:'admin-pagination'},
-        h('button',{class:'admin-btn admin-btn-ghost', disabled:page<=1, onclick:()=>{ const u=new URLSearchParams(location.hash.split('?')[1]||''); u.set('page',String(page-1)); location.hash='#/admin/products?'+u.toString(); }},'‹ Prev'),
-        h('span',{style:{fontSize:'13px'}}, `Page ${page} of ${totalPages} • ${total} products`),
-        h('button',{class:'admin-btn admin-btn-ghost', disabled:page>=totalPages, onclick:()=>{ const u=new URLSearchParams(location.hash.split('?')[1]||''); u.set('page',String(page+1)); location.hash='#/admin/products?'+u.toString(); }},'Next ›')
+        h('button',{class:'admin-btn admin-btn-ghost', disabled:page<=1, onclick:()=>{ const u=new URLSearchParams(location.hash.split('?')[1]||''); u.set('page',String(page-1)); location.hash=baseHash+'?'+u.toString(); }},'‹ Prev'),
+        h('span',{style:{fontSize:'13px'}}, `Page ${page} of ${totalPages} • ${total} ${isCustom?'custom':''} products`),
+        h('button',{class:'admin-btn admin-btn-ghost', disabled:page>=totalPages, onclick:()=>{ const u=new URLSearchParams(location.hash.split('?')[1]||''); u.set('page',String(page+1)); location.hash=baseHash+'?'+u.toString(); }},'Next ›')
       );
       listWrap.append(h('div',{class:'admin-table-wrap'}, table), pagination);
     }catch(e){ listWrap.innerHTML=''; listWrap.append(h('div',{style:{padding:'20px', color:'#dc2626'}}, e.message)); }
   }
   render();
   container.append(controls, listWrap);
-  return adminShell('products', container);
+  return adminShell(activeKey, container);
 
-  function showProductModal(existing){
+  function showProductModal(existing, opts){
     const isEdit = !!existing;
     const toRupees = (paise) => (paise != null && paise !== '') ? String((Number(paise)/100).toString()) : '';
     const name = h('input', { class:'admin-input', placeholder:'ZUNO Essential Tee', value:existing?.name||'' });
@@ -714,6 +732,16 @@ async function loadProducts(qp){
     const fabric = h('input', { class:'admin-input', placeholder:'Fabric (100% Cotton)', value:existing?.fabric||'' });
     const collection = h('input', { class:'admin-input', placeholder:'Collection (Essentials)', value:existing?.collection||'' });
     const fit = h('input', { class:'admin-input', placeholder:'Fit (regular, oversized)', value:existing?.fit||'' });
+    const gender = h('select', { class:'admin-select' },
+      h('option', { value:'' }, 'Unisex'),
+      h('option', { value:'men', selected:(existing?.gender||'')==='men' }, 'Men'),
+      h('option', { value:'women', selected:(existing?.gender||'')==='women' }, 'Women'),
+      h('option', { value:'unisex', selected:(existing?.gender||'')==='unisex' }, 'Unisex')
+    );
+    const isPresetCustom = opts && opts.presetCustom;
+    const customizable = h('input', { type:'checkbox', id:'customChk', checked: !!(existing?.customizable || existing?.customizable===1 || isPresetCustom) });
+    const printFront = h('input', { class:'admin-input', placeholder:'Front print area JSON e.g. {"x":46,"y":54,"w":46,"h":44}', value: (()=>{ try{ const v=existing?.printAreaFront||existing?.print_area_front; return v? (typeof v==='string'?v:JSON.stringify(v)) : ''; }catch{ return ''; }})() });
+    const printBack = h('input', { class:'admin-input', placeholder:'Back print area JSON', value: (()=>{ try{ const v=existing?.printAreaBack||existing?.print_area_back; return v? (typeof v==='string'?v:JSON.stringify(v)) : ''; }catch{ return ''; }})() });
     // Printrove POD mapping inputs
     const printProductId = h('input', { class:'admin-input', placeholder:'e.g. 12345', value: existing?.printroveProductId || existing?.printrove_product_id || '' });
     const printVariantId = h('input', { class:'admin-input', placeholder:'e.g. 67890', value: existing?.printroveVariantId || existing?.printrove_variant_id || '' });
@@ -825,6 +853,18 @@ async function loadProducts(qp){
         h('div', {}, h('label',{style:{fontSize:'11px', fontWeight:'700'}},'Fit'), fit),
         h('div', {}, h('label',{style:{fontSize:'11px', fontWeight:'700'}},'Collection'), collection)
       ),
+      h('div', { style:{marginTop:'12px', padding:'12px', background: isPresetCustom || (existing?.customizable?'#f0fdf4':'#f8fafc'), border:'1px solid '+(isPresetCustom || existing?.customizable ? '#bbf7d0' : '#e2e8f0'), borderRadius:'10px'} },
+        h('div', { style:{fontWeight:'800', fontSize:'12px', color:'#0f172a'} }, '✦ Custom T-Shirt Settings'),
+        h('div', { style:{display:'flex', gap:'12px', marginTop:'8px', flexWrap:'wrap', alignItems:'center'} },
+          h('label', { style:{display:'flex', gap:'6px', alignItems:'center', fontSize:'12px', fontWeight:'700', cursor:'pointer'} }, customizable, ' Customizable (show in CUSTOM listing)'),
+          h('div', { style:{flex:'1', minWidth:'140px'} }, h('label',{style:{fontSize:'11px', fontWeight:'700'}},'Gender'), gender)
+        ),
+        h('div', { style:{display:'flex', gap:'8px', marginTop:'8px', flexWrap:'wrap'} },
+          h('div', { style:{flex:'1', minWidth:'180px'} }, h('label',{style:{fontSize:'11px', fontWeight:'700'}},'Front Print Area JSON'), printFront),
+          h('div', { style:{flex:'1', minWidth:'180px'} }, h('label',{style:{fontSize:'11px', fontWeight:'700'}},'Back Print Area JSON'), printBack)
+        ),
+        h('p', { style:{fontSize:'10px', color:'#64748b', marginTop:'6px'} }, 'Example: {"x":46,"y":54,"w":46,"h":44} — x/y=center %, w/h size %. Leave empty for default 46,54,46,44.')
+      ),
       h('div', { style:{marginTop:'12px'} }, h('label',{style:{fontSize:'11px', fontWeight:'700'}},'Description'), desc),
       h('div', { style:{marginTop:'12px'} }, h('label',{style:{fontSize:'11px', fontWeight:'700'}},'Colors'), colors),
       h('div', { style:{marginTop:'8px'} }, h('label',{style:{fontSize:'11px', fontWeight:'700'}},'Sizes'), sizes),
@@ -915,6 +955,14 @@ async function loadProducts(qp){
       fd.append('fabric', fabric.value.trim());
       fd.append('collection', collection.value.trim());
       fd.append('fit', fit.value.trim());
+      fd.append('gender', gender.value);
+      fd.append('customizable', customizable.checked ? 'true' : 'false');
+      // Print area front/back as JSON strings
+      if (printFront.value.trim()) fd.append('printAreaFront', printFront.value.trim());
+      if (printBack.value.trim()) fd.append('printAreaBack', printBack.value.trim());
+      // Also support snake_case for backend compat
+      if (printFront.value.trim()) fd.append('print_area_front', printFront.value.trim());
+      if (printBack.value.trim()) fd.append('print_area_back', printBack.value.trim());
       // Printrove mapping
       const printEnabledChk = document.getElementById('printEnabledChk');
       const printEnabledVal = printEnabledChk ? printEnabledChk.checked : false;
@@ -1384,6 +1432,13 @@ export async function AdminProducts(ctx){
   const hashQ = location.hash.split('?')[1]||'';
   const parsed={};
   new URLSearchParams(hashQ).forEach((v,k)=> parsed[k]=v);
+  return loadProducts(parsed);
+}
+export async function AdminCustom(ctx){
+  const hashQ = location.hash.split('?')[1]||'';
+  const parsed={};
+  new URLSearchParams(hashQ).forEach((v,k)=> parsed[k]=v);
+  parsed.custom = '1';
   return loadProducts(parsed);
 }
 export async function AdminInventory(ctx){

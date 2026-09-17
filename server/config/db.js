@@ -479,6 +479,14 @@ export function initializeSchema() {
   addColumn('orders', 'printrove_created_at', 'TEXT');
   addColumn('orders', 'printrove_last_synced_at', 'TEXT');
   addColumn('orders', 'printrove_error', 'TEXT');
+  // Custom T-Shirt extended fields — gender + print area front/back (JSON)
+  addColumn('products', 'gender', 'TEXT');
+  addColumn('products', 'print_area_front', 'TEXT');
+  addColumn('products', 'print_area_back', 'TEXT');
+  addColumn('products', 'custom_extra_front', 'INTEGER NOT NULL DEFAULT 10000');
+  addColumn('products', 'custom_extra_back', 'INTEGER NOT NULL DEFAULT 10000');
+  try { db.exec('CREATE INDEX IF NOT EXISTS idx_products_customizable ON products(customizable)'); } catch {}
+  try { db.exec('CREATE INDEX IF NOT EXISTS idx_products_gender ON products(gender)'); } catch {}
   try { db.exec('CREATE INDEX IF NOT EXISTS idx_orders_printrove_id ON orders(printrove_order_id)'); } catch {}
   try { db.exec('CREATE INDEX IF NOT EXISTS idx_orders_printrove_ref ON orders(printrove_reference)'); } catch {}
   try { db.exec('CREATE INDEX IF NOT EXISTS idx_products_printrove ON products(printrove_enabled)'); } catch {}

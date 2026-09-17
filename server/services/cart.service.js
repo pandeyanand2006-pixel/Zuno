@@ -99,8 +99,10 @@ export const cartService = {
         try {
           const data = JSON.parse(customizationData);
           let extra = 0;
-          if (data.front?.elements?.length) extra += 10000;
-          if (data.back?.elements?.length) extra += 10000;
+          const ef = Number(product.customExtraFront ?? product.custom_extra_front ?? 10000);
+          const eb = Number(product.customExtraBack ?? product.custom_extra_back ?? 10000);
+          if (data.front?.elements?.length) extra += ef;
+          if (data.back?.elements?.length) extra += eb;
           customPrice = product.price + extra;
         } catch { customPrice = product.price; }
       }
@@ -115,8 +117,10 @@ export const cartService = {
       try {
         const data = JSON.parse(customizationData);
         let extra = 0;
-        if (data.front?.elements?.length) extra += 10000;
-        if (data.back?.elements?.length) extra += 10000;
+        const ef = Number(product.custom_extra_front ?? 10000);
+        const eb = Number(product.custom_extra_back ?? 10000);
+        if (data.front?.elements?.length) extra += ef;
+        if (data.back?.elements?.length) extra += eb;
         customPrice = product.price + extra;
       } catch { customPrice = product.price; }
     }

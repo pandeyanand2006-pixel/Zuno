@@ -8,13 +8,13 @@ const NAV = [
   { label: 'Graphic', href: '#/shop?category=graphic', key: 'graphic' },
   { label: 'Polo', href: '#/shop?category=polo', key: 'polo' },
   { label: 'New Arrivals', href: '#/shop?sort=newest', key: 'new' },
-  { label: 'Custom Studio', href: '#/customize', key: 'custom' },
+  { label: 'Custom', href: '#/custom', key: 'custom' },
 ];
 
 const MOBILE_NAV = [
   { label: 'Home', href: '#/', key: 'home', icon: 'home' },
   { label: 'Shop', href: '#/shop', key: 'shop', icon: 'shop' },
-  { label: 'Custom', href: '#/customize', key: 'custom', icon: 'custom' },
+  { label: 'Custom', href: '#/custom', key: 'custom', icon: 'custom' },
   { label: 'Orders', href: '#/orders', key: 'orders', icon: 'orders' },
   { label: 'Bag', href: '#/cart', key: 'cart', icon: 'bag' },
 ];
@@ -72,7 +72,7 @@ export function topBar(active) {
       link('#/shop', 'Shop T-Shirts', 'All drops'),
       link('#/shop?category=oversized', 'Oversized', 'Street form'),
       link('#/shop?category=graphic', 'Graphic', 'Bold prints'),
-      link('#/customize', 'Custom Studio — Create your tee', '✦'),
+      link('#/custom', 'Custom — Customized T-Shirts', '✦'),
       link('#/orders', 'Orders & Tracking', '📦'),
       link('#/wishlist', 'Wishlist', '♡'),
       link('#/cart', 'Bag', '◧'),
@@ -107,7 +107,7 @@ export function topBar(active) {
       h('a', { href: '#/shop?category=polo', style: { color: '#23395d', fontSize: '13px', textDecoration: 'none', flex: '0 0 auto' } }, 'Polo'),
       h('a', { href: '#/shop?collection=Essentials', style: { color: '#23395d', fontSize: '13px', textDecoration: 'none', flex: '0 0 auto' } }, 'Essentials'),
       h('a', { href: '#/shop?collection=Street%20Form', style: { color: '#23395d', fontSize: '13px', textDecoration: 'none', flex: '0 0 auto' } }, 'Street Form'),
-      h('a', { href: '#/customize', style: { color: 'rgb(245,247,240)', fontWeight: '700', fontSize: '12px', textDecoration: 'none', background: 'rgb(16,20,29)', padding: '6px 12px', borderRadius: '20px', flex: '0 0 auto' } }, '✦ Custom')));
+      h('a', { href: '#/custom', style: { color: 'rgb(245,247,240)', fontWeight: '700', fontSize: '12px', textDecoration: 'none', background: 'rgb(16,20,29)', padding: '6px 12px', borderRadius: '20px', flex: '0 0 auto' } }, '✦ Custom')));
 
   // Keep the active category tab visible: if it is outside the viewport,
   // bring it into view with native scrolling (no fake animation).

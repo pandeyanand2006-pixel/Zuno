@@ -88,26 +88,53 @@ function teeSVG(bg, side) {
   </svg>`;
 }
 
-export async function Customize() {
+export async function Customize(ctx={}) {
+  const params = (ctx && ctx.params) ? ctx.params : {};
+  const slugParam = params.slug || null;
   const root = h('div', { class: 'container section', style: { maxWidth: '1320px', width: '100%', boxSizing: 'border-box' } });
 
   let products = [];
   try {
-    const r = await api.get('/products', { module: 'shop', limit: 50 });
-    products = (r.items || []).filter((p) => p.customizable);
-    if (!products.length) products = r.items || [];
-  } catch {}
+    const r = await api.get('/products', { module: 'shop', limit: 50, customizable: '1' });
+    // Server now supports customizable filter, fallback to client filter for old data
+    let items = r.items || [];
+    if (r.total === 0) {
+      const r2 = await api.get('/products', { module: 'shop', limit: 50 });
+      items = (r2.items || []).filter(p=>p.customizable);
+    } else {
+      // If server filter returned 0, try client filter
+      if (!items.some(p=>p.customizable)) items = (r.items||[]).filter(p=>p.customizable);
+    }
+    products = items;
+    if (!products.length) {
+      const r2 = await api.get('/products', { module: 'shop', limit: 20 });
+      products = r2.items || [];
+    }
+  } catch {
+    try { const r=await api.get('/products', { module:'shop', limit:20 }); products=r.items||[]; } catch {}
+  }
 
   let selectedProduct = products[0] || null;
-  let color = 'white';
-  let size = 'M';
-  let fit = 'regular';
+  // Preselect by slug from /custom/:slug
+  if (slugParam && products.length) {
+    const found = products.find(p=> String(p.slug)===String(slugParam));
+    if (found) selectedProduct = found;
+    else {
+      // Try fetch single product by slug directly (in case not in list due to limit/pagination)
+      try { const { product } = await api.get('/products/'+slugParam).catch(()=>({})); if(product) selectedProduct=product; } catch {}
+    }
+  }
+  let color = (selectedProduct && selectedProduct.colors && selectedProduct.colors[0]) || 'white';
+  let size = (selectedProduct && selectedProduct.sizes && selectedProduct.sizes[0]) || 'M';
+  let fit = selectedProduct?.fit || 'regular';
   let side = 'front';
   let front = [];
   let back = [];
   let selectedId = null;
   let designName = '';
   let editingDesignId = new URLSearchParams(location.hash.split('?')[1] || '').get('id') || null;
+  // 3-step state — ZUNO custom flow (Pick → Finalise → Preview)
+  let step = 1;
 
   if (editingDesignId && Store.isAuthed()) {
     try {
@@ -129,6 +156,41 @@ export async function Customize() {
   }
 
   const getActive = () => (side === 'front' ? front : back);
+
+  // ── 3-Step indicator — ZUNO (Pick → Finalise → Preview) ──
+  function stepIndicator(){
+    const steps=['Pick Color & Size','Finalise Design','Preview'];
+    const row=h('div', { style:{display:'flex', alignItems:'center', justifyContent:'center', gap:'0', margin:'12px 0 16px', flexWrap:'wrap'} });
+    steps.forEach((label, idx)=>{
+      const n=idx+1; const isActive=step===n; const isDone=step>n;
+      const circle=h('div', { style:{width:'28px', height:'28px', borderRadius:'50%', display:'grid', placeItems:'center', fontWeight:'800', fontSize:'12px', border:'2px solid '+(isActive||isDone?'#0f172a':'#e2e8f0'), background: isActive?'#0f172a': isDone?'#1e40af':'#fff', color: isActive||isDone?'#fff':'#64748b'} }, isDone?'✓':String(n));
+      const text=h('span', { style:{fontSize:'12px', fontWeight: isActive?'800':'600', color: isActive?'#0f172a': isDone?'#1e40af':'#64748b', marginLeft:'6px', marginRight:'12px'} }, label);
+      const line = idx<2 ? h('div', { style:{width:'24px', height:'2px', background: isDone?'#1e40af':'#e2e8f0', marginRight:'12px'} }) : null;
+      const item=h('div', { style:{display:'flex', alignItems:'center', cursor: isDone?'pointer':'default'}, onclick:()=>{ if(isDone){ step=n; syncStep(); } } }, circle, text, line);
+      row.append(item);
+    });
+    return row;
+  }
+  let stepWrap = h('div', { id:'zuno-steps' }, stepIndicator());
+  function syncStep(){
+    stepWrap.innerHTML=''; stepWrap.append(stepIndicator());
+    // Show/hide sections per step
+    if(step===1){ previewWrap.style.display=''; document.querySelector('.custom-left')?.style && (document.querySelector('.custom-left').style.display=''); }
+    renderPreview(); renderControls(); renderSummary();
+    // Scroll top for step change
+    window.scrollTo({top:0, behavior:'smooth'});
+  }
+  function canGoNext(){
+    if(step===1){
+      if(!color){ toast('Select a color','warning'); return false; }
+      if(!size){ toast('Select a size','warning'); return false; }
+      // Check stock for size
+      const variant = selectedProduct?.variants?.find(v=>v.size===size && (!color || v.color===color)) || selectedProduct?.variants?.find(v=>v.size===size);
+      if(variant && variant.stock===0){ toast('Selected size out of stock','error'); return false; }
+    }
+    if(step===2 && !front.length && !back.length){ toast('Add at least one text or image','warning'); return false; }
+    return true;
+  }
 
   // ── Preview ──
   const previewWrap = h('div', { class: 'custom-preview-wrap' });
@@ -301,40 +363,56 @@ export async function Customize() {
     ...products.map((p) => h('option', { value: String(p.id), selected: p.id === selectedProduct?.id }, p.name)));
   productSel.addEventListener('change', () => {
     const prod = products.find((p) => String(p.id) === productSel.value);
-    if (prod) selectedProduct = prod;
-    renderSummary();
+    if (prod) {
+      selectedProduct = prod;
+      // Reset to first available color/size from product (real stock)
+      color = (prod.colors && prod.colors[0]) || color;
+      size = (prod.sizes && prod.sizes[0]) || size;
+      fit = prod.fit || fit;
+      buildColorRow(); buildSizeRow();
+      renderPreview(); renderSummary(); renderControls();
+      // Update step header title
+      const titleEl=document.querySelector('.tee-title');
+      if(titleEl) titleEl.textContent=`Custom: ${prod.name}`;
+    }
   });
 
-  const colorRow = h('div', { class: 'tee-colors' },
-    ...COLORS.map((c) => {
-      const btn = h('button', {
-        type: 'button',
-        class: 'color-swatch' + (c.key === color ? ' active' : ''),
-        title: c.label,
-        'aria-label': c.label,
-        style: { background: c.bg, borderColor: c.border },
-      });
-      btn.addEventListener('click', () => {
-        color = c.key;
-        colorRow.querySelectorAll('.color-swatch').forEach((b) => b.classList.remove('active'));
-        btn.classList.add('active');
-        renderPreview();
-        toast(`Selected ${c.label}`, 'success');
-      });
-      return h('div', { class: 'tee-color-cell' }, btn, h('div', { class: 'text-xs muted tee-color-label' }, c.label));
-    }));
+  const getColorDef = (k)=> COLORS.find(x=>x.key===k) || {key:k, label:k, bg:'#e5e7eb', border:'#cbd5e1'};
+  function buildColorRow(){
+    colorRow.innerHTML='';
+    const keys = (selectedProduct && selectedProduct.colors && selectedProduct.colors.length) ? selectedProduct.colors : COLORS.map(c=>c.key);
+    keys.forEach(k=>{
+      const c=getColorDef(k);
+      const btn=h('button', { type:'button', class:'color-swatch'+(k===color?' active':''), title:c.label, 'aria-label':c.label, style:{background:c.bg, borderColor:c.border||c.bg} });
+      btn.addEventListener('click', ()=>{ color=c.key; colorRow.querySelectorAll('.color-swatch').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); renderPreview(); renderSummary(); toast(`Selected ${c.label}`,'success'); });
+      colorRow.append(h('div', { class:'tee-color-cell' }, btn, h('div', {class:'text-xs muted tee-color-label'}, c.label)));
+    });
+  }
+  const colorRow = h('div', { class: 'tee-colors' });
+  buildColorRow();
 
-  const sizeRow = h('div', { class: 'tee-pills' },
-    ...SIZES.map((s) => h('button', {
-      type: 'button',
-      class: 'btn btn-sm ' + (s === size ? 'btn-primary' : 'btn-ghost'),
-      onclick: (e) => {
-        size = s;
-        sizeRow.querySelectorAll('button').forEach((b) => { b.className = 'btn btn-sm btn-ghost'; });
-        e.currentTarget.className = 'btn btn-sm btn-primary';
-        renderSummary();
-      },
-    }, s)));
+  function sizeStock(s){
+    // Real stock from variants if available, else product stock divided
+    const v = selectedProduct?.variants?.find(v=> String(v.size)===String(s) && (!color || String(v.color)===String(color)));
+    if(v) return v.stock;
+    const v2 = selectedProduct?.variants?.find(v=> String(v.size)===String(s));
+    if(v2) return v2.stock;
+    return selectedProduct?.stock ?? null;
+  }
+  function buildSizeRow(){
+    sizeRow.innerHTML='';
+    const sizes = (selectedProduct && selectedProduct.sizes && selectedProduct.sizes.length) ? selectedProduct.sizes : SIZES;
+    sizes.forEach(s=>{
+      const st = sizeStock(s);
+      const out = st===0;
+      const low = st!==null && st>0 && st<=5;
+      const btn=h('button', { type:'button', class:'btn btn-sm '+(s===size?'btn-primary':'btn-ghost'), disabled: out, title: out?'Out of stock': low?`${st} left`:'', onclick:(e)=>{ size=s; sizeRow.querySelectorAll('button').forEach(b=>b.className='btn btn-sm btn-ghost'); e.currentTarget.className='btn btn-sm btn-primary'; renderSummary(); } }, s + (out?' — Out': low?` · ${st} left`:''));
+      if(out){ btn.style.opacity='0.45'; btn.style.textDecoration='line-through'; }
+      sizeRow.append(btn);
+    });
+  }
+  const sizeRow = h('div', { class: 'tee-pills' });
+  buildSizeRow();
 
   const fitRow = h('div', { class: 'tee-pills' },
     ...FITS.map((f) => h('button', {
@@ -496,7 +574,9 @@ export async function Customize() {
     if (!selectedProduct) { toast('Select a T-shirt', 'warning'); return; }
     if (!front.length && !back.length) { toast('Add text or an image to your design', 'warning'); return; }
     const designData = { front: { elements: front }, back: { elements: back } };
-    const price = selectedProduct.price + (front.length ? 10000 : 0) + (back.length ? 10000 : 0);
+    const extraF = Number(selectedProduct.customExtraFront ?? selectedProduct.custom_extra_front ?? 10000);
+    const extraB = Number(selectedProduct.customExtraBack ?? selectedProduct.custom_extra_back ?? 10000);
+    const price = selectedProduct.price + (front.length ? extraF : 0) + (back.length ? extraB : 0);
     const added = { name: `Custom: ${selectedProduct.name}`, price, image: (selectedProduct.images && selectedProduct.images[0]) || productImage({ name: selectedProduct.name, module: 'shop' }), variant: { color, size, fit } };
     if (!Store.isAuthed()) {
       const guest = JSON.parse(localStorage.getItem('ZUNO_guest_cart') || '[]');
@@ -520,13 +600,60 @@ export async function Customize() {
     h('div', { class: 'custom-center' }, previewWrap),
     h('div', { class: 'custom-right' }, summary));
 
+  // Step navigation bar — Back / Next / Add to Bag (per spec)
+  const stepNav = h('div', { style:{display:'flex', justifyContent:'space-between', gap:'12px', marginTop:'16px', flexWrap:'wrap'} });
+  function refreshStepNav(){
+    stepNav.innerHTML='';
+    if(step===1){
+      stepNav.append(
+        h('a', { class:'btn btn-ghost', href:'#/custom', style:{border:'1px solid #e2e8f0'} }, '← Back to Custom'),
+        h('button', { class:'btn btn-primary', style:{background:'#0f172a', borderColor:'#0f172a', padding:'12px 24px', fontWeight:'800'}, onclick:()=>{ if(!canGoNext()) return; step=2; syncStep(); refreshStepNav(); } }, 'Next → Finalise Design')
+      );
+    } else if(step===2){
+      stepNav.append(
+        h('button', { class:'btn btn-ghost', style:{border:'1px solid #e2e8f0'}, onclick:()=>{ step=1; syncStep(); refreshStepNav(); } }, '← Back'),
+        h('button', { class:'btn btn-primary', style:{background:'#0f172a', borderColor:'#0f172a', padding:'12px 24px', fontWeight:'800'}, onclick:()=>{ if(!canGoNext()) return; step=3; syncStep(); refreshStepNav(); } }, 'Next → Preview')
+      );
+    } else {
+      stepNav.append(
+        h('button', { class:'btn btn-ghost', style:{border:'1px solid #e2e8f0'}, onclick:()=>{ step=2; syncStep(); refreshStepNav(); } }, '← Back to Design'),
+        h('button', { class:'btn btn-primary', style:{background:'#0f172a', borderColor:'#0f172a', padding:'12px 24px', fontWeight:'800', flex:'1', maxWidth:'320px', justifyContent:'center'}, onclick:()=> addToCart() }, 'Add to Bag — '+money(selectedProduct.price + (front.length?10000:0) + (back.length?10000:0)))
+      );
+    }
+  }
+  refreshStepNav();
+  // Extend syncStep to also refresh nav and toggle sections visibility
+  const _origSync = syncStep;
+  syncStep = function(){ _origSync(); refreshStepNav();
+    // Toggle visibility: step1 shows left (color/size), step2 shows center+left text/image, step3 shows preview summary
+    const left = document.querySelector('.custom-left');
+    const center = document.querySelector('.custom-center');
+    const right = document.querySelector('.custom-right');
+    if(!left || !center || !right) return;
+    if(step===1){ left.style.display=''; center.style.display=''; right.style.display='none'; }
+    else if(step===2){ left.style.display=''; center.style.display=''; right.style.display=''; }
+    else { left.style.display='none'; center.style.display=''; right.style.display=''; }
+    // Update print area from product config if available
+    try {
+      const pa = side==='front' ? (selectedProduct?.printAreaFront || selectedProduct?.print_area_front) : (selectedProduct?.printAreaBack || selectedProduct?.print_area_back);
+      const parsed = typeof pa==='string' ? JSON.parse(pa) : pa;
+      if(parsed && parsed.w && parsed.h){
+        printArea.style.width = parsed.w + '%'; printArea.style.height = parsed.h + '%';
+        printArea.style.left = '50%'; printArea.style.top = (parsed.y||54)+'%';
+      }
+    } catch {}
+  };
+
+  // Step indicator — visible for all steps, ZUNO branding
   root.append(
     h('div', { class: 'tee-top' },
       h('div', { style: { minWidth: '0' } },
-        h('h1', { class: 'tee-title' }, 'ZUNO CUSTOM STUDIO'),
-        h('p', { class: 'muted tee-sub2' }, 'Make it yours — design on a real T-shirt')),
-      h('a', { class: 'btn btn-ghost', href: '#/shop' }, '← Back to shop')),
-    layout);
+        h('h1', { class: 'tee-title' }, selectedProduct ? `Custom: ${selectedProduct.name}` : 'ZUNO CUSTOM STUDIO'),
+        h('p', { class: 'muted tee-sub2' }, selectedProduct ? `${selectedProduct.colors?.length||0} colors • ${selectedProduct.sizes?.length||0} sizes • ${money(selectedProduct.price)}` : 'Make it yours — design on a real T-shirt')),
+      h('a', { class: 'btn btn-ghost', href: '#/custom', style:{border:'1px solid #e2e8f0'} }, '← All Custom')),
+    stepWrap,
+    layout,
+    stepNav);
 
   renderPreview();
   renderControls();

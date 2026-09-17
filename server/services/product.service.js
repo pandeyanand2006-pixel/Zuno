@@ -21,9 +21,13 @@ function serializeProduct(p) {
       active: !!doc.active,
       colors: Array.isArray(doc.colors) ? doc.colors : (doc.colors ? JSON.parse(doc.colors) : []),
       sizes: Array.isArray(doc.sizes) ? doc.sizes : (doc.sizes ? JSON.parse(doc.sizes) : []),
-      fit: doc.fit || null, fabric: doc.fabric || null, collection: doc.collection || null,
+      fit: doc.fit || null, fabric: doc.fabric || null, collection: doc.collection || null, gender: doc.gender || null,
       customizable: !!doc.customizable, featured: !!doc.featured, newArrival: !!doc.new_arrival || !!doc.newArrival,
       careInstructions: doc.care_instructions || null, video_url: doc.video_url || null, videoUrl: doc.video_url || null,
+      printAreaFront: doc.printAreaFront || (doc.print_area_front ? JSON.parse(doc.print_area_front) : null),
+      printAreaBack: doc.printAreaBack || (doc.print_area_back ? JSON.parse(doc.print_area_back) : null),
+      customExtraFront: doc.customExtraFront ?? doc.custom_extra_front ?? 10000,
+      customExtraBack: doc.customExtraBack ?? doc.custom_extra_back ?? 10000,
       variants: variants.map(v => ({ id: String(v._id || v.id), sku: v.sku, color: v.color, size: v.size, stock: v.stock, price: v.price })),
     };
   }
@@ -35,9 +39,13 @@ function serializeProduct(p) {
     images: p.images ? JSON.parse(p.images) : [], specs: p.specs ? JSON.parse(p.specs) : {},
     module: p.module, categoryId: p.category_id, brandId: p.brand_id, sellerId: p.seller_id, active: !!p.active,
     colors: p.colors ? JSON.parse(p.colors) : [], sizes: p.sizes ? JSON.parse(p.sizes) : [],
-    fit: p.fit || null, fabric: p.fabric || null, collection: p.collection || null,
+    fit: p.fit || null, fabric: p.fabric || null, collection: p.collection || null, gender: p.gender || null,
     customizable: !!p.customizable, featured: !!p.featured, newArrival: !!p.new_arrival,
-    careInstructions: p.care_instructions || null, video_url: p.video_url || null, videoUrl: p.video_url || null, variants,
+    careInstructions: p.care_instructions || null, video_url: p.video_url || null, videoUrl: p.video_url || null,
+    printAreaFront: p.print_area_front ? JSON.parse(p.print_area_front) : null,
+    printAreaBack: p.print_area_back ? JSON.parse(p.print_area_back) : null,
+    customExtraFront: p.custom_extra_front ?? 10000, customExtraBack: p.custom_extra_back ?? 10000,
+    variants: variants,
   };
 }
 
@@ -57,10 +65,11 @@ async function mongoHasProducts() {
 const _listCache = new Map();
 const LIST_TTL = 8000;
 function listCacheKey(args) { return JSON.stringify(args); }
+export function clearProductCache(){ _listCache.clear(); _mongoHasProductsCache = { value: null, t: 0 }; }
 
 export const productService = {
-  async list({ module = 'shop', category, search, page = 1, limit = 24, sort = 'popular', minPrice, maxPrice, brand, color, size, fit, collection, featured, newArrival }) {
-    const cacheKey = listCacheKey({ module, category, search, page, limit, sort, minPrice, maxPrice, brand, color, size, fit, collection, featured, newArrival });
+  async list({ module = 'shop', category, search, page = 1, limit = 24, sort = 'popular', minPrice, maxPrice, brand, color, size, fit, collection, featured, newArrival, customizable, gender }) {
+    const cacheKey = listCacheKey({ module, category, search, page, limit, sort, minPrice, maxPrice, brand, color, size, fit, collection, featured, newArrival, customizable, gender });
     const hit = _listCache.get(cacheKey);
     if (hit && Date.now() - hit.t < LIST_TTL) return hit.data;
 
@@ -87,6 +96,8 @@ export const productService = {
           if (size) filter.sizes = size;
           if (fit) filter.fit = fit;
           if (collection) filter.collection = collection;
+          if (gender) filter.gender = gender;
+          if (customizable !== undefined && customizable !== '' && customizable !== null) filter.customizable = String(customizable) === '1' || String(customizable).toLowerCase() === 'true';
           if (featured) filter.featured = true;
           if (newArrival) filter.new_arrival = true;
           if (search) filter.$or = [{ name: { $regex: search, $options: 'i' } }, { description: { $regex: search, $options: 'i' } }];
@@ -124,6 +135,8 @@ export const productService = {
     if (size) { clauses.push('p.sizes LIKE ?'); params.push(`%"${size}"%`); }
     if (fit) { clauses.push('p.fit = ?'); params.push(fit); }
     if (collection) { clauses.push('p.collection = ?'); params.push(collection); }
+    if (gender) { clauses.push('p.gender = ?'); params.push(gender); }
+    if (customizable !== undefined && customizable !== '' && customizable !== null) { const want = String(customizable) === '1' || String(customizable).toLowerCase() === 'true' ? 1 : 0; clauses.push('p.customizable = ?'); params.push(want); }
     if (featured) clauses.push('p.featured = 1');
     if (newArrival) clauses.push('p.new_arrival = 1');
     if (search) { clauses.push('(p.name LIKE ? OR p.description LIKE ?)'); params.push(`%${search}%`, `%${search}%`); }

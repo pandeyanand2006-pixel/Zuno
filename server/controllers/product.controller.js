@@ -19,6 +19,8 @@ export async function listProducts(req, res) {
     collection: q.collection,
     featured: q.featured,
     newArrival: q.newArrival,
+    customizable: q.customizable,
+    gender: q.gender,
   });
   return ok(res, result);
 }
