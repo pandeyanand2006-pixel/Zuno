@@ -571,7 +571,7 @@ export async function Customize(ctx={}) {
         h('img', { src: (selectedProduct.images && selectedProduct.images[0]) ? resolveImageUrl(selectedProduct.images[0]) : productImage({ name: selectedProduct.name, module: 'shop' }), alt: selectedProduct.name, class: 'tee-prod-img', loading: 'lazy', decoding: 'async', onerror: (e) => imgFallback(e.currentTarget, { name: selectedProduct.name, module: 'shop' }) }),
         h('div', { style: { minWidth: '0' } }, h('div', { class: 'fw-600 tee-ellipsis' }, selectedProduct.name), h('div', { class: 'muted text-sm' }, `${color} · ${size} · ${fit}`))) : null,
       h('div', { class: 'divider', style: { margin: '14px 0' } }),
-      h('div', { class: 'row between' }, h('span', { class: 'muted text-sm' }, 'Base price'), h('span', {}, money(base))),
+      h('div', { class: 'row between' }, h('span', { class: 'muted text-sm' }, 'Base price'), h('span', {}, money(basePaise))),
       savedCount ? h('div', { class: 'row between' }, h('span', { class: 'muted text-sm' }, 'Print'), h('span', {}, money(extra))) : null,
       h('div', { class: 'divider' }),
       h('div', { class: 'row between' }, h('strong', {}, 'Total'), h('strong', {}, money(total))),
