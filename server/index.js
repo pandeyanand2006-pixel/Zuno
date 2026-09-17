@@ -177,6 +177,49 @@ if (isMongoConnected()) {
     } else {
       logger.info(`Mongo catalogue present: ${mCount} products`);
     }
+    // ── Sync SQLite custom T-Shirts to Mongo for Mongo-only mode (fixes price not updating when admin edits Mongo but listing shows SQLite) ──
+    try {
+      const sqliteCustom = db.prepare('SELECT * FROM products WHERE customizable=1 AND active=1').all();
+      const mCustomCount = await Product.countDocuments({ customizable: true, active: true });
+      if (sqliteCustom.length > mCustomCount) {
+        logger.info(`Syncing ${sqliteCustom.length - mCustomCount} custom products from SQLite → Mongo (Mongo-only mode)`);
+        const { Category, Brand } = await import('./models/index.js');
+        const { slugify } = await import('./utils/id.js');
+        for (const sq of sqliteCustom) {
+          if (await Product.findOne({ name: sq.name })) continue;
+          let catId = null;
+          try {
+            const catRow = db.prepare('SELECT name FROM categories WHERE id=?').get(sq.category_id);
+            if (catRow) {
+              let mCat = await Category.findOne({ name: catRow.name });
+              if (!mCat) mCat = await Category.create({ name: catRow.name, slug: slugify(catRow.name), module:'shop', active:true });
+              catId = mCat._id;
+            }
+          } catch {}
+          let brandId = null;
+          try {
+            const brRow = sq.brand_id ? db.prepare('SELECT name FROM brands WHERE id=?').get(sq.brand_id) : null;
+            const brName = brRow ? brRow.name : 'ZUNO';
+            let mBr = await Brand.findOne({ name: brName });
+            if (!mBr) mBr = await Brand.create({ name: brName, slug: slugify(brName), active:true });
+            brandId = mBr._id;
+          } catch {}
+          const imgs = sq.images ? JSON.parse(sq.images) : [];
+          const colors = sq.colors ? JSON.parse(sq.colors) : [];
+          const sizes = sq.sizes ? JSON.parse(sq.sizes) : [];
+          const printFront = sq.print_area_front ? JSON.parse(sq.print_area_front) : null;
+          const printBack = sq.print_area_back ? JSON.parse(sq.print_area_back) : null;
+          const prod = await Product.create({
+            category_id: catId, brand_id: brandId, name: sq.name, slug: sq.slug, description: sq.description, price: sq.price, mrp: sq.mrp, stock: sq.stock, rating: sq.rating||4.5, rating_count: sq.rating_count||100, images: imgs, module: sq.module||'shop', colors, sizes, fit: sq.fit, fabric: sq.fabric, collection: sq.collection, gender: sq.gender||null, customizable: true, featured: !!sq.featured, new_arrival: !!sq.new_arrival, active: true, printAreaFront: printFront, printAreaBack: printBack, customExtraFront: sq.custom_extra_front||10000, customExtraBack: sq.custom_extra_back||10000
+          });
+          for (const c of colors) for (const s of sizes) {
+            const sku=`ZUNO-${prod._id}-${c.toUpperCase().replace(/[^A-Z0-9]/g,'')}-${s}`;
+            try { const { ProductVariant } = await import('./models/index.js'); await ProductVariant.create({ product_id: prod._id, sku, color:c, size:s, stock: Math.floor(sq.stock/(colors.length*sizes.length||1))+5, price: sq.price }); } catch {}
+          }
+        }
+        logger.info(`Mongo sync complete: ${await Product.countDocuments({ customizable:true })} custom products now in Mongo`);
+      }
+    } catch (e) { logger.error('mongo custom sync failed', e.message); }
   } catch (e) { logger.error('mongo catalogue seed failed', e.message); }
 }
 try {

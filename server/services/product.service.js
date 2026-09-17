@@ -73,14 +73,26 @@ export const productService = {
     const hit = _listCache.get(cacheKey);
     if (hit && Date.now() - hit.t < LIST_TTL) return hit.data;
 
-    // Try Mongo only if connected and has products — with tight timeout so SQLite fallback is instant (fixes T-shirt load delay)
-    if (useMongo()) {
+    // Mongo-only mode when MONGODB_URI is set (per user request: no SQL, only Mongo)
+    const strictMongo = !!env.mongoUri;
+    if (strictMongo) {
+      // Wait for Mongo connection briefly, then query Mongo directly (no SQLite fallback for products)
       try {
-        const hasProducts = await Promise.race([
-          mongoHasProducts(),
-          new Promise((_, rej) => setTimeout(() => rej(new Error('mongoHasProducts timeout')), 1400))
-        ]);
-        if (hasProducts) {
+        // Ensure Mongo connected — wait up to 2s if not yet
+        if (!isMongoConnected()) {
+          await new Promise((r, rej) => {
+            let t = setTimeout(() => rej(new Error('mongo not connected')), 2000);
+            const iv = setInterval(() => { if (isMongoConnected()) { clearTimeout(t); clearInterval(iv); r(); } }, 100);
+          });
+        }
+      } catch {}
+      if (isMongoConnected()) {
+        try {
+          const hasProducts = await Promise.race([
+            mongoHasProducts(),
+            new Promise((_, rej) => setTimeout(() => rej(new Error('mongoHasProducts timeout')), 1400))
+          ]);
+          if (hasProducts || !strictMongo) {
           const filter = { active: true, module };
           if (category) {
             let catId = null;
@@ -113,18 +125,23 @@ export const productService = {
           const byPid = {};
           variants.forEach(v => { const k = String(v.product_id); (byPid[k] ||= []).push(v); });
           const items = rows.map(r => { r._variants = byPid[String(r._id)] || []; return serializeProduct(r); });
-          // If customizable filter yields 0 in Mongo but SQLite has data, fallback to SQLite (Mongo seed may be stale)
-          if (customizable && total === 0) throw new Error('no custom in mongo — fallback to sqlite');
           const result = { items, total, page: Number(page), limit: Number(limit), testMode: false };
           _listCache.set(cacheKey, { t: Date.now(), data: result });
           if (_listCache.size > 100) _listCache.delete(_listCache.keys().next().value);
           return result;
         }
       } catch (e) {
-        // Mongo timed out or failed — fall through to SQLite instant path
+        // Mongo timed out or failed — in strict Mongo mode, don't fallback to SQLite
+        if (strictMongo) throw e;
+      }
+      } // close if (isMongoConnected)
+      if (strictMongo) {
+        // No Mongo result yet (e.g., no hasProducts or Mongo empty) — return empty for Mongo-only mode
+        const empty = { items: [], total: 0, page: Number(page), limit: Number(limit), testMode: false };
+        return empty;
       }
     }
-    // SQLite instant path
+    // SQLite instant path — only when no MONGODB_URI (local dev fallback)
     const clauses = ['p.active = 1', 'p.module = ?'];
     const params = [module];
     if (category) {

@@ -1,4 +1,4 @@
-import { h, money, skeletonGrid, emptyState, errorState } from '../ui.js';
+import { h, money, skeletonGrid, emptyState, errorState, productImage, resolveImageUrl, imgFallback } from '../ui.js';
 import { api } from '../api.js';
 import { ProductCard } from '../components.js';
 
@@ -21,6 +21,35 @@ function qstring(patch){
   for(const[k,v] of Object.entries(patch)) if(cur[k]===v) nxt[k]='';
   const clean=Object.entries(nxt).filter(([,v])=>v).map(([k,v])=>`${k}=${encodeURIComponent(v)}`).join('&');
   return `#/custom${clean?'?'+clean:''}`;
+}
+
+function zunoCustomCard(p){
+  // ZUNO brand card inspired by Bewakoof: brand + name + price/mrp/off, red bracket overlay, YOUR DESIGN HERE
+  const imgSrc = p.images && p.images[0] ? resolveImageUrl(p.images[0]) : productImage({ name: p.name });
+  const brand = 'ZUNO®';
+  const discount = p.discountPercent || (p.mrp>p.price ? Math.round(((p.mrp-p.price)/p.mrp)*100) : 0);
+  const thumb = h('div', { class:'product-thumb', style:{position:'relative', aspectRatio:'4/5', background:'#f5f5f5', overflow:'hidden', borderRadius:'12px 12px 0 0'} },
+    h('img', { src: imgSrc, alt: p.name, loading:'lazy', decoding:'async', style:{width:'100%', height:'100%', objectFit:'cover', display:'block'}, onerror:(e)=> imgFallback(e.currentTarget, p) }),
+    // Red bracket overlay like Bewakoof — YOUR DESIGN HERE
+    h('div', { style:{position:'absolute', inset:'18% 14% 14% 14%', border:'3px solid #ff6b6b', borderRadius:'4px', pointerEvents:'none', boxShadow:'0 0 0 1px rgba(255,107,107,0.3)'} }),
+    h('div', { style:{position:'absolute', top:'50%', left:'50%', transform:'translate(-50%,-50%)', background:'rgba(255,255,255,0.92)', padding:'6px 10px', borderRadius:'6px', fontWeight:'800', fontSize:'12px', letterSpacing:'0.06em', color:'#0f172a', textAlign:'center', lineHeight:'1.2', pointerEvents:'none'} }, 'YOUR', h('br'), 'DESIGN', h('br'), h('span', {style:{fontWeight:'600', fontSize:'10px'}}, 'HERE')),
+    // Top badges
+    p.customizable ? h('span', { class:'product-badge', style:{background:'#0f172a', top:'8px', left:'8px'} }, 'CUSTOM') : null,
+    discount ? h('span', { class:'product-badge', style:{background:'#f59e0b', top:'8px', right:'8px', left:'auto', bottom:'auto'} }, discount+'% OFF') : null
+  );
+  const priceRow = h('div', { style:{display:'flex', alignItems:'baseline', gap:'6px', flexWrap:'wrap', marginTop:'4px'} },
+    h('span', { style:{fontWeight:'800', fontSize:'15px', color:'#0f172a'} }, money(p.price)),
+    p.mrp>p.price ? h('span', { style:{fontSize:'11px', color:'#64748b', textDecoration:'line-through'} }, money(p.mrp)) : null,
+    discount ? h('span', { style:{fontSize:'11px', fontWeight:'700', color:'#16a34a'} }, discount+'% OFF') : null
+  );
+  const lowPrice = Math.round(p.price * 0.92);
+  const body = h('div', { style:{padding:'10px 12px', background:'#fff', border:'1px solid #e2e8f0', borderTop:'none', borderRadius:'0 0 12px 12px'} },
+    h('div', { style:{fontSize:'11px', fontWeight:'800', color:'#0f172a', letterSpacing:'0.02em'} }, brand),
+    h('div', { style:{fontSize:'12px', color:'#334155', lineHeight:'1.3', display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical', overflow:'hidden', minHeight:'32px', marginTop:'2px'} }, p.name),
+    priceRow,
+    h('div', { style:{marginTop:'6px', background:'#faf5ff', border:'1px solid #e9d5ff', color:'#6b21a8', fontSize:'11px', padding:'4px 8px', borderRadius:'999px', display:'inline-block'} }, 'Get it for as low as '+money(lowPrice))
+  );
+  return h('a', { href:'#/custom/'+p.slug, style:{textDecoration:'none', color:'inherit', display:'flex', flexDirection:'column', border:'1px solid #e2e8f0', borderRadius:'12px', overflow:'hidden', background:'#fff', transition:'all 0.2s ease'}, onmouseenter:(e)=>{ e.currentTarget.style.transform='translateY(-4px)'; e.currentTarget.style.boxShadow='0 12px 28px rgba(0,0,0,0.12)'; }, onmouseleave:(e)=>{ e.currentTarget.style.transform=''; e.currentTarget.style.boxShadow=''; } }, thumb, body);
 }
 
 export async function CustomListing(){
@@ -103,23 +132,8 @@ export async function CustomListing(){
       countNum.textContent = total ? `• ${total} customizable` : '';
       if(!items.length) grid.append(emptyState({ icon:'✦', title:'No custom products yet', desc:'Admin can create Custom T-Shirts in Admin → Custom T-Shirts → + Add Custom T-Shirt', action: h('a', { class:'btn btn-primary', href:'#/admin/custom' }, 'Go to Admin') }));
       else {
-        // Custom card: brand, name, price/mrp/off, customizable badge
-        grid.append(...items.map(p=>{
-          const card = ProductCard(p);
-          // Ensure card links to custom detail flow, not normal product
-          const a = card; // ProductCard returns <a href="#/product/slug">
-          // Hijack href to custom flow: #/custom/:slug
-          try{ a.setAttribute('href', '#/custom/'+p.slug); }catch{}
-          // Add customizable badge if not already
-          if(p.customizable){
-            const thumb=a.querySelector('.product-thumb');
-            if(thumb && !thumb.querySelector('.custom-badge')){
-              const badge=h('span', { class:'product-badge', style:{background:'#f59e0b', top:'10px', left:'10px', right:'auto'} }, 'CUSTOM');
-              thumb.prepend(badge);
-            }
-          }
-          return a;
-        }));
+        // ZUNO brand custom cards — Bewakoof-inspired but ZUNO branding, real DB prices
+        grid.append(...items.map(p=> zunoCustomCard(p)));
       }
     }catch(e){
       grid.innerHTML=''; grid.append(errorState(e.message, load));
