@@ -135,13 +135,14 @@ export const productService = {
         if (strictMongo) throw e;
       }
       } // close if (isMongoConnected)
-      if (strictMongo) {
-        // No Mongo result yet (e.g., no hasProducts or Mongo empty) — return empty for Mongo-only mode
+      if (strictMongo && isMongoConnected()) {
+        // Mongo-only mode and connected but no result (e.g., hasProducts false) — return empty, don't fallback to stale SQLite
         const empty = { items: [], total: 0, page: Number(page), limit: Number(limit), testMode: false };
         return empty;
       }
+      // Fall through to SQLite for local dev when Mongo not connected (per user: no SQL only when Mongo URI present and connected)
     }
-    // SQLite instant path — only when no MONGODB_URI (local dev fallback)
+    // SQLite instant path — for local dev or when no MONGODB_URI
     const clauses = ['p.active = 1', 'p.module = ?'];
     const params = [module];
     if (category) {
