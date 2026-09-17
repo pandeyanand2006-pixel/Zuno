@@ -113,6 +113,8 @@ export const productService = {
           const byPid = {};
           variants.forEach(v => { const k = String(v.product_id); (byPid[k] ||= []).push(v); });
           const items = rows.map(r => { r._variants = byPid[String(r._id)] || []; return serializeProduct(r); });
+          // If customizable filter yields 0 in Mongo but SQLite has data, fallback to SQLite (Mongo seed may be stale)
+          if (customizable && total === 0) throw new Error('no custom in mongo — fallback to sqlite');
           const result = { items, total, page: Number(page), limit: Number(limit), testMode: false };
           _listCache.set(cacheKey, { t: Date.now(), data: result });
           if (_listCache.size > 100) _listCache.delete(_listCache.keys().next().value);
