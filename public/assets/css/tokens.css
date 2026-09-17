@@ -41,11 +41,16 @@
   --bg: var(--dark-charcoal);
   --bg-soft: #0f141e;
 
-  /* Typography — ZUNO Display Manrope + Souled Store Source Sans Pro for UI */
-  --font: "Source Sans Pro", "Manrope", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  /* Typography — ZUNO Display Manrope + Souled Store Source Sans Pro + Custom Montserrat */
+  --font: "Montserrat", "Source Sans Pro", "Manrope", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --font-ui: "Source Sans Pro", sans-serif;
   --font-display: "Manrope", sans-serif;
+  --font-custom: "Montserrat", sans-serif;
   --font-mono: "DM Mono", monospace;
+  --color-text: rgb(54,53,55);
+  --color-border: rgb(229,229,229);
+  --color-primary: #fdd835;
+  --color-primary-hover: #fbc02d;
   --fs-xs: 0.7rem;
   --fs-sm: 0.8rem;
   --fs-md: 0.9375rem;
