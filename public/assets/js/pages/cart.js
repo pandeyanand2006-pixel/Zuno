@@ -3,6 +3,21 @@ import { api } from '../api.js';
 import { Store } from '../store.js';
 import { refreshCart } from '../components.js';
 
+function formatCustomDetails(customization, variant){
+  if(!customization) return null;
+  const rows=[];
+  if(variant) rows.push(h('div', { style:{display:'flex', gap:'12px', flexWrap:'wrap', fontSize:'11px'} }, h('span',{},`Color: ${variant.color||'—'}`), h('span',{},`Size: ${variant.size||'—'}`), variant.fit? h('span',{},`Fit: ${variant.fit}`):null));
+  const front = customization.front?.elements||[];
+  const back = customization.back?.elements||[];
+  const fmtEl = (el)=>{
+    if(el.type==='text') return h('div', { style:{fontSize:'11px', color:'#334155', padding:'4px 8px', background:'#fff', border:'1px solid #e2e8f0', borderRadius:'6px', marginTop:'4px'} }, h('span', { style:{fontWeight:'700'} }, `Text — "${el.value||''}"`), h('span', { style:{marginLeft:'6px', color:'#64748b'} }, `Font ${el.fontFamily||''} ${el.fontSize||''}px`), el.color? h('span', { style:{marginLeft:'6px', display:'inline-block', width:'10px', height:'10px', borderRadius:'50%', background:el.color, border:'1px solid #e2e8f0', verticalAlign:'middle'} }):null, h('div', { style:{fontSize:'10px', color:'#64748b', marginTop:'2px'} }, `Pos ${Math.round(el.xPct||el.x||50)}%,${Math.round(el.yPct||el.y||50)}% • Scale ${el.scale||1} • Rotate ${el.rotation||0}°`));
+    if(el.type==='image') return h('div', { style:{fontSize:'11px', color:'#334155', padding:'4px 8px', background:'#fff', border:'1px solid #e2e8f0', borderRadius:'6px', marginTop:'4px'} }, h('span', { style:{fontWeight:'700'} }, 'Image — Uploaded design'), h('span', { style:{marginLeft:'6px', color:'#64748b'} }, `Size ${el.width||110}px`), h('div', { style:{fontSize:'10px', color:'#64748b', marginTop:'2px'} }, `Pos ${Math.round(el.xPct||50)}%,${Math.round(el.yPct||50)}% • Scale ${el.scale||1} • Rotate ${el.rotation||0}°`));
+    return h('div', { style:{fontSize:'11px'} }, JSON.stringify(el).slice(0,60));
+  };
+  const sec = (label, els)=> els.length ? h('div', { style:{marginTop:'6px'} }, h('div', { style:{fontWeight:'700', fontSize:'11px', color:'#0f172a'} }, label), ...els.map(fmtEl)) : null;
+  return h('div', { style:{marginTop:'8px', padding:'8px', background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:'8px'} }, h('div', { style:{fontWeight:'800', fontSize:'11px', letterSpacing:'0.05em', color:'#0f172a'} }, 'Customization Details'), ...rows, sec('Front:', front), sec('Back:', back), (!front.length && !back.length) ? h('div', { style:{fontSize:'11px', color:'#64748b', marginTop:'4px'} }, 'No elements') : null);
+}
+
 export async function Cart() {
   const root = h('div', { class: 'container section' });
   root.append(h('h1', { style: { fontFamily: 'var(--font-display)', letterSpacing: '-0.02em' } }, 'Your bag'));
@@ -41,13 +56,43 @@ function renderAuthed(root) {
     );
   }
 
+  function formatCustomDetails(customization, variant){
+    if(!customization) return null;
+    const rows=[];
+    if(variant) rows.push(h('div', { style:{display:'flex', gap:'12px', flexWrap:'wrap', fontSize:'11px'} }, h('span',{},`Color: ${variant.color||'—'}`), h('span',{},`Size: ${variant.size||'—'}`), variant.fit? h('span',{},`Fit: ${variant.fit}`):null));
+    const front = customization.front?.elements||[];
+    const back = customization.back?.elements||[];
+    const fmtEl = (el)=>{
+      if(el.type==='text') return h('div', { style:{fontSize:'11px', color:'#334155', padding:'4px 8px', background:'#fff', border:'1px solid #e2e8f0', borderRadius:'6px', marginTop:'4px'} },
+        h('span', { style:{fontWeight:'700'} }, `Text — "${el.value||''}"`), h('span', { style:{marginLeft:'6px', color:'#64748b'} }, `Font ${el.fontFamily||''} ${el.fontSize||''}px`), el.color? h('span', { style:{marginLeft:'6px', display:'inline-block', width:'10px', height:'10px', borderRadius:'50%', background:el.color, border:'1px solid #e2e8f0', verticalAlign:'middle'} }):null,
+        h('div', { style:{fontSize:'10px', color:'#64748b', marginTop:'2px'} }, `Pos ${Math.round(el.xPct||el.x||50)}%,${Math.round(el.yPct||el.y||50)}% • Scale ${el.scale||1} • Rotate ${el.rotation||0}°`));
+      if(el.type==='image') return h('div', { style:{fontSize:'11px', color:'#334155', padding:'4px 8px', background:'#fff', border:'1px solid #e2e8f0', borderRadius:'6px', marginTop:'4px'} },
+        h('span', { style:{fontWeight:'700'} }, 'Image — Uploaded design'), h('span', { style:{marginLeft:'6px', color:'#64748b'} }, `Size ${el.width||110}px`),
+        h('div', { style:{fontSize:'10px', color:'#64748b', marginTop:'2px'} }, `Pos ${Math.round(el.xPct||50)}%,${Math.round(el.yPct||50)}% • Scale ${el.scale||1} • Rotate ${el.rotation||0}°`));
+      return h('div', { style:{fontSize:'11px'} }, JSON.stringify(el).slice(0,60));
+    };
+    const sec = (label, els)=> els.length ? h('div', { style:{marginTop:'6px'} }, h('div', { style:{fontWeight:'700', fontSize:'11px', color:'#0f172a'} }, label), ...els.map(fmtEl)) : null;
+    return h('div', { style:{marginTop:'8px', padding:'8px', background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:'8px'} },
+      h('div', { style:{fontWeight:'800', fontSize:'11px', letterSpacing:'0.05em', color:'#0f172a'} }, 'Customization Details'),
+      ...rows,
+      sec('Front:', front),
+      sec('Back:', back),
+      (!front.length && !back.length) ? h('div', { style:{fontSize:'11px', color:'#64748b', marginTop:'4px'} }, 'No elements') : null
+    );
+  }
   function cartRow(it, module) {
     const variantLabel = it.variant ? `${it.variant.color || ''} · ${it.variant.size || ''} ${it.variant.fit ? '· ' + it.variant.fit : ''}`.replace(/^ · | · $/g, '').trim() : '';
     const isCustom = !!it.isCustom || !!it.customization;
-    const customPreview = isCustom ? h('div', { class: 'muted text-xs', style: { marginTop: '4px', padding: '6px 8px', background: 'var(--ink-50)', borderRadius: '6px' } },
-      h('div', { class: 'fw-600', style: { color: 'var(--ink-800)' } }, 'Custom design'),
-      it.customization ? h('div', {}, `${(it.customization.front?.elements?.length || 0)} front · ${(it.customization.back?.elements?.length || 0)} back`) : null,
-      h('a', { href: '#/customize', class: 'text-xs', style: { color: 'var(--ink-900)', textDecoration: 'underline' } }, 'Edit design')
+    const editHref = isCustom ? `#/custom/${it.slug}?editCart=${it.productId}` : '#/customize';
+    const detailsToggle = isCustom ? h('details', { style:{marginTop:'6px'} },
+      h('summary', { style:{fontSize:'11px', fontWeight:'700', color:'#1e40af', cursor:'pointer', listStyle:'none'} }, 'Customization Details ▼'),
+      formatCustomDetails(it.customization, it.variant)
+    ) : null;
+    const customPreview = isCustom ? h('div', { style:{marginTop:'4px'} },
+      h('div', { style:{display:'inline-flex', gap:'6px', alignItems:'center', background:'#fffbeb', border:'1px solid #fde68a', padding:'4px 8px', borderRadius:'999px', fontSize:'10px', fontWeight:'700', color:'#92400e'} }, '✦ Custom T-Shirt'),
+      h('div', { class:'muted text-xs', style:{marginTop:'4px'} }, `${(it.customization?.front?.elements?.length||0)} front · ${(it.customization?.back?.elements?.length||0)} back`),
+      h('a', { href: editHref, class:'text-xs', style:{color:'#0f172a', fontWeight:'700', textDecoration:'underline', marginLeft:'8px'} }, 'Edit design'),
+      detailsToggle
     ) : null;
 
     const qty = h('input', { class: 'input', type: 'number', min: '1', value: String(it.quantity), style: { width: '64px' } });
@@ -119,8 +164,10 @@ function renderGuest(root) {
   }
 
   function guestRow(it) {
-    const variantLabel = it.variant ? `${it.variant.color || ''} · ${it.variant.size || ''}`.trim() : '';
+    const variantLabel = it.variant ? `${it.variant.color || ''} · ${it.variant.size || ''} ${it.variant.fit ? '· '+it.variant.fit : ''}`.trim() : '';
     const isCustom = !!it.isCustom;
+    const editHref = isCustom ? `#/custom/${it.slug}?editGuest=${it.productId}` : '#/customize';
+    const detailsToggle = isCustom ? h('details', { style:{marginTop:'6px'} }, h('summary', { style:{fontSize:'11px', fontWeight:'700', color:'#1e40af', cursor:'pointer'} }, 'Customization Details ▼'), formatCustomDetails(it.customization, it.variant)) : null;
     const qty = h('input', { class: 'input', type: 'number', min: '1', value: String(it.quantity), style: { width: '64px' } });
     qty.addEventListener('change', () => { Store.setGuestQty(it.productId, Math.max(1, Number(qty.value) || 1)); render(); });
     return h('div', { class: 'card', style: { display: 'flex', gap: '16px', padding: '16px', alignItems: 'flex-start' } },
@@ -129,7 +176,7 @@ function renderGuest(root) {
       h('div', { class: 'grow' },
         h('a', { href: '#/product/' + it.slug, style: { fontWeight: '700', color: 'var(--ink-900)' } }, it.name),
         variantLabel ? h('div', { class: 'muted text-sm' }, variantLabel) : null,
-        isCustom ? h('div', { class: 'muted text-xs', style: { marginTop: '4px', padding: '6px 8px', background: 'var(--ink-50)', borderRadius: '6px' } }, 'Custom design') : null,
+        isCustom ? h('div', { style:{marginTop:'4px'} }, h('span', { style:{display:'inline-flex', gap:'6px', alignItems:'center', background:'#fffbeb', border:'1px solid #fde68a', padding:'4px 8px', borderRadius:'999px', fontSize:'10px', fontWeight:'700', color:'#92400e'} }, '✦ Custom T-Shirt'), h('span', { style:{marginLeft:'8px', fontSize:'11px', fontWeight:'700', color:'#0f172a', textDecoration:'underline'} }, h('a', { href:editHref, style:{color:'#0f172a'} }, 'Edit design')), detailsToggle) : null,
         h('div', { class: 'price', style: { marginTop: '8px', fontWeight: '700' } }, money(it.price))),
       h('div', { style: { display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' } },
         qty,

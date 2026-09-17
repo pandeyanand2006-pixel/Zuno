@@ -133,8 +133,46 @@ export async function Customize(ctx={}) {
   let selectedId = null;
   let designName = '';
   let editingDesignId = new URLSearchParams(location.hash.split('?')[1] || '').get('id') || null;
+  const editCartId = new URLSearchParams(location.hash.split('?')[1] || '').get('editCart');
+  const editGuestId = new URLSearchParams(location.hash.split('?')[1] || '').get('editGuest');
   // 3-step state — ZUNO custom flow (Pick → Finalise → Preview)
   let step = 1;
+  // If editing from My Bag, preload that cart item's customization
+  if (editCartId && Store.isAuthed()) {
+    try {
+      const sum = await api.get('/cart/summary').catch(()=>null);
+      const it = sum?.shop?.items?.find(x=> String(x.productId)===String(editCartId));
+      if (it) {
+        if (it.customization) {
+          const c = it.customization;
+          front = (c.front?.elements||[]).map(toPct);
+          back = (c.back?.elements||[]).map(toPct);
+        }
+        color = it.variant?.color || color;
+        size = it.variant?.size || size;
+        fit = it.variant?.fit || fit;
+        const prod = products.find(p=> String(p.id)===String(it.productId) || String(p.slug)===String(it.slug));
+        if (prod) selectedProduct = prod;
+        step = 2;
+      }
+    } catch {}
+  } else if (editGuestId) {
+    try {
+      const guest = Store.getGuest().find(g=> String(g.productId)===String(editGuestId));
+      if (guest) {
+        if (guest.customization) {
+          front = (guest.customization.front?.elements||[]).map(toPct);
+          back = (guest.customization.back?.elements||[]).map(toPct);
+        }
+        color = guest.variant?.color || color;
+        size = guest.variant?.size || size;
+        fit = guest.variant?.fit || fit;
+        const prod = products.find(p=> String(p.id)===String(guest.productId));
+        if (prod) selectedProduct = prod;
+        step = 2;
+      }
+    } catch {}
+  }
 
   if (editingDesignId && Store.isAuthed()) {
     try {
